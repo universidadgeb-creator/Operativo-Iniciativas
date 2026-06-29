@@ -359,28 +359,13 @@
       </div>
     </div>
 
-    <!-- ===== HISTÓRICO Y PROSPECTOS ===== -->
-    <div class="section-divider">
-      <span class="divider-label">Histórico</span>
-      <span class="divider-line"></span>
-    </div>
-    <div class="section">
-      <div class="filters">
-        <input type="text" id="fHistoricoSearch" placeholder="buscar nombre…" style="width:200px;">
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Colaborador</th><th>Diagnóstico</th><th>Histórico</th></tr></thead>
-          <tbody id="historicoBody"></tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="section-divider">
+    <!-- ===== PROSPECTOS (colapsable) ===== -->
+    <div class="section-divider" style="cursor:pointer;" onclick="toggleSeccion('prospectoSection','prospectoToggle')">
       <span class="divider-label">Prospectos</span>
       <span class="divider-line"></span>
+      <span id="prospectoToggle" style="font-size:13px;color:var(--text-soft);font-weight:600;">▸ mostrar</span>
     </div>
-    <div class="section">
+    <div class="section" id="prospectoSection" style="display:none;">
       <div class="filters">
         <input type="text" id="fProspectoSearch" placeholder="buscar nombre…" style="width:200px;">
       </div>
@@ -502,14 +487,15 @@
       </div>
     </div>
 
-    <!-- HISTORIAL: ASISTENCIAS -->
-    <div class="section-divider">
+    <!-- HISTORIAL: ASISTENCIAS (colapsable) -->
+    <div class="section-divider" style="cursor:pointer;" onclick="toggleSeccion('asistSection','asistToggle')">
       <span class="divider-label">Historial de asistencias</span>
       <span class="divider-line"></span>
+      <span id="asistToggle" style="font-size:13px;color:var(--text-soft);font-weight:600;">▸ mostrar</span>
     </div>
-    <div class="section">
+    <div class="section" id="asistSection" style="display:none;">
       <div class="filters">
-        <input type="text" id="fAsistSearch" placeholder="buscar nombre…" style="width:200px;">
+        <input type="text" id="fAsistSearch" placeholder="buscar nombre o tema…" style="width:200px;">
       </div>
       <div class="table-wrap">
         <table>
@@ -519,12 +505,13 @@
       </div>
     </div>
 
-    <!-- HISTORIAL: EXÁMENES -->
-    <div class="section-divider">
+    <!-- HISTORIAL: EXÁMENES (colapsable) -->
+    <div class="section-divider" style="cursor:pointer;" onclick="toggleSeccion('examSection','examToggle')">
       <span class="divider-label">Historial de exámenes</span>
       <span class="divider-line"></span>
+      <span id="examToggle" style="font-size:13px;color:var(--text-soft);font-weight:600;">▸ mostrar</span>
     </div>
-    <div class="section">
+    <div class="section" id="examSection" style="display:none;">
       <div class="filters">
         <input type="text" id="fExamSearch" placeholder="buscar nombre…" style="width:200px;">
         <select id="fExamResultado">
@@ -1143,28 +1130,16 @@ function abrirCopyDirecto(nombreEnc, momentoEnc){
    ============================================================ */
 var CONCENTRADO_DATA = [];
 
-function renderHistorico(filtered){
-  var body = document.getElementById("historicoBody");
-  var rows = filtered.filter(function(d){ return d.historico; });
-  if(rows.length === 0){
-    body.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:24px;color:var(--text-soft);">Sin datos históricos</td></tr>';
-    return;
+function toggleSeccion(sectionId, toggleId){
+  var sec = document.getElementById(sectionId);
+  var tog = document.getElementById(toggleId);
+  if(sec.style.display === "none"){
+    sec.style.display = "block";
+    tog.textContent = "▾ ocultar";
+  } else {
+    sec.style.display = "none";
+    tog.textContent = "▸ mostrar";
   }
-  body.innerHTML = rows.map(function(d){
-    return '<tr>'
-      + '<td style="font-weight:600;">'+(d.nombre||"—")+'</td>'
-      + '<td>'+(d.diag||"—")+'</td>'
-      + '<td>'+(d.historico||"—")+'</td>'
-      + '</tr>';
-  }).join("");
-}
-
-function applyHistoricoFilters(){
-  var q = document.getElementById("fHistoricoSearch").value.trim().toLowerCase();
-  var filtered = CONCENTRADO_DATA.filter(function(d){
-    return !q || (d.nombre||"").toLowerCase().indexOf(q) >= 0;
-  });
-  renderHistorico(filtered);
 }
 
 function renderProspectos(filtered){
@@ -1434,7 +1409,25 @@ async function init(){
     renderMetrics();
     renderStats(concentrado);
     CONCENTRADO_DATA = concentrado;
-    renderHistorico(concentrado);
+
+    // Inyectar históricos del Concentrado como inscritos inactivos INEA
+    concentrado.forEach(function(d){
+      if(!d.historico) return;
+      var yaExiste = INSCRITOS.some(function(ins){ return ins.Nombre === d.nombre; });
+      if(yaExiste) return;
+      INSCRITOS.push({
+        Nombre: d.nombre || "",
+        Sucursal: "",
+        Telefono_WA: "",
+        Diagnostico_Edu: d.diag || "",
+        Modalidad: "INEA",
+        Nivel: "",
+        Estado: "Inactivo",
+        Fecha_Inscripcion: "",
+        Requiere_Seguimiento: "No"
+      });
+    });
+
     renderProspectos(concentrado);
     renderCards("ineaGrid", "INEA");
     renderCards("uvlGrid",  "UVL");
@@ -1451,7 +1444,6 @@ async function init(){
     document.getElementById("fAsistSearch").addEventListener("input", applyAsistFilters);
     document.getElementById("fExamSearch").addEventListener("input", applyExamFilters);
     document.getElementById("fExamResultado").addEventListener("change", applyExamFilters);
-    document.getElementById("fHistoricoSearch").addEventListener("input", applyHistoricoFilters);
     document.getElementById("fProspectoSearch").addEventListener("input", applyProspectoFilters);
 
   } catch(err){

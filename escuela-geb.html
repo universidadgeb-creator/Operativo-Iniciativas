@@ -359,6 +359,39 @@
       </div>
     </div>
 
+    <!-- ===== HISTÓRICO Y PROSPECTOS ===== -->
+    <div class="section-divider">
+      <span class="divider-label">Histórico</span>
+      <span class="divider-line"></span>
+    </div>
+    <div class="section">
+      <div class="filters">
+        <input type="text" id="fHistoricoSearch" placeholder="buscar nombre…" style="width:200px;">
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Colaborador</th><th>Diagnóstico</th><th>Histórico</th></tr></thead>
+          <tbody id="historicoBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section-divider">
+      <span class="divider-label">Prospectos</span>
+      <span class="divider-line"></span>
+    </div>
+    <div class="section">
+      <div class="filters">
+        <input type="text" id="fProspectoSearch" placeholder="buscar nombre…" style="width:200px;">
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Colaborador</th><th>Diagnóstico</th><th>Dato 1</th><th>Dato 2</th></tr></thead>
+          <tbody id="prospectoBody"></tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- ===== SECCIÓN INEA ===== -->
     <div class="section-divider">
       <span class="divider-label">Modalidad INEA</span>
@@ -480,7 +513,7 @@
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Colaborador</th><th>Fecha clase</th><th>Tema</th><th>¿Asistió?</th><th>Notas</th></tr></thead>
+          <thead><tr><th>Fecha clase</th><th>Tema</th><th>Asistentes</th><th>Notas</th></tr></thead>
           <tbody id="asistBody"></tbody>
         </table>
       </div>
@@ -636,6 +669,9 @@ async function fetchConcentrado(){
         nombre:   get(0),   // A — Nombre
         fechaNac: get(5),   // F — Fecha nacimiento
         diag:     get(15),  // P — Diagnóstico educativo
+        historico: get(16), // Q — Histórico Escuela GEB
+        prospecto1: get(17),// R — Prospecto dato 1
+        prospecto2: get(18),// S — Prospecto dato 2
       };
     });
 }
@@ -1102,23 +1138,72 @@ function abrirCopyDirecto(nombreEnc, momentoEnc){
 /* ============================================================
    RENDER: HISTORIAL ASISTENCIAS
    ============================================================ */
+/* ============================================================
+   RENDER: HISTÓRICO Y PROSPECTOS (desde Concentrado)
+   ============================================================ */
+var CONCENTRADO_DATA = [];
+
+function renderHistorico(filtered){
+  var body = document.getElementById("historicoBody");
+  var rows = filtered.filter(function(d){ return d.historico; });
+  if(rows.length === 0){
+    body.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:24px;color:var(--text-soft);">Sin datos históricos</td></tr>';
+    return;
+  }
+  body.innerHTML = rows.map(function(d){
+    return '<tr>'
+      + '<td style="font-weight:600;">'+(d.nombre||"—")+'</td>'
+      + '<td>'+(d.diag||"—")+'</td>'
+      + '<td>'+(d.historico||"—")+'</td>'
+      + '</tr>';
+  }).join("");
+}
+
+function applyHistoricoFilters(){
+  var q = document.getElementById("fHistoricoSearch").value.trim().toLowerCase();
+  var filtered = CONCENTRADO_DATA.filter(function(d){
+    return !q || (d.nombre||"").toLowerCase().indexOf(q) >= 0;
+  });
+  renderHistorico(filtered);
+}
+
+function renderProspectos(filtered){
+  var body = document.getElementById("prospectoBody");
+  var rows = filtered.filter(function(d){ return d.prospecto1 || d.prospecto2; });
+  if(rows.length === 0){
+    body.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--text-soft);">Sin prospectos</td></tr>';
+    return;
+  }
+  body.innerHTML = rows.map(function(d){
+    return '<tr>'
+      + '<td style="font-weight:600;">'+(d.nombre||"—")+'</td>'
+      + '<td>'+(d.diag||"—")+'</td>'
+      + '<td>'+(d.prospecto1||"—")+'</td>'
+      + '<td>'+(d.prospecto2||"—")+'</td>'
+      + '</tr>';
+  }).join("");
+}
+
+function applyProspectoFilters(){
+  var q = document.getElementById("fProspectoSearch").value.trim().toLowerCase();
+  var filtered = CONCENTRADO_DATA.filter(function(d){
+    return !q || (d.nombre||"").toLowerCase().indexOf(q) >= 0;
+  });
+  renderProspectos(filtered);
+}
+
 function renderAsistencias(filtered){
   var body = document.getElementById("asistBody");
   if(!filtered || filtered.length === 0){
-    body.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--text-soft);">Sin registros de asistencia</td></tr>';
+    body.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--text-soft);">Sin registros de asistencia</td></tr>';
     return;
   }
   var html = "";
   filtered.forEach(function(a){
-    var asist = (a.Asistio||"").toLowerCase();
-    var pill = (asist === "sí" || asist === "si")
-      ? '<span class="pill activo">Sí</span>'
-      : '<span class="pill inactivo">'+(a.Asistio||"—")+'</span>';
     html += '<tr>'
-      + '<td style="font-weight:600;">'+a.Nombre+'</td>'
       + '<td>'+(a.Fecha_Clase||"—")+'</td>'
       + '<td>'+(a.Tema||"—")+'</td>'
-      + '<td>'+pill+'</td>'
+      + '<td style="font-size:12px;">'+(a.Asistentes||"—").replace(/,/g, ", ")+'</td>'
       + '<td style="font-size:12px;color:var(--text-soft);">'+(a.Notas||"")+'</td>'
       + '</tr>';
   });
@@ -1128,7 +1213,8 @@ function renderAsistencias(filtered){
 function applyAsistFilters(){
   var q = document.getElementById("fAsistSearch").value.trim().toLowerCase();
   var filtered = ASISTENCIAS.filter(function(a){
-    return !q || (a.Nombre||"").toLowerCase().indexOf(q) >= 0;
+    return !q || (a.Asistentes||"").toLowerCase().indexOf(q) >= 0
+      || (a.Tema||"").toLowerCase().indexOf(q) >= 0;
   });
   renderAsistencias(filtered);
 }
@@ -1347,6 +1433,9 @@ async function init(){
 
     renderMetrics();
     renderStats(concentrado);
+    CONCENTRADO_DATA = concentrado;
+    renderHistorico(concentrado);
+    renderProspectos(concentrado);
     renderCards("ineaGrid", "INEA");
     renderCards("uvlGrid",  "UVL");
     applyFilters();
@@ -1362,6 +1451,8 @@ async function init(){
     document.getElementById("fAsistSearch").addEventListener("input", applyAsistFilters);
     document.getElementById("fExamSearch").addEventListener("input", applyExamFilters);
     document.getElementById("fExamResultado").addEventListener("change", applyExamFilters);
+    document.getElementById("fHistoricoSearch").addEventListener("input", applyHistoricoFilters);
+    document.getElementById("fProspectoSearch").addEventListener("input", applyProspectoFilters);
 
   } catch(err){
     console.error("❌ ERROR en init:", err.message, err.stack);

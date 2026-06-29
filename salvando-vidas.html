@@ -476,10 +476,24 @@ function sustituirVariables(texto, d){
 /* ============================================================
    LÓGICA DE NEGOCIO
    ============================================================ */
+function esSi(val){
+  var v = (val||"").trim().toLowerCase();
+  return v === "sí" || v === "si";
+}
+
+function getHistorialDonador(historial, nombre){
+  var norm = (nombre||"").trim().toLowerCase();
+  return historial.filter(function(h){ return (h.Nombre||"").trim().toLowerCase() === norm; });
+}
+
 function getUltimoRegistroHistorial(historial, nombre){
-  const regs = historial.filter(h => h.Nombre === nombre);
+  var regs = getHistorialDonador(historial, nombre);
   if(regs.length === 0) return null;
   return regs[regs.length - 1];
+}
+
+function donadorHaDonado(historial, nombre){
+  return getHistorialDonador(historial, nombre).some(function(h){ return esSi(h.Dono); });
 }
 
 function getMomentosDisponibles(d, historial){
@@ -503,9 +517,10 @@ function getMomentosDisponibles(d, historial){
     momentos.push("Guardias del mes");
   }
 
-  var ultimo = getUltimoRegistroHistorial(historial, d.Nombre);
-  if(ultimo && ultimo.Dono === "Sí"){
-    if(ultimo.Talon_Recibido === "Pendiente" || !ultimo.Talon_Recibido){
+  if(donadorHaDonado(historial, d.Nombre)){
+    var ultimo = getUltimoRegistroHistorial(historial, d.Nombre);
+    var talon = (ultimo.Talon_Recibido||"").trim().toLowerCase();
+    if(talon === "pendiente" || !talon || talon === "no"){
       momentos.push("Solicitud de talón");
     }
     momentos.push("Agradecimiento");

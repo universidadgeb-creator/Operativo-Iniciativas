@@ -496,16 +496,22 @@ function getMomentosDisponibles(d, historial){
     return ["Sin mes asignado"];
   }
 
-  const ultimo = getUltimoRegistroHistorial(historial, d.Nombre);
-  if(ultimo && (ultimo.Dono === "Sí") && (ultimo.Talon_Recibido === "Pendiente")){
-    return ["Solicitud de talón", "Agradecimiento"];
-  }
-
+  var momentos = [];
   if((d.Mes_Guardia || "").toLowerCase() === MES_ACTUAL){
-    return ["Guardias del mes", "Llamado a donar"];
+    momentos.push("Guardias del mes", "Llamado a donar");
+  } else {
+    momentos.push("Guardias del mes");
   }
 
-  return ["Guardias del mes"];
+  var ultimo = getUltimoRegistroHistorial(historial, d.Nombre);
+  if(ultimo && ultimo.Dono === "Sí"){
+    if(ultimo.Talon_Recibido === "Pendiente" || !ultimo.Talon_Recibido){
+      momentos.push("Solicitud de talón");
+    }
+    momentos.push("Agradecimiento");
+  }
+
+  return momentos;
 }
 
 /* ============================================================

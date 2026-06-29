@@ -487,22 +487,14 @@
       </div>
     </div>
 
-    <!-- HISTORIAL: ASISTENCIAS (colapsable) -->
+    <!-- HISTORIAL: ASISTENCIAS (visual, colapsable) -->
     <div class="section-divider" style="cursor:pointer;" onclick="toggleSeccion('asistSection','asistToggle')">
-      <span class="divider-label">Historial de asistencias</span>
+      <span class="divider-label">Asistencias por clase</span>
       <span class="divider-line"></span>
       <span id="asistToggle" style="font-size:13px;color:var(--text-soft);font-weight:600;">▸ mostrar</span>
     </div>
     <div class="section" id="asistSection" style="display:none;">
-      <div class="filters">
-        <input type="text" id="fAsistSearch" placeholder="buscar nombre o tema…" style="width:200px;">
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Colaborador</th><th>Fecha clase</th><th>Tema</th><th>¿Asistió?</th><th>Notas</th></tr></thead>
-          <tbody id="asistBody"></tbody>
-        </table>
-      </div>
+      <div id="asistVisual"></div>
     </div>
 
     <!-- HISTORIAL: EXÁMENES (colapsable) -->
@@ -1167,36 +1159,76 @@ function applyProspectoFilters(){
   renderProspectos(filtered);
 }
 
-function renderAsistencias(filtered){
-  var body = document.getElementById("asistBody");
-  if(!filtered || filtered.length === 0){
-    body.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--text-soft);">Sin registros de asistencia</td></tr>';
+function renderAsistenciasVisual(){
+  var container = document.getElementById("asistVisual");
+  if(!ASISTENCIAS || ASISTENCIAS.length === 0){
+    container.innerHTML = '<div style="padding:24px;color:var(--text-soft);text-align:center;">Sin registros de asistencia</div>';
     return;
   }
-  var html = "";
-  filtered.forEach(function(a){
+  // Agrupar por Fecha_Clase + Tema
+  var clases = [];
+  var claseMap = {};
+  ASISTENCIAS.forEach(function(a){
+    var key = (a.Fecha_Clase||"") + "||" + (a.Tema||"");
+    if(!claseMap[key]){
+      claseMap[key] = { fecha: a.Fecha_Clase||"—", tema: a.Tema||"—", notas: a.Notas||"", asistieron: [], faltaron: [] };
+      clases.push(claseMap[key]);
+    }
     var asist = (a.Asistio||"").toLowerCase();
-    var pill = (asist === "sí" || asist === "si")
-      ? '<span class="pill activo">Sí</span>'
-      : '<span class="pill inactivo">'+(a.Asistio||"—")+'</span>';
-    html += '<tr>'
-      + '<td style="font-weight:600;">'+a.Nombre+'</td>'
-      + '<td>'+(a.Fecha_Clase||"—")+'</td>'
-      + '<td>'+(a.Tema||"—")+'</td>'
-      + '<td>'+pill+'</td>'
-      + '<td style="font-size:12px;color:var(--text-soft);">'+(a.Notas||"")+'</td>'
-      + '</tr>';
+    if(asist === "sí" || asist === "si"){
+      claseMap[key].asistieron.push(a.Nombre);
+    } else {
+      claseMap[key].faltaron.push(a.Nombre);
+    }
   });
-  body.innerHTML = html;
-}
 
-function applyAsistFilters(){
-  var q = document.getElementById("fAsistSearch").value.trim().toLowerCase();
-  var filtered = ASISTENCIAS.filter(function(a){
-    return !q || (a.Nombre||"").toLowerCase().indexOf(q) >= 0
-      || (a.Tema||"").toLowerCase().indexOf(q) >= 0;
-  });
-  renderAsistencias(filtered);
+  // Obtener nombres de todos los inscritos INEA activos para detectar faltantes
+  var activosINEA = INSCRITOS.filter(function(d){
+    return (d.Modalidad||"").toUpperCase() === "INEA" && (d.Estado||"").toLowerCase() === "activo";
+  }).map(function(d){ return d.Nombre; });
+
+  container.innerHTML = clases.map(function(c){
+    // Faltantes = activos INEA que no están en asistieron ni en faltaron registrados
+    var registrados = {};
+    c.asistieron.concat(c.faltaron).forEach(function(n){ registrados[n] = true; });
+    var noRegistrados = activosINEA.filter(function(n){ return !registrados[n]; });
+    var todosAusentes = c.faltaron.concat(noRegistrados);
+
+    var totalAsist = c.asistieron.length;
+    var totalFalta = todosAusentes.length;
+    var total = totalAsist + totalFalta;
+    var pctAsist = total > 0 ? Math.round(totalAsist / total * 100) : 0;
+
+    var pillsAsist = c.asistieron.map(function(n){
+      return '<span class="pill activo" style="margin:2px;">'+n.split(" ")[0]+'</span>';
+    }).join("");
+    var pillsFalta = todosAusentes.map(function(n){
+      return '<span class="pill baja" style="margin:2px;">'+n.split(" ")[0]+'</span>';
+    }).join("");
+
+    return '<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px;">'
+      + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">'
+      + '<div>'
+      + '<div style="font-weight:600;font-size:14px;color:var(--blue);">'+c.tema+'</div>'
+      + '<div style="font-size:12px;color:var(--text-soft);">'+c.fecha+'</div>'
+      + '</div>'
+      + '<div style="display:flex;align-items:center;gap:10px;">'
+      + '<div style="font-size:22px;font-weight:700;color:var(--blue);">'+pctAsist+'%</div>'
+      + '<div style="font-size:11px;color:var(--text-soft);">asistencia</div>'
+      + '</div>'
+      + '</div>'
+      + '<div style="height:8px;border-radius:99px;background:var(--red-bg);overflow:hidden;margin-bottom:12px;">'
+      + '<div style="width:'+pctAsist+'%;height:100%;background:var(--green-text);border-radius:99px;"></div>'
+      + '</div>'
+      + '<div style="margin-bottom:6px;"><span style="font-size:11px;font-weight:600;color:var(--green-text);">✓ Asistieron ('+totalAsist+')</span></div>'
+      + '<div style="margin-bottom:10px;">'+( pillsAsist || '<span style="font-size:12px;color:var(--text-soft);">—</span>')+'</div>'
+      + (todosAusentes.length > 0
+        ? '<div style="margin-bottom:6px;"><span style="font-size:11px;font-weight:600;color:var(--red-text);">✗ Faltaron ('+totalFalta+')</span></div>'
+          + '<div>'+pillsFalta+'</div>'
+        : '')
+      + (c.notas ? '<div style="margin-top:8px;font-size:11px;color:var(--text-soft);border-top:1px solid var(--border);padding-top:8px;">'+c.notas+'</div>' : '')
+      + '</div>';
+  }).join("");
 }
 
 /* ============================================================
@@ -1450,9 +1482,8 @@ async function init(){
     document.getElementById("fEstado").addEventListener("change", applyFilters);
     document.getElementById("fSeguimiento").addEventListener("change", applyFilters);
 
-    renderAsistencias(ASISTENCIAS);
+    renderAsistenciasVisual();
     renderExamenes(EXAMENES);
-    document.getElementById("fAsistSearch").addEventListener("input", applyAsistFilters);
     document.getElementById("fExamSearch").addEventListener("input", applyExamFilters);
     document.getElementById("fExamResultado").addEventListener("change", applyExamFilters);
     document.getElementById("fProspectoSearch").addEventListener("input", applyProspectoFilters);

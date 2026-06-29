@@ -499,7 +499,7 @@
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Fecha clase</th><th>Tema</th><th>Asistentes</th><th>Notas</th></tr></thead>
+          <thead><tr><th>Colaborador</th><th>Fecha clase</th><th>Tema</th><th>¿Asistió?</th><th>Notas</th></tr></thead>
           <tbody id="asistBody"></tbody>
         </table>
       </div>
@@ -560,10 +560,10 @@ const SCHEMA = {
     "Requiere_Seguimiento" // I (8)
   ],
   EG_Asistencias: [
-    "Timestamp",    // A (0) — Google Forms lo agrega automático
+    "Nombre",       // A (0)
     "Fecha_Clase",  // B (1)
     "Tema",         // C (2)
-    "Asistentes",   // D (3) — nombres concatenados por coma
+    "Asistio",      // D (3)
     "Notas"         // E (4)
   ],
   EG_Examenes: [
@@ -1170,15 +1170,20 @@ function applyProspectoFilters(){
 function renderAsistencias(filtered){
   var body = document.getElementById("asistBody");
   if(!filtered || filtered.length === 0){
-    body.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--text-soft);">Sin registros de asistencia</td></tr>';
+    body.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--text-soft);">Sin registros de asistencia</td></tr>';
     return;
   }
   var html = "";
   filtered.forEach(function(a){
+    var asist = (a.Asistio||"").toLowerCase();
+    var pill = (asist === "sí" || asist === "si")
+      ? '<span class="pill activo">Sí</span>'
+      : '<span class="pill inactivo">'+(a.Asistio||"—")+'</span>';
     html += '<tr>'
+      + '<td style="font-weight:600;">'+a.Nombre+'</td>'
       + '<td>'+(a.Fecha_Clase||"—")+'</td>'
       + '<td>'+(a.Tema||"—")+'</td>'
-      + '<td style="font-size:12px;">'+(a.Asistentes||"—").replace(/,/g, ", ")+'</td>'
+      + '<td>'+pill+'</td>'
       + '<td style="font-size:12px;color:var(--text-soft);">'+(a.Notas||"")+'</td>'
       + '</tr>';
   });
@@ -1188,7 +1193,7 @@ function renderAsistencias(filtered){
 function applyAsistFilters(){
   var q = document.getElementById("fAsistSearch").value.trim().toLowerCase();
   var filtered = ASISTENCIAS.filter(function(a){
-    return !q || (a.Asistentes||"").toLowerCase().indexOf(q) >= 0
+    return !q || (a.Nombre||"").toLowerCase().indexOf(q) >= 0
       || (a.Tema||"").toLowerCase().indexOf(q) >= 0;
   });
   renderAsistencias(filtered);

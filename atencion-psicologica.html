@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Atención Psicológica — GEB Iniciativas Humanas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#0B2545;--gold:#C49B4C;--bg:#F7F5F0;--card:#FFFFFF;
+    --text:#1C2A3A;--text-soft:#5C6B7A;--border:#E3E1D9;
+    --green-bg:#EAF3DE;--green-text:#3B6D11;
+    --amber-bg:#FAEEDA;--amber-text:#854F0B;
+    --gray-bg:#F1EFE8;--gray-text:#5F5E5A;
+    --red-bg:#FCEBEB;--red-text:#A32D2D;
+    --blue-bg:#E6F1FB;--blue-text:#185FA5;
+    --purple-bg:#EEEDFE;--purple-text:#3C3489;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);}
+  .wrap{max-width:1180px;margin:0 auto;padding:24px 20px 60px;}
+  .topbar{background:var(--blue);color:#fff;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;}
+  .topbar .brand{display:flex;align-items:center;gap:10px;}
+  .topbar .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--gold);}
+  .topbar .brand-text{font-family:'Cormorant Garamond',serif;font-size:19px;font-weight:600;letter-spacing:.01em;}
+  .topbar .meta{font-size:12px;color:#C9D3DF;}
+  .back-link{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:500;color:var(--text-soft);text-decoration:none;margin-bottom:14px;}
+  .back-link:hover{color:var(--blue);}
+  header.page-header{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:28px;flex-wrap:wrap;gap:10px;border-bottom:2px solid var(--gold);padding-bottom:16px;}
+  header.page-header h1{font-family:'Cormorant Garamond',serif;font-size:34px;font-weight:600;color:var(--blue);}
+  header.page-header .sub{color:var(--text-soft);font-size:13px;}
+  .metric-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:28px;}
+  .metric{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;}
+  .metric.alert{background:var(--red-bg);border-color:#f0c7c7;}
+  .metric .val{font-size:26px;font-weight:700;color:var(--blue);line-height:1.1;}
+  .metric.alert .val{color:var(--red-text);}
+  .metric .lbl{font-size:12px;color:var(--text-soft);margin-top:4px;}
+  .metric.alert .lbl{color:var(--red-text);}
+  .section{margin-bottom:30px;}
+  .section-title{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:600;color:var(--blue);margin-bottom:12px;}
+  .section-divider{display:flex;align-items:center;gap:12px;margin:28px 0 20px;}
+  .section-divider .divider-label{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;color:var(--blue);white-space:nowrap;}
+  .section-divider .divider-line{flex:1;height:1px;background:var(--border);}
+  .guardia-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;}
+  .gcard{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;}
+  .gcard.seguimiento{border-color:var(--gold);background:#FFFBF1;}
+  .gcard-head{display:flex;align-items:flex-start;gap:10px;margin-bottom:10px;}
+  .avatar{width:36px;height:36px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;}
+  .avatar.ela{background:var(--purple-bg);color:var(--purple-text);}
+  .avatar.i43{background:var(--blue-bg);color:var(--blue-text);}
+  .gname{font-weight:600;font-size:14px;color:var(--text);}
+  .gsuc{font-size:12px;color:var(--text-soft);}
+  .pill{display:inline-block;font-size:11px;font-weight:600;padding:2px 9px;border-radius:99px;margin-right:4px;margin-bottom:6px;}
+  .pill.activo{background:var(--green-bg);color:var(--green-text);}
+  .pill.espera{background:var(--amber-bg);color:var(--amber-text);}
+  .pill.pendiente{background:var(--red-bg);color:var(--red-text);}
+  .pill.completo{background:var(--blue-bg);color:var(--blue-text);}
+  .pill.historico{background:var(--gray-bg);color:var(--gray-text);}
+  .pill.contactado{background:var(--purple-bg);color:var(--purple-text);}
+  .pill.seguimiento-tag{background:var(--amber-bg);color:var(--amber-text);}
+  .pill.urg-alta{background:var(--red-bg);color:var(--red-text);}
+  .pill.urg-media{background:var(--amber-bg);color:var(--amber-text);}
+  .pill.urg-baja{background:var(--gray-bg);color:var(--gray-text);}
+  .pill.modalidad{background:var(--purple-bg);color:var(--purple-text);}
+  .progress-bar{height:8px;border-radius:99px;background:var(--bg);overflow:hidden;margin:8px 0;}
+  .progress-bar .fill{height:100%;border-radius:99px;background:var(--purple-text);}
+  .progress-label{font-size:11px;color:var(--text-soft);margin-bottom:6px;}
+  .gactions{display:flex;flex-direction:column;gap:6px;margin-top:8px;}
+  .wa-btn{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;color:var(--text-soft);background:#F4F3EE;border:1px solid var(--border);border-radius:8px;padding:7px 10px;cursor:pointer;text-align:left;transition:background .15s;}
+  .wa-btn:hover{background:#E9E7DF;}
+  .wa-btn .ic{color:#25D366;font-weight:700;}
+  .action-btn{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;border-radius:7px;padding:6px 10px;cursor:pointer;margin-top:4px;border:1px solid;}
+  .action-btn.reg{color:var(--blue);background:var(--blue-bg);border-color:#c5d9f0;}
+  .action-btn.reg:hover{background:#d4e5f7;}
+  .action-btn.cambio{color:var(--purple-text);background:var(--purple-bg);border-color:#c5c3f0;}
+  .action-btn.cambio:hover{background:#dddcfe;}
+  .atender-btn{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:var(--amber-text);background:var(--amber-bg);border:1px solid #f0d39a;border-radius:8px;padding:6px 10px;cursor:pointer;margin-top:4px;}
+  .atender-btn:hover{background:#f5e2bd;}
+  .filters{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
+  .filters input,.filters select{font-size:13px;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:inherit;}
+  .filters input{width:220px;}
+  .table-wrap{overflow-x:auto;background:var(--card);border:1px solid var(--border);border-radius:12px;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  thead th{text-align:left;font-size:11px;font-weight:700;color:var(--text-soft);padding:10px 12px;border-bottom:1px solid var(--border);white-space:nowrap;text-transform:uppercase;letter-spacing:.03em;}
+  tbody td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr.seguimiento-row{background:#FFFBF1;}
+  .name-cell{display:flex;align-items:center;gap:8px;}
+  .dot-new{width:7px;height:7px;border-radius:50%;background:var(--gold);flex-shrink:0;}
+  .expand-row td{padding:0 !important;}
+  .copy-panel{display:none;background:#FAF9F5;padding:16px 18px;border-top:1px dashed var(--border);}
+  .copy-panel.open{display:block;}
+  .copy-inner{display:grid;grid-template-columns:1fr auto;gap:18px;align-items:start;}
+  .copy-label{font-size:11px;font-weight:700;color:var(--text-soft);text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px;}
+  .copy-text{font-size:13.5px;line-height:1.6;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 14px;white-space:pre-wrap;}
+  .momento-title{font-size:14px;font-weight:600;color:var(--blue);margin-bottom:8px;}
+  .open-wa{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;padding:10px 18px;border-radius:8px;background:#25D366;color:#fff;text-decoration:none;white-space:nowrap;}
+  .open-wa:hover{background:#1fb958;}
+  .footnote{font-size:11.5px;color:var(--text-soft);display:flex;align-items:center;gap:6px;padding:12px 4px;}
+  .loading,.errorbox{text-align:center;padding:40px;color:var(--text-soft);font-size:14px;}
+  .errorbox{color:var(--red-text);}
+  /* modal overlay */
+  .modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(11,37,69,0.45);z-index:100;align-items:center;justify-content:center;}
+  .modal-overlay.open{display:flex;}
+  .modal-box{background:var(--card);border-radius:14px;padding:24px;max-width:420px;width:90%;box-shadow:0 12px 40px rgba(0,0,0,.15);}
+  .modal-title{font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:600;color:var(--blue);margin-bottom:14px;}
+  .modal-row{margin-bottom:10px;}
+  .modal-row label{display:block;font-size:11px;font-weight:600;color:var(--text-soft);margin-bottom:3px;}
+  .modal-row input,.modal-row select,.modal-row textarea{width:100%;font-size:12px;font-family:inherit;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);}
+  .modal-row textarea{resize:vertical;min-height:52px;}
+  .modal-actions{display:flex;gap:8px;margin-top:14px;}
+  .btn-primary{font-size:12px;font-weight:600;padding:8px 16px;border-radius:7px;background:var(--blue);color:#fff;border:none;cursor:pointer;}
+  .btn-primary:hover{background:#0d2f5e;}
+  .btn-primary:disabled{opacity:.5;cursor:not-allowed;}
+  .btn-cancel{font-size:12px;font-weight:500;padding:8px 14px;border-radius:7px;background:var(--bg);color:var(--text-soft);border:1px solid var(--border);cursor:pointer;}
+  .modal-msg{font-size:11.5px;margin-top:8px;padding:6px 10px;border-radius:6px;display:none;}
+  .modal-msg.ok{background:var(--green-bg);color:var(--green-text);display:block;}
+  .modal-msg.err{background:var(--red-bg);color:var(--red-text);display:block;}
+  /* i43 section bg */
+  .i43-section{background:#FAFAF7;border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:28px;}
+  @media(max-width:720px){.metric-grid{grid-template-columns:repeat(2,1fr);}.copy-inner{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><span class="dot"></span><span class="brand-text">GEB University — Iniciativas Humanas</span></div>
+  <div class="meta">Panel interno</div>
+</div>
+
+<div class="wrap">
+  <a href="index.html" class="back-link">← volver al panel general</a>
+  <header class="page-header">
+    <div>
+      <h1>Atención Psicológica</h1>
+      <div class="sub">GEB Iniciativas Humanas — Bienestar Integral</div>
+    </div>
+    <div class="sub" id="lastSync">cargando datos...</div>
+  </header>
+
+  <div id="loadingMsg" class="loading">Cargando datos desde Google Sheets…</div>
+  <div id="errorMsg" class="errorbox" style="display:none;"></div>
+
+  <div id="appContent" style="display:none;">
+
+    <!-- ═══════ SECCIÓN ELA ═══════ -->
+    <div class="section-divider">
+      <span class="divider-label">ELA — Escucha Libre y Acompañamiento</span>
+      <span class="divider-line"></span>
+      <span class="pill modalidad">Gratuito</span>
+    </div>
+
+    <!-- Journey ELA -->
+    <div class="section" style="margin-bottom:20px;">
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;overflow-x:auto;display:flex;justify-content:center;">
+        <svg viewBox="0 0 700 180" role="img" style="width:680px;max-width:100%;">
+          <defs><marker id="jarrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+          <rect x="10" y="60" width="72" height="36" rx="6" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.5"/>
+          <text font-family="DM Sans,sans-serif" font-size="9" font-weight="600" fill="#633806" x="46" y="74" text-anchor="middle" dominant-baseline="central">Lista de</text>
+          <text font-family="DM Sans,sans-serif" font-size="9" font-weight="600" fill="#633806" x="46" y="86" text-anchor="middle" dominant-baseline="central">espera</text>
+          <line x1="82" y1="78" x2="96" y2="78" stroke="#888780" stroke-width="1" marker-end="url(#jarrow)"/>
+          <rect x="96" y="60" width="72" height="36" rx="6" fill="#EAF3DE" stroke="#3B6D11" stroke-width="0.5"/>
+          <text font-family="DM Sans,sans-serif" font-size="9" font-weight="600" fill="#27500A" x="132" y="74" text-anchor="middle" dominant-baseline="central">Aceptación</text>
+          <text font-family="DM Sans,sans-serif" font-size="9" font-weight="600" fill="#27500A" x="132" y="86" text-anchor="middle" dominant-baseline="central">+ Agenda</text>
+          <line x1="168" y1="78" x2="182" y2="78" stroke="#888780" stroke-width="1" marker-end="url(#jarrow)"/>
+          <rect x="182" y="60" width="56" height="36" rx="6" fill="#EEEDFE" stroke="#3C3489" stroke-width="0.5"/>
+          <text font-family="DM Sans,sans-serif" font-size="10" font-weight="600" fill="#2A2370" x="210" y="78" text-anchor="middle" dominant-baseline="central">Sesión 1</text>
+          <line x1="238" y1="78" x2="252" y2="78" stroke="#888780" stroke-width="1" marker-end="url(#jarrow)"/>
+          <rect x="252" y="60" width="56" height="36" rx="6" fill="#EEEDFE" stroke="#3C3489" stroke-width="0.5"/>
+          <text font-family="DM Sans,sans-serif" font-size="10" font-weight="600" fill="#2A2370" x="280" y="78" text-anchor="middle" dominant-baseline="central">Sesión 2</text>
+          <line x1="308" y1="78" x2="322" y2="78" stroke="#888780" stroke-width="1" marker-end="url(#jarrow)"/>
+          <rect x="322" y="60" width="56" height="36" rx="6" fill="#EEEDFE" stroke="#3C3489" stroke-width="0.5"/>
+          <text font-family="DM Sans,sans-serif" font-size="10" font-weight="600" fill="#2A2370" x="350" y="78" text-anchor="middle" dominant-baseline="central">Sesión 3</text>
+          <line x1="378" y1="78" x2="392" y2="78" stroke="#888780" stroke-width="1" marker-end="url(#jarrow)"/>
+          <rect x="392" y="60" width="56" height="36" rx="6" fill="#EEEDFE" stroke="#3C3489" stroke-width="0.5"/>
+          <text font-family="DM Sans,sans-serif" font-size="10" font-weight="600" fill="#2A2370" x="420" y="78" text-anchor="middle" dominant-baseline="central">Sesión 4</text>
+          <line x1="448" y1="78" x2="462" y2="78" stroke="#888780" stroke-width="1" marker-end="url(#jarrow)"/>
+          <rect x="462" y="60" width="56" height="36" rx="6" fill="#EEEDFE" stroke="#3C3489" stroke-width="0.5"/>
+          <text font-family="DM Sans,sans-serif" font-size="10" font-weight="600" fill="#2A2370" x="490" y="78" text-anchor="middle" dominant-baseline="central">Sesión 5</text>
+          <line x1="518" y1="78" x2="532" y2="78" stroke="#888780" stroke-width="1" marker-end="url(#jarrow)"/>
+          <rect x="532" y="60" width="72" height="36" rx="6" fill="#EAF3DE" stroke="#3B6D11" stroke-width="0.5"/>
+          <text font-family="DM Sans,sans-serif" font-size="9" font-weight="600" fill="#27500A" x="568" y="74" text-anchor="middle" dominant-baseline="central">Cierre +</text>
+          <text font-family="DM Sans,sans-serif" font-size="9" font-weight="600" fill="#27500A" x="568" y="86" text-anchor="middle" dominant-baseline="central">Evaluación</text>
+          <line x1="604" y1="78" x2="618" y2="78" stroke="#888780" stroke-width="1" marker-end="url(#jarrow)"/>
+          <rect x="618" y="60" width="72" height="36" rx="6" fill="#0B2545" stroke="#0B2545" stroke-width="0.5"/>
+          <text font-family="DM Sans,sans-serif" font-size="10" font-weight="600" fill="#C49B4C" x="654" y="78" text-anchor="middle" dominant-baseline="central">Histórico</text>
+          <!-- loop WA estatus -->
+          <path d="M46 60 Q46 30 46 20 Q46 10 82 10 Q96 10 96 20" fill="none" stroke="#888780" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#jarrow)"/>
+          <text font-family="DM Sans,sans-serif" font-size="8" fill="#5F5E5A" x="71" y="7" text-anchor="middle">WA estatus c/15 días</text>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Métricas ELA -->
+    <div class="metric-grid" id="elaMetrics"></div>
+
+    <!-- En atención activa ELA -->
+    <div class="section">
+      <div class="section-title">En atención activa</div>
+      <div class="guardia-grid" id="elaActivosGrid"></div>
+    </div>
+
+    <!-- Lista de espera ELA -->
+    <div class="section">
+      <div class="section-title">Lista de espera</div>
+      <div class="guardia-grid" id="elaEsperaGrid"></div>
+    </div>
+
+    <!-- Tabla ELA -->
+    <div class="section-divider" style="cursor:pointer;" onclick="toggleSeccion('elaTablaSection','elaTablaToggle')">
+      <span class="divider-label">Todos los inscritos ELA</span>
+      <span class="divider-line"></span>
+      <span id="elaTablaToggle" style="font-size:13px;color:var(--text-soft);font-weight:600;">▸ mostrar</span>
+    </div>
+    <div class="section" id="elaTablaSection" style="display:none;">
+      <div class="filters">
+        <input type="text" id="fElaSearch" placeholder="buscar nombre…">
+        <select id="fElaEstado"><option value="">todos</option><option value="Lista de espera">Lista de espera</option><option value="Activo">Activo</option><option value="Sesión pendiente">Sesión pendiente</option><option value="Completó">Completó</option><option value="Histórico">Histórico</option></select>
+        <select id="fElaUrgencia"><option value="">urgencia</option><option value="Alta">Alta</option><option value="Media">Media</option><option value="Baja">Baja</option></select>
+      </div>
+      <div class="table-wrap">
+        <table><thead><tr><th>Colaborador</th><th>Sucursal</th><th>Urgencia</th><th>Modalidad</th><th>Progreso</th><th>Estado</th><th>Mensajes</th></tr></thead>
+        <tbody id="elaTablaBody"></tbody></table>
+      </div>
+    </div>
+
+    <!-- ═══════ SECCIÓN IMPULSO43 ═══════ -->
+    <div class="section-divider">
+      <span class="divider-label">Impulso43 — Clínica externa</span>
+      <span class="divider-line"></span>
+      <span class="pill modalidad">$350/sesión</span>
+    </div>
+
+    <div class="i43-section">
+      <div class="metric-grid" id="i43Metrics" style="margin-bottom:20px;"></div>
+      <div class="section">
+        <div class="section-title">Activos Impulso43</div>
+        <div class="guardia-grid" id="i43ActivosGrid"></div>
+      </div>
+      <div class="section-divider" style="cursor:pointer;" onclick="toggleSeccion('i43TablaSection','i43TablaToggle')">
+        <span class="divider-label">Todos Impulso43</span>
+        <span class="divider-line"></span>
+        <span id="i43TablaToggle" style="font-size:13px;color:var(--text-soft);font-weight:600;">▸ mostrar</span>
+      </div>
+      <div class="section" id="i43TablaSection" style="display:none;">
+        <div class="filters">
+          <input type="text" id="fI43Search" placeholder="buscar nombre…">
+          <select id="fI43Estado"><option value="">todos</option><option value="Contactado">Contactado</option><option value="En seguimiento">En seguimiento</option><option value="Completó">Completó</option><option value="Histórico">Histórico</option></select>
+        </div>
+        <div class="table-wrap">
+          <table><thead><tr><th>Colaborador</th><th>Sucursal</th><th>Sesiones</th><th>Estado</th><th>Mensajes</th></tr></thead>
+          <tbody id="i43TablaBody"></tbody></table>
+        </div>
+      </div>
+    </div>
+
+    <div class="footnote">📊 datos y copys desde Google Sheets · se actualizan al recargar la página</div>
+  </div>
+</div>
+
+<!-- MODALES -->
+<div class="modal-overlay" id="modalAsist">
+  <div class="modal-box">
+    <div class="modal-title" id="modalAsistTitle">Registrar asistencia</div>
+    <div class="modal-row"><label>¿Asistió?</label><select id="mAsistio"><option value="">— selecciona —</option><option value="Sí">Sí</option><option value="No">No</option></select></div>
+    <div class="modal-row"><label>Notas (opcional)</label><textarea id="mAsistNotas" placeholder="Observaciones"></textarea></div>
+    <input type="hidden" id="mAsistNombre"><input type="hidden" id="mAsistSesion">
+    <div class="modal-actions"><button class="btn-primary" id="mAsistSave" onclick="guardarAsistencia()">Guardar</button><button class="btn-cancel" onclick="cerrarModal('modalAsist')">Cancelar</button></div>
+    <div class="modal-msg" id="mAsistMsg"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalCambio">
+  <div class="modal-box">
+    <div class="modal-title" id="modalCambioTitle">Cambio de modalidad</div>
+    <div class="modal-row"><label>Nueva modalidad</label><select id="mCambioMod"><option value="">— selecciona —</option><option value="Presencial">Presencial</option><option value="Virtual">Virtual</option><option value="Híbrida">Híbrida</option></select></div>
+    <input type="hidden" id="mCambioNombre"><input type="hidden" id="mCambioSesion">
+    <div class="modal-actions"><button class="btn-primary" id="mCambioSave" onclick="guardarCambioModalidad()">Guardar</button><button class="btn-cancel" onclick="cerrarModal('modalCambio')">Cancelar</button></div>
+    <div class="modal-msg" id="mCambioMsg"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalI43">
+  <div class="modal-box">
+    <div class="modal-title" id="modalI43Title">Registrar sesiones Impulso43</div>
+    <div class="modal-row"><label>Sesiones tomadas</label><input type="number" id="mI43Sesiones" min="0" max="99"></div>
+    <input type="hidden" id="mI43Nombre">
+    <div class="modal-actions"><button class="btn-primary" id="mI43Save" onclick="guardarSesionesI43()">Guardar</button><button class="btn-cancel" onclick="cerrarModal('modalI43')">Cancelar</button></div>
+    <div class="modal-msg" id="mI43Msg"></div>
+  </div>
+</div>
+
+<script>
+var SHEET_ID = "1fS5qeoB1ViuCUP4HOQ1zTJgh4tfWUkObvb5LMr3to5A";
+var WEBAPP_URL = "https://script.google.com/macros/s/AKfycby8QmMkIKFlse1yIsIxJk6LjvBW8WYjNTf51f54KubtakiKkYhUOPZmYUN4S76JBF_YeQ/exec";
+var TABS = { inscritos:"AP_Inscritos", sesiones:"AP_Sesiones", copys:"AP_Copys" };
+var SCHEMA = {
+  AP_Inscritos:["Nombre","Sucursal","Telefono_WA","Modalidad_Servicio","Modalidad_Sesion","Urgencia","Fecha_Registro","Estado","Fecha_Inicio","Total_Sesiones","Sesiones_Tomadas","Requiere_Seguimiento","Notas"],
+  AP_Sesiones:["Nombre","Num_Sesion","Fecha_Programada","Hora_Programada","Modalidad","Asistio","Cambio_Modalidad","Notas_Sesion"],
+  AP_Copys:["Momento","Servicio","Copy_Texto","Numero_WA","Activo"]
+};
+var MAX_ELA = 8;
+
+function gvizUrl(t){ return "https://docs.google.com/spreadsheets/d/"+SHEET_ID+"/gviz/tq?tqx=out:json&sheet="+encodeURIComponent(t); }
+function formatTel(v){ if(!v)return""; var s=String(v).replace(/\.0$/,"").replace(/\D/g,""); if(s.length===10)return"+52"+s; if(s.length===12&&s.startsWith("52"))return"+"+s; return s; }
+
+function fetchTab(tabName){
+  return fetch(gvizUrl(tabName)).then(function(r){return r.text();}).then(function(text){
+    var json=JSON.parse(text.substring(text.indexOf('{'),text.lastIndexOf('}')+1));
+    var headers=SCHEMA[tabName];
+    return json.table.rows
+      .filter(function(r){return r&&r.c&&r.c.some(function(c){return c&&c.v!==null&&c.v!=="";});})
+      .filter(function(r){var fv=r.c&&r.c[0]?String(r.c[0].v||"").trim():""; return fv!=="Nombre"&&!fv.startsWith("#");})
+      .map(function(r){
+        var obj={};
+        headers.forEach(function(col,i){
+          var cell=r.c?r.c[i]:null;
+          var val=cell?(cell.f!==undefined&&cell.f!==null?cell.f:cell.v):"";
+          if(val===null||val===undefined)val="";
+          if(col==="Telefono_WA")val=formatTel(val);
+          obj[col]=val;
+        });
+        return obj;
+      });
+  });
+}
+
+function initials(n){if(!n)return"?";var p=n.trim().split(/\s+/);return((p[0]?p[0][0]:"")+(p[1]?p[1][0]:"")).toUpperCase();}
+function esSi(v){var s=(v||"").trim().toLowerCase();return s==="sí"||s==="si";}
+function isSeguimiento(d){var v=(d.Requiere_Seguimiento||"").trim().toLowerCase();return v==="sí"||v==="si"||v==="";}
+function waLink(tel,txt){var p=(tel||"").replace(/[^\d+]/g,"");return"https://wa.me/"+p.replace("+","")+"?text="+encodeURIComponent(txt);}
+
+function sustituirVars(texto,d,sesiones){
+  var prox=getProximaSesion(sesiones,d.Nombre);
+  return(texto||"")
+    .replace(/\{Nombre\}/g,(d.Nombre||"").split(" ")[0])
+    .replace(/\{Fecha\}/g,prox?prox.Fecha_Programada||"":"")
+    .replace(/\{Hora\}/g,prox?prox.Hora_Programada||"":"")
+    .replace(/\{Modalidad\}/g,prox?prox.Modalidad||"":d.Modalidad_Sesion||"")
+    .replace(/\{NumSesion\}/g,prox?prox.Num_Sesion||"":"")
+    .replace(/\{TotalSesiones\}/g,d.Total_Sesiones||"");
+}
+
+function getProximaSesion(sesiones,nombre){
+  var norm=nombre.trim().toLowerCase();
+  var pendientes=sesiones.filter(function(s){return(s.Nombre||"").trim().toLowerCase()===norm&&!esSi(s.Asistio);});
+  return pendientes.length>0?pendientes[0]:null;
+}
+
+var INSCRITOS=[],SESIONES=[],COPYS=[];
+
+function buildCopyMap(){
+  var map={};
+  COPYS.forEach(function(c){if(esSi(c.Activo))map[c.Momento]=c;});
+  return map;
+}
+
+function urgPill(u){
+  var v=(u||"").toLowerCase();
+  if(v==="alta")return'<span class="pill urg-alta">Alta</span>';
+  if(v==="media")return'<span class="pill urg-media">Media</span>';
+  return'<span class="pill urg-baja">'+(u||"Baja")+'</span>';
+}
+function estadoPill(e){
+  var v=(e||"").toLowerCase();
+  if(v==="activo")return'<span class="pill activo">Activo</span>';
+  if(v==="lista de espera")return'<span class="pill espera">Lista de espera</span>';
+  if(v==="sesión pendiente"||v==="sesion pendiente")return'<span class="pill pendiente">Sesión pendiente</span>';
+  if(v==="completó"||v==="completo")return'<span class="pill completo">Completó</span>';
+  if(v==="histórico"||v==="historico")return'<span class="pill historico">Histórico</span>';
+  if(v==="contactado")return'<span class="pill contactado">Contactado</span>';
+  if(v==="en seguimiento")return'<span class="pill activo">En seguimiento</span>';
+  return'<span class="pill historico">'+(e||"—")+'</span>';
+}
+
+function getMomentosELA(d){
+  var e=(d.Estado||"").toLowerCase();
+  if(isSeguimiento(d))return["ELA_ListaEspera"];
+  if(e==="lista de espera")return["ELA_ListaEspera","ELA_ListaEsperaStatus","ELA_LugarDisponible"];
+  if(e==="activo"||e==="sesión pendiente"||e==="sesion pendiente")return["ELA_Recordatorio","ELA_Inasistencia","ELA_CambioModalidad"];
+  if(e==="completó"||e==="completo")return["ELA_Cierre"];
+  return[];
+}
+function getMomentosI43(d){
+  var e=(d.Estado||"").toLowerCase();
+  if(e==="contactado")return["I43_Contacto","I43_ReporteSesiones"];
+  if(e==="en seguimiento")return["I43_ReporteSesiones"];
+  if(e==="completó"||e==="completo")return["I43_Cierre"];
+  return[];
+}
+
+function renderWaBtns(momentos,d,copyMap,clickFn){
+  return momentos.map(function(m){
+    var copy=copyMap[m];
+    if(!copy)return"";
+    return'<button class="wa-btn" onclick="'+clickFn+"('"+encodeURIComponent(d.Nombre)+"','"+encodeURIComponent(m)+"')"+'">'
+      +'<span class="ic">●</span> '+m.replace(/^ELA_|^I43_/,"").replace(/([A-Z])/g," $1").trim()+'</button>';
+  }).join("");
+}
+
+function progressBar(tomadas,total){
+  var t=parseInt(total)||5,s=parseInt(tomadas)||0;
+  var pct=Math.min(Math.round(s/t*100),100);
+  return'<div class="progress-label">Sesión '+s+' de '+t+'</div>'
+    +'<div class="progress-bar"><div class="fill" style="width:'+pct+'%"></div></div>';
+}
+
+/* ── RENDER ELA ── */
+function renderElaMetrics(){
+  var ela=INSCRITOS.filter(function(d){return(d.Modalidad_Servicio||"").toUpperCase()==="ELA";});
+  var activos=ela.filter(function(d){var e=(d.Estado||"").toLowerCase();return e==="activo"||e==="sesión pendiente"||e==="sesion pendiente";});
+  var espera=ela.filter(function(d){return(d.Estado||"").toLowerCase()==="lista de espera";});
+  var completaron=ela.filter(function(d){var e=(d.Estado||"").toLowerCase();return e==="completó"||e==="completo";});
+  var seg=ela.filter(isSeguimiento);
+  var ocupadas=activos.length;
+  document.getElementById("elaMetrics").innerHTML=[
+    {val:ocupadas+"/"+MAX_ELA,lbl:"licencias ocupadas",alert:ocupadas>=MAX_ELA},
+    {val:espera.length,lbl:"en lista de espera",alert:false},
+    {val:activos.length,lbl:"activos en proceso",alert:false},
+    {val:completaron.length,lbl:"completaron ciclo",alert:false},
+    {val:seg.length,lbl:"pendientes seguimiento",alert:seg.length>0}
+  ].map(function(m){
+    return'<div class="metric '+(m.alert?"alert":"")+'"><div class="val">'+m.val+'</div><div class="lbl">'+m.lbl+'</div></div>';
+  }).join("");
+}
+
+function renderElaActivos(){
+  var copyMap=buildCopyMap();
+  var activos=INSCRITOS.filter(function(d){
+    var e=(d.Estado||"").toLowerCase();
+    return(d.Modalidad_Servicio||"").toUpperCase()==="ELA"&&(e==="activo"||e==="sesión pendiente"||e==="sesion pendiente");
+  });
+  var grid=document.getElementById("elaActivosGrid");
+  if(!activos.length){grid.innerHTML='<div class="footnote">No hay colaboradores en atención activa.</div>';return;}
+  grid.innerHTML=activos.map(function(d){
+    var seg=isSeguimiento(d);
+    var momentos=getMomentosELA(d);
+    var btns=renderWaBtns(momentos,d,copyMap,"abrirCopy");
+    var prox=getProximaSesion(SESIONES,d.Nombre);
+    var proxNum=prox?prox.Num_Sesion:(parseInt(d.Sesiones_Tomadas)||0)+1;
+    return'<div class="gcard '+(seg?"seguimiento":"")+'">'
+      +'<div class="gcard-head"><div class="avatar ela">'+initials(d.Nombre)+'</div>'
+      +'<div><div class="gname">'+d.Nombre+'</div><div class="gsuc">'+(d.Sucursal||"")+'</div></div></div>'
+      +urgPill(d.Urgencia)
+      +'<span class="pill modalidad">'+(d.Modalidad_Sesion||"—")+'</span>'
+      +estadoPill(d.Estado)
+      +(seg?'<span class="pill seguimiento-tag">🏳 seguimiento</span>':"")
+      +progressBar(d.Sesiones_Tomadas,d.Total_Sesiones)
+      +'<div class="gactions">'+btns+'</div>'
+      +'<button class="action-btn reg" onclick="abrirModalAsist(\''+encodeURIComponent(d.Nombre)+'\','+proxNum+')">✓ Registrar asistencia</button>'
+      +'<button class="action-btn cambio" onclick="abrirModalCambio(\''+encodeURIComponent(d.Nombre)+'\','+proxNum+')">↔ Cambio modalidad</button>'
+      +'</div>';
+  }).join("");
+}
+
+function renderElaEspera(){
+  var copyMap=buildCopyMap();
+  var espera=INSCRITOS.filter(function(d){
+    return(d.Modalidad_Servicio||"").toUpperCase()==="ELA"&&(d.Estado||"").toLowerCase()==="lista de espera";
+  }).sort(function(a,b){
+    var ord={alta:0,media:1,baja:2};
+    return(ord[(a.Urgencia||"baja").toLowerCase()]||2)-(ord[(b.Urgencia||"baja").toLowerCase()]||2);
+  });
+  var grid=document.getElementById("elaEsperaGrid");
+  if(!espera.length){grid.innerHTML='<div class="footnote">No hay colaboradores en lista de espera.</div>';return;}
+  grid.innerHTML=espera.map(function(d){
+    var seg=isSeguimiento(d);
+    var momentos=getMomentosELA(d);
+    var btns=renderWaBtns(momentos,d,copyMap,"abrirCopy");
+    return'<div class="gcard '+(seg?"seguimiento":"")+'">'
+      +'<div class="gcard-head"><div class="avatar ela">'+initials(d.Nombre)+'</div>'
+      +'<div><div class="gname">'+d.Nombre+'</div><div class="gsuc">'+(d.Sucursal||"")+'</div></div></div>'
+      +urgPill(d.Urgencia)
+      +estadoPill(d.Estado)
+      +(seg?'<span class="pill seguimiento-tag">🏳 seguimiento</span>':"")
+      +'<div class="gactions">'+btns+'</div></div>';
+  }).join("");
+}
+
+function renderElaTabla(filtered){
+  var copyMap=buildCopyMap();
+  var body=document.getElementById("elaTablaBody");
+  if(!filtered.length){body.innerHTML='<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-soft);">Sin resultados</td></tr>';return;}
+  var html="";
+  filtered.forEach(function(d,i){
+    var seg=isSeguimiento(d);
+    var momentos=getMomentosELA(d);
+    var btns=renderWaBtns(momentos,d,copyMap,"abrirCopy");
+    html+='<tr class="'+(seg?"seguimiento-row":"")+'">'
+      +'<td><div class="name-cell">'+(seg?'<span class="dot-new"></span>':"")+'<div style="font-weight:600;">'+d.Nombre+'</div></div></td>'
+      +'<td>'+(d.Sucursal||"—")+'</td>'
+      +'<td>'+urgPill(d.Urgencia)+'</td>'
+      +'<td><span class="pill modalidad">'+(d.Modalidad_Sesion||"—")+'</span></td>'
+      +'<td>'+progressBar(d.Sesiones_Tomadas,d.Total_Sesiones)+'</td>'
+      +'<td>'+estadoPill(d.Estado)+'</td>'
+      +'<td><div style="display:flex;flex-wrap:wrap;gap:4px;">'+(btns||'<span style="color:var(--text-soft);font-size:12px;">—</span>')+'</div></td>'
+      +'</tr>';
+  });
+  body.innerHTML=html;
+}
+
+function applyElaFilters(){
+  var q=(document.getElementById("fElaSearch").value||"").toLowerCase();
+  var estado=document.getElementById("fElaEstado").value;
+  var urg=document.getElementById("fElaUrgencia").value;
+  var ela=INSCRITOS.filter(function(d){return(d.Modalidad_Servicio||"").toUpperCase()==="ELA";});
+  var f=ela.filter(function(d){
+    return(!q||(d.Nombre||"").toLowerCase().indexOf(q)>=0)
+      &&(!estado||d.Estado===estado)
+      &&(!urg||d.Urgencia===urg);
+  });
+  renderElaTabla(f);
+}
+
+/* ── RENDER I43 ── */
+function renderI43Metrics(){
+  var i43=INSCRITOS.filter(function(d){return(d.Modalidad_Servicio||"").toUpperCase()==="IMPULSO43";});
+  var contactados=i43.filter(function(d){return(d.Estado||"").toLowerCase()==="contactado";});
+  var seguimiento=i43.filter(function(d){return(d.Estado||"").toLowerCase()==="en seguimiento";});
+  var completaron=i43.filter(function(d){var e=(d.Estado||"").toLowerCase();return e==="completó"||e==="completo";});
+  document.getElementById("i43Metrics").innerHTML=[
+    {val:contactados.length,lbl:"contactados"},
+    {val:seguimiento.length,lbl:"en seguimiento"},
+    {val:completaron.length,lbl:"completaron"}
+  ].map(function(m){return'<div class="metric"><div class="val">'+m.val+'</div><div class="lbl">'+m.lbl+'</div></div>';}).join("");
+}
+
+function renderI43Activos(){
+  var copyMap=buildCopyMap();
+  var activos=INSCRITOS.filter(function(d){
+    var e=(d.Estado||"").toLowerCase();
+    return(d.Modalidad_Servicio||"").toUpperCase()==="IMPULSO43"&&(e==="contactado"||e==="en seguimiento");
+  });
+  var grid=document.getElementById("i43ActivosGrid");
+  if(!activos.length){grid.innerHTML='<div class="footnote">No hay colaboradores activos en Impulso43.</div>';return;}
+  grid.innerHTML=activos.map(function(d){
+    var momentos=getMomentosI43(d);
+    var btns=renderWaBtns(momentos,d,copyMap,"abrirCopy");
+    return'<div class="gcard">'
+      +'<div class="gcard-head"><div class="avatar i43">'+initials(d.Nombre)+'</div>'
+      +'<div><div class="gname">'+d.Nombre+'</div><div class="gsuc">'+(d.Sucursal||"")+'</div></div></div>'
+      +estadoPill(d.Estado)
+      +'<div style="font-size:12px;color:var(--text-soft);margin-bottom:6px;">Sesiones reportadas: <strong>'+(d.Sesiones_Tomadas||0)+'</strong></div>'
+      +'<div class="gactions">'+btns+'</div>'
+      +'<button class="action-btn reg" onclick="abrirModalI43(\''+encodeURIComponent(d.Nombre)+'\','+(d.Sesiones_Tomadas||0)+')">+ Registrar sesiones</button>'
+      +'</div>';
+  }).join("");
+}
+
+function renderI43Tabla(filtered){
+  var copyMap=buildCopyMap();
+  var body=document.getElementById("i43TablaBody");
+  if(!filtered.length){body.innerHTML='<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--text-soft);">Sin resultados</td></tr>';return;}
+  body.innerHTML=filtered.map(function(d){
+    var momentos=getMomentosI43(d);
+    var btns=renderWaBtns(momentos,d,copyMap,"abrirCopy");
+    return'<tr><td style="font-weight:600;">'+d.Nombre+'</td>'
+      +'<td>'+(d.Sucursal||"—")+'</td>'
+      +'<td>'+(d.Sesiones_Tomadas||0)+'</td>'
+      +'<td>'+estadoPill(d.Estado)+'</td>'
+      +'<td><div style="display:flex;flex-wrap:wrap;gap:4px;">'+(btns||"—")+'</div></td></tr>';
+  }).join("");
+}
+
+function applyI43Filters(){
+  var q=(document.getElementById("fI43Search").value||"").toLowerCase();
+  var estado=document.getElementById("fI43Estado").value;
+  var i43=INSCRITOS.filter(function(d){return(d.Modalidad_Servicio||"").toUpperCase()==="IMPULSO43";});
+  var f=i43.filter(function(d){
+    return(!q||(d.Nombre||"").toLowerCase().indexOf(q)>=0)&&(!estado||d.Estado===estado);
+  });
+  renderI43Tabla(f);
+}
+
+/* ── COPY DIRECTO ── */
+function abrirCopy(nombreEnc,momentoEnc){
+  var nombre=decodeURIComponent(nombreEnc);
+  var momento=decodeURIComponent(momentoEnc);
+  var d=INSCRITOS.find(function(x){return x.Nombre===nombre;});
+  if(!d)return;
+  var copy=buildCopyMap()[momento];
+  if(!copy){alert("Copy no encontrado: "+momento);return;}
+  var texto=sustituirVars(copy.Copy_Texto,d,SESIONES);
+  var numero=copy.Numero_WA||d.Telefono_WA||"";
+  window.open(waLink(numero,texto),"_blank");
+}
+
+/* ── MODALES ── */
+function toggleSeccion(sId,tId){var s=document.getElementById(sId),t=document.getElementById(tId);if(s.style.display==="none"){s.style.display="block";t.textContent="▾ ocultar";}else{s.style.display="none";t.textContent="▸ mostrar";}}
+function cerrarModal(id){document.getElementById(id).classList.remove("open");}
+function showModalMsg(id,tipo,txt){var el=document.getElementById(id);el.className="modal-msg "+tipo;el.textContent=txt;if(tipo==="ok")setTimeout(function(){el.className="modal-msg";el.textContent="";},3000);}
+
+function abrirModalAsist(nombreEnc,numSesion){
+  var nombre=decodeURIComponent(nombreEnc);
+  document.getElementById("modalAsistTitle").textContent="Registrar asistencia — "+nombre.split(" ")[0]+" · Sesión "+numSesion;
+  document.getElementById("mAsistNombre").value=nombre;
+  document.getElementById("mAsistSesion").value=numSesion;
+  document.getElementById("mAsistio").value="";
+  document.getElementById("mAsistNotas").value="";
+  document.getElementById("mAsistMsg").className="modal-msg";
+  document.getElementById("modalAsist").classList.add("open");
+}
+
+function abrirModalCambio(nombreEnc,numSesion){
+  var nombre=decodeURIComponent(nombreEnc);
+  document.getElementById("modalCambioTitle").textContent="Cambio modalidad — "+nombre.split(" ")[0]+" · Sesión "+numSesion;
+  document.getElementById("mCambioNombre").value=nombre;
+  document.getElementById("mCambioSesion").value=numSesion;
+  document.getElementById("mCambioMod").value="";
+  document.getElementById("mCambioMsg").className="modal-msg";
+  document.getElementById("modalCambio").classList.add("open");
+}
+
+function abrirModalI43(nombreEnc,sesionesActuales){
+  var nombre=decodeURIComponent(nombreEnc);
+  document.getElementById("modalI43Title").textContent="Sesiones — "+nombre.split(" ")[0];
+  document.getElementById("mI43Nombre").value=nombre;
+  document.getElementById("mI43Sesiones").value=sesionesActuales;
+  document.getElementById("mI43Msg").className="modal-msg";
+  document.getElementById("modalI43").classList.add("open");
+}
+
+async function guardarAsistencia(){
+  var nombre=document.getElementById("mAsistNombre").value;
+  var numSesion=document.getElementById("mAsistSesion").value;
+  var asistio=document.getElementById("mAsistio").value;
+  var notas=document.getElementById("mAsistNotas").value;
+  if(!asistio){showModalMsg("mAsistMsg","err","Selecciona si asistió.");return;}
+  var btn=document.getElementById("mAsistSave");
+  btn.disabled=true;btn.textContent="Guardando…";
+  try{
+    var r=await fetch(WEBAPP_URL,{method:"POST",body:JSON.stringify({tipo:"ap_asistencia",nombre:nombre,numSesion:numSesion,asistio:asistio,notas:notas})}).then(function(r){return r.json();});
+    if(r.ok||r.success){showModalMsg("mAsistMsg","ok","Registrado.");setTimeout(function(){cerrarModal("modalAsist");location.reload();},1500);}
+    else showModalMsg("mAsistMsg","err","Error: "+(r.error||"desconocido"));
+  }catch(e){showModalMsg("mAsistMsg","err","No se pudo conectar.");}
+  finally{btn.disabled=false;btn.textContent="Guardar";}
+}
+
+async function guardarCambioModalidad(){
+  var nombre=document.getElementById("mCambioNombre").value;
+  var numSesion=document.getElementById("mCambioSesion").value;
+  var modalidad=document.getElementById("mCambioMod").value;
+  if(!modalidad){showModalMsg("mCambioMsg","err","Selecciona modalidad.");return;}
+  var btn=document.getElementById("mCambioSave");
+  btn.disabled=true;btn.textContent="Guardando…";
+  try{
+    var r=await fetch(WEBAPP_URL,{method:"POST",body:JSON.stringify({tipo:"ap_cambioModalidad",nombre:nombre,numSesion:numSesion,modalidad:modalidad})}).then(function(r){return r.json();});
+    if(r.ok||r.success){showModalMsg("mCambioMsg","ok","Modalidad actualizada.");setTimeout(function(){cerrarModal("modalCambio");location.reload();},1500);}
+    else showModalMsg("mCambioMsg","err","Error: "+(r.error||"desconocido"));
+  }catch(e){showModalMsg("mCambioMsg","err","No se pudo conectar.");}
+  finally{btn.disabled=false;btn.textContent="Guardar";}
+}
+
+async function guardarSesionesI43(){
+  var nombre=document.getElementById("mI43Nombre").value;
+  var sesiones=document.getElementById("mI43Sesiones").value;
+  if(!sesiones&&sesiones!=="0"){showModalMsg("mI43Msg","err","Ingresa número de sesiones.");return;}
+  var btn=document.getElementById("mI43Save");
+  btn.disabled=true;btn.textContent="Guardando…";
+  try{
+    var r=await fetch(WEBAPP_URL,{method:"POST",body:JSON.stringify({tipo:"ap_sesionesI43",nombre:nombre,sesionesTomadas:sesiones})}).then(function(r){return r.json();});
+    if(r.ok||r.success){showModalMsg("mI43Msg","ok","Actualizado.");setTimeout(function(){cerrarModal("modalI43");location.reload();},1500);}
+    else showModalMsg("mI43Msg","err","Error: "+(r.error||"desconocido"));
+  }catch(e){showModalMsg("mI43Msg","err","No se pudo conectar.");}
+  finally{btn.disabled=false;btn.textContent="Guardar";}
+}
+
+/* ── INIT ── */
+async function init(){
+  try{
+    var results=await Promise.all([fetchTab(TABS.inscritos),fetchTab(TABS.sesiones),fetchTab(TABS.copys)]);
+    INSCRITOS=results[0].filter(function(d){return d.Nombre&&d.Nombre.trim()!=="";});
+    SESIONES=results[1].filter(function(s){return s.Nombre&&s.Nombre.trim()!=="";});
+    COPYS=results[2].filter(function(c){return c.Momento&&c.Momento.trim()!=="";});
+
+    document.getElementById("loadingMsg").style.display="none";
+    document.getElementById("appContent").style.display="block";
+    document.getElementById("lastSync").textContent="actualizado: "+new Date().toLocaleString("es-MX",{dateStyle:"medium",timeStyle:"short"});
+
+    renderElaMetrics();
+    renderElaActivos();
+    renderElaEspera();
+    applyElaFilters();
+    renderI43Metrics();
+    renderI43Activos();
+    applyI43Filters();
+
+    document.getElementById("fElaSearch").addEventListener("input",applyElaFilters);
+    document.getElementById("fElaEstado").addEventListener("change",applyElaFilters);
+    document.getElementById("fElaUrgencia").addEventListener("change",applyElaFilters);
+    document.getElementById("fI43Search").addEventListener("input",applyI43Filters);
+    document.getElementById("fI43Estado").addEventListener("change",applyI43Filters);
+  }catch(err){
+    console.error("ERROR:",err.message,err.stack);
+    document.getElementById("loadingMsg").style.display="none";
+    var eb=document.getElementById("errorMsg");
+    eb.style.display="block";
+    eb.textContent="No se pudieron cargar los datos. Verifica que las pestañas AP_Inscritos, AP_Sesiones y AP_Copys existan en el Sheet.";
+  }
+}
+init();
+</script>
+</body>
+</html>

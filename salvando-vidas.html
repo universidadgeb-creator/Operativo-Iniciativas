@@ -640,42 +640,33 @@ function renderTabla(filtered){
       ? `<span class="origen-tag">nuevo — requiere seguimiento</span>`
       : `<span class="origen-tag">${(d.Estado||"").toLowerCase()}</span>`;
 
-    const tFormId = `form-tbl-${i}`;
-    html += `
-      <tr class="${isSeg ? 'seguimiento-row' : ''}">
-        <td>
-          <div class="name-cell">
-            ${isSeg ? `<span class="dot-new"></span>` : ""}
-            <div>
-              <div style="font-weight:600;">${d.Nombre}</div>
-              ${origenTag}
-            </div>
-          </div>
-        </td>
-        <td>${d.Sucursal||""}</td>
-        <td><span class="pill ${tc}" style="margin:0;">${d.Tipo_Sangre||"—"}</span></td>
-        <td>${d.Mes_Guardia || '<span style="color:var(--text-soft); font-size:12px;">sin asignar</span>'}</td>
-        <td>${estadoPill}${isSeg ? ` <button class="atender-btn" onclick="alert('Para marcar como atendido, cambia la columna Requiere_Seguimiento a No en el Sheet (pestaña SV_Donadores) para ${d.Nombre.replace(/'/g,"\\'")}.')">✓ marcar atendido</button>` : ""}</td>
-        <td>
-          <div style="display:flex; flex-wrap:wrap; gap:5px;">${btns || '<span style="color:var(--text-soft); font-size:12px;">—</span>'}</div>
-          <button class="reg-btn" style="margin-top:6px;" onclick="toggleFormDonacion('${tFormId}')">+ Registrar donación</button>
-          <div class="inline-form" id="${tFormId}">
-            <div class="inline-form-title">Registrar donación — ${d.Nombre.split(' ')[0]}</div>
-            <div class="form-row"><label>Mes *</label><select id="${tFormId}_mes"><option value="">— selecciona —</option>${MESES.map(m=>\`<option value="\${m}">\${m.charAt(0).toUpperCase()+m.slice(1)}</option>\`).join("")}</select></div>
-            <div class="form-row"><label>Año *</label><input type="number" id="${tFormId}_año" value="${new Date().getFullYear()}" min="2020" max="2030"></div>
-            <div class="form-row"><label>¿Donó? *</label><select id="${tFormId}_dono"><option value="">— selecciona —</option><option value="Sí">Sí</option><option value="No">No</option></select></div>
-            <div class="form-row"><label>Fecha de donación *</label><input type="date" id="${tFormId}_fecha"></div>
-            <div class="form-row"><label>Talón recibido (opcional)</label><select id="${tFormId}_talon"><option value="">— selecciona —</option><option value="Sí">Sí</option><option value="Pendiente">Pendiente</option></select></div>
-            <div class="form-row"><label>Notas (opcional)</label><textarea id="${tFormId}_notas" placeholder="Observaciones"></textarea></div>
-            <div class="form-actions"><button class="btn-guardar" onclick="guardarDonacion('${tFormId}','${encodeURIComponent(d.Nombre)}')">Guardar</button><button class="btn-cancelar" onclick="toggleFormDonacion('${tFormId}')">Cancelar</button></div>
-            <div class="form-msg" id="${tFormId}_msg"></div>
-          </div>
-        </td>
-      </tr>
-      <tr class="expand-row" id="exp-${i}">
-        <td colspan="6"><div class="copy-panel" id="cp-${i}"></div></td>
-      </tr>
-    `;
+    const tFormId = 'form-tbl-' + i;
+    const tMesesOpts = MESES.map(function(m){ return '<option value="'+m+'">'+m.charAt(0).toUpperCase()+m.slice(1)+'</option>'; }).join("");
+    html += '<tr class="'+(isSeg ? 'seguimiento-row' : '')+'">'
+      + '<td><div class="name-cell">'
+      + (isSeg ? '<span class="dot-new"></span>' : '')
+      + '<div><div style="font-weight:600;">'+d.Nombre+'</div>'+origenTag+'</div>'
+      + '</div></td>'
+      + '<td>'+(d.Sucursal||"")+'</td>'
+      + '<td><span class="pill '+tc+'" style="margin:0;">'+(d.Tipo_Sangre||"—")+'</span></td>'
+      + '<td>'+(d.Mes_Guardia || '<span style="color:var(--text-soft); font-size:12px;">sin asignar</span>')+'</td>'
+      + '<td>'+estadoPill+(isSeg ? ' <button class="atender-btn" onclick="alert(\'Para marcar como atendido, cambia la columna Requiere_Seguimiento a No en el Sheet (pestaña SV_Donadores) para '+d.Nombre.replace(/'/g,"\\'")+'.\')">✓ marcar atendido</button>' : '')+'</td>'
+      + '<td>'
+      + '<div style="display:flex; flex-wrap:wrap; gap:5px;">'+(btns || '<span style="color:var(--text-soft); font-size:12px;">—</span>')+'</div>'
+      + '<button class="reg-btn" style="margin-top:6px;" onclick="toggleFormDonacion(\''+tFormId+'\')">+ Registrar donación</button>'
+      + '<div class="inline-form" id="'+tFormId+'">'
+      + '<div class="inline-form-title">Registrar donación — '+d.Nombre.split(' ')[0]+'</div>'
+      + '<div class="form-row"><label>Mes *</label><select id="'+tFormId+'_mes"><option value="">— selecciona —</option>'+tMesesOpts+'</select></div>'
+      + '<div class="form-row"><label>Año *</label><input type="number" id="'+tFormId+'_año" value="'+new Date().getFullYear()+'" min="2020" max="2030"></div>'
+      + '<div class="form-row"><label>¿Donó? *</label><select id="'+tFormId+'_dono"><option value="">— selecciona —</option><option value="Sí">Sí</option><option value="No">No</option></select></div>'
+      + '<div class="form-row"><label>Fecha de donación *</label><input type="date" id="'+tFormId+'_fecha"></div>'
+      + '<div class="form-row"><label>Talón recibido (opcional)</label><select id="'+tFormId+'_talon"><option value="">— selecciona —</option><option value="Sí">Sí</option><option value="Pendiente">Pendiente</option></select></div>'
+      + '<div class="form-row"><label>Notas (opcional)</label><textarea id="'+tFormId+'_notas" placeholder="Observaciones"></textarea></div>'
+      + '<div class="form-actions"><button class="btn-guardar" onclick="guardarDonacion(\''+tFormId+'\',\''+encodeURIComponent(d.Nombre)+'\')">Guardar</button><button class="btn-cancelar" onclick="toggleFormDonacion(\''+tFormId+'\')">Cancelar</button></div>'
+      + '<div class="form-msg" id="'+tFormId+'_msg"></div>'
+      + '</div>'
+      + '</td></tr>'
+      + '<tr class="expand-row" id="exp-'+i+'"><td colspan="6"><div class="copy-panel" id="cp-'+i+'"></div></td></tr>';
   });
 
   body.innerHTML = html;

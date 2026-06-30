@@ -529,19 +529,15 @@ function renderMetrics(){
   const atrasados = activos.filter(p => calcularEstadoPrestamo(p).estado === "atrasado");
   const porVencer = activos.filter(p => calcularEstadoPrestamo(p).estado === "porvencer");
 
-  const hoy = new Date();
-  const donacionesMes = DONACIONES.filter(d => {
-    const f = parseFecha(d.fecha_ingreso);
-    return f && f.getMonth() === hoy.getMonth() && f.getFullYear() === hoy.getFullYear();
-  });
-  const pendientesPdf = DONACIONES.filter(d => !d.recibo_enviado || !d.etiqueta_generada);
+  const donantesUnicos = new Set(DONACIONES.map(d => (d.donante||"").trim().toLowerCase()).filter(Boolean));
+  const receptoresUnicos = new Set(PRESTAMOS.map(p => (p.nombre||"").trim().toLowerCase()).filter(Boolean));
 
   const metrics = [
     { val: activos.length, lbl: "préstamos activos" },
     { val: atrasados.length, lbl: "atrasados", alert: atrasados.length > 0 },
     { val: porVencer.length, lbl: "por vencer (3 días)" },
-    { val: donacionesMes.length, lbl: "donaciones del mes" },
-    { val: pendientesPdf.length, lbl: "pendientes recibo/etiqueta" },
+    { val: donantesUnicos.size, lbl: "donadores (histórico)" },
+    { val: receptoresUnicos.size, lbl: "receptores (histórico)" },
   ];
 
   document.getElementById("metricsGrid").innerHTML = metrics.map(m => `
@@ -651,17 +647,61 @@ function renderHistorial(filtered){
   }
   let html = "";
   filtered.forEach(d => {
+    const reciboCell = d.link_recibo
+      ? `<a href="${d.link_recibo}" target="_blank">Ver</a> <button class="pdf-btn" style="padding:3px 8px;font-size:11px;" onclick="generarReciboFila(${d._fila}, this)">regenerar</button>`
+      : `<button class="pdf-btn" style="padding:3px 8px;font-size:11px;" onclick="generarReciboFila(${d._fila}, this)">Generar</button>`;
+    const etiquetaCell = d.link_etiqueta
+      ? `<a href="${d.link_etiqueta}" target="_blank">Ver</a> <button class="pdf-btn" style="padding:3px 8px;font-size:11px;" onclick="generarEtiquetaFila(${d._fila}, this)">regenerar</button>`
+      : `<button class="pdf-btn" style="padding:3px 8px;font-size:11px;" onclick="generarEtiquetaFila(${d._fila}, this)">Generar</button>`;
     html += `<tr>
       <td style="font-weight:600;">${d.donante}</td>
       <td>"${d.titulo}"</td>
       <td>${d.tipo||"—"}</td>
       <td>${formatFechaCorta(parseFecha(d.fecha_ingreso))}</td>
       <td>${d.fecha_retorno ? formatFechaCorta(parseFecha(d.fecha_retorno)) : "—"}</td>
-      <td>${d.link_recibo ? `<a href="${d.link_recibo}" target="_blank">Ver</a>` : "—"}</td>
-      <td>${d.link_etiqueta ? `<a href="${d.link_etiqueta}" target="_blank">Ver</a>` : "—"}</td>
+      <td>${reciboCell}</td>
+      <td>${etiquetaCell}</td>
     </tr>`;
   });
   body.innerHTML = html;
+}
+
+async function generarReciboFila(fila, btnEl){
+  btnEl.disabled = true; const original = btnEl.textContent; btnEl.textContent = "Generando…";
+  try{
+    const r = await postData({ tipo:"bib_generarRecibo", fila });
+    if(r.ok){
+      window.open(r.url, "_blank");
+      const d = DONACIONES.find(x => x._fila === fila);
+      if(d) d.link_recibo = r.url;
+      applyHistorialFilters();
+    } else {
+      alert("Error: " + r.error);
+      btnEl.disabled = false; btnEl.textContent = original;
+    }
+  } catch(e){
+    alert("No se pudo conectar con el servidor.");
+    btnEl.disabled = false; btnEl.textContent = original;
+  }
+}
+
+async function generarEtiquetaFila(fila, btnEl){
+  btnEl.disabled = true; const original = btnEl.textContent; btnEl.textContent = "Generando…";
+  try{
+    const r = await postData({ tipo:"bib_generarEtiqueta", filas:[fila] });
+    if(r.ok){
+      window.open(r.url, "_blank");
+      const d = DONACIONES.find(x => x._fila === fila);
+      if(d) d.link_etiqueta = r.url;
+      applyHistorialFilters();
+    } else {
+      alert("Error: " + r.error);
+      btnEl.disabled = false; btnEl.textContent = original;
+    }
+  } catch(e){
+    alert("No se pudo conectar con el servidor.");
+    btnEl.disabled = false; btnEl.textContent = original;
+  }
 }
 
 function applyHistorialFilters(){

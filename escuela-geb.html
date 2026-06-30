@@ -838,7 +838,6 @@ function renderMetrics(){
   const activos     = INSCRITOS.filter(d => (d.Estado||"").toLowerCase() === "activo").length;
   const inea        = INSCRITOS.filter(d => (d.Modalidad||"").toUpperCase() === "INEA").length;
   const uvl         = INSCRITOS.filter(d => (d.Modalidad||"").toUpperCase() === "UVL").length;
-  const prospectos  = INSCRITOS.filter(d => (d.Modalidad||"").toUpperCase() === "PROSPECTO").length;
   const seguimiento = INSCRITOS.filter(isSeguimiento).length;
 
   const grid = document.getElementById("metricsGrid");
@@ -847,7 +846,6 @@ function renderMetrics(){
     { val: activos,    lbl: "activos",                    alert: false },
     { val: inea,       lbl: "modalidad INEA",             alert: false },
     { val: uvl,        lbl: "modalidad UVL",              alert: false },
-    { val: prospectos, lbl: "prospectos UVL",             alert: false },
     { val: seguimiento,lbl: "pendientes de seguimiento",  alert: seguimiento > 0 },
   ].map(m => `
     <div class="metric ${m.alert ? 'alert' : ''}">

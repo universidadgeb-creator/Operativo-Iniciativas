@@ -403,12 +403,29 @@ function formatTel(val){
   return s;
 }
 
+// Columnas de fecha por pestaña — se leen del valor crudo de gviz (Date(y,m,d,...))
+// en vez del texto ya formateado, porque new Date("dd/mm/yyyy") se interpreta mal en JS.
+const DATE_FIELDS = {
+  BIB_Prestamos: ["timestamp","fecha_prestamo","fecha_compromiso","fecha_devolucion_real"],
+  BIB_Donaciones: ["timestamp","fecha_ingreso","fecha_retorno"],
+  BIB_Devoluciones: ["timestamp"]
+};
+
+function gvizDateToJs(v){
+  if(typeof v === "string" && v.startsWith("Date(")){
+    const nums = v.slice(5, -1).split(",").map(n => parseInt(n, 10));
+    return new Date(nums[0], nums[1], nums[2], nums[3]||0, nums[4]||0, nums[5]||0);
+  }
+  return null;
+}
+
 async function fetchSheetTab(tabName){
   const res = await fetch(gvizUrl(tabName));
   const text = await res.text();
   const jsonStr = text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1);
   const data = JSON.parse(jsonStr);
   const headers = SCHEMA[tabName];
+  const dateFields = new Set(DATE_FIELDS[tabName] || []);
 
   const schemaSet = new Set(headers.map(h => h.toLowerCase()));
   return data.table.rows
@@ -423,6 +440,10 @@ async function fetchSheetTab(tabName){
       const obj = { _fila: o._fila };
       headers.forEach((col, i) => {
         const cell = o.r.c ? o.r.c[i] : null;
+        if(dateFields.has(col)){
+          obj[col] = cell ? gvizDateToJs(cell.v) : null;
+          return;
+        }
         let val = cell ? (cell.f !== undefined && cell.f !== null ? cell.f : cell.v) : "";
         if(val === null || val === undefined) val = "";
         if(col === "whatsapp") val = formatTel(val);
@@ -448,6 +469,7 @@ function waLink(numero, texto){
 
 function parseFecha(val){
   if(!val) return null;
+  if(val instanceof Date) return isNaN(val.getTime()) ? null : val;
   const d = new Date(val);
   return isNaN(d.getTime()) ? null : d;
 }

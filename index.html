@@ -218,7 +218,8 @@ async function fetchConcentrado(){
   const j = JSON.parse(text.substring(text.indexOf('{'), text.lastIndexOf('}')+1));
   const COLS = ["Nombre","Rol","Sucursal","Unidad","Correo","FechaNac","Genero","Tel","Turno",
                 "Psic","PsicFecha","Retiro","RetiroFecha","Impulso","Gen","DiagEdu",
-                "EscuelaGEB","EscuelaEstatus","_ColS","Donadores","TipoSangre","MesGuardia","Ahorro","AhorroEstatus"];
+                "EscuelaGEB","EscuelaEstatus","_ColS","Donadores","TipoSangre","MesGuardia","Ahorro","AhorroEstatus",
+                "BibDonante","BibReceptor"];
   return j.table.rows
     .filter(r => r && r.c && r.c[0] && r.c[0].v && typeof r.c[0].v === 'string' && r.c[0].v.trim() !== "")
     .map(r => {
@@ -261,6 +262,8 @@ function buscarColaborador(){
     { nombre:"Escuela GEB",           col: match.EscuelaGEB },
     { nombre:"Reto Ahorro",           col: match.Ahorro },
     { nombre:"Beca Educativa GEB",    col: "" },
+    { nombre:"Biblioteca (donante)",  col: match.BibDonante },
+    { nombre:"Biblioteca (receptor)", col: match.BibReceptor },
   ];
   const badges = iniciativas.map(ini => {
     const activo = (ini.col||"").toString().toLowerCase() === "sí" || (ini.col||"").toString().toLowerCase() === "si";
@@ -293,6 +296,11 @@ function updateCardStats(colabs){
   const nDon = colabs.filter(c => (c.Donadores||"").toLowerCase()==="sí"||(c.Donadores||"").toLowerCase()==="si").length;
   const mDon = document.getElementById("mDonadores");
   if(mDon) mDon.textContent = nDon;
+
+  const nBibDonante = colabs.filter(c => (c.BibDonante||"").toLowerCase()==="sí"||(c.BibDonante||"").toLowerCase()==="si").length;
+  const nBibReceptor = colabs.filter(c => (c.BibReceptor||"").toLowerCase()==="sí"||(c.BibReceptor||"").toLowerCase()==="si").length;
+  const elBib = document.getElementById("statBiblioteca");
+  if(elBib) elBib.innerHTML = `<strong>${nBibDonante}</strong> donadores · <strong>${nBibReceptor}</strong> receptores`;
 }
 
 function renderBreakdown(colabs){
@@ -304,7 +312,7 @@ function renderBreakdown(colabs){
     { nombre:"Escuela GEB",           col:"EscuelaGEB" },
     { nombre:"Reto Ahorro",           col:"Ahorro" },
     { nombre:"Beca Educativa GEB",    col:"" },
-    { nombre:"Biblioteca GEB",        col:"" },
+    { nombre:"Biblioteca GEB",        col:"BibReceptor" },
   ];
   const genColors = {"Mujer":"#C49B4C","Hombre":"#0B2545","Sin dato":"#5C6B7A"};
   const grid = document.getElementById("breakdownGrid");

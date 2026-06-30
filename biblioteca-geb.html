@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Biblioteca Comunitaria — GEB Iniciativas Humanas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#0B2545;
+    --gold:#C49B4C;
+    --bg:#F7F5F0;
+    --card:#FFFFFF;
+    --text:#1C2A3A;
+    --text-soft:#5C6B7A;
+    --border:#E3E1D9;
+    --green-bg:#EAF3DE; --green-text:#3B6D11;
+    --amber-bg:#FAEEDA; --amber-text:#854F0B;
+    --gray-bg:#F1EFE8; --gray-text:#5F5E5A;
+    --red-bg:#FCEBEB; --red-text:#A32D2D;
+    --b-bg:#E6F1FB; --b-text:#185FA5;
+    --ab-bg:#EEEDFE; --ab-text:#3C3489;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{ font-family:'DM Sans', sans-serif; background:var(--bg); color:var(--text); padding:0; }
+  .wrap{ max-width:1180px; margin:0 auto; padding:24px 20px 60px; }
+
+  .topbar{
+    background:var(--blue); color:#fff; padding:14px 20px;
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .topbar .brand{ display:flex; align-items:center; gap:10px; }
+  .topbar .brand .dot{ width:9px; height:9px; border-radius:50%; background:var(--gold); }
+  .topbar .brand-text{ font-family:'Cormorant Garamond', serif; font-size:19px; font-weight:600; letter-spacing:.01em; }
+  .topbar .meta{ font-size:12px; color:#C9D3DF; }
+
+  .back-link{
+    display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:500;
+    color:var(--text-soft); text-decoration:none; margin-bottom:14px;
+  }
+  .back-link:hover{ color:var(--blue); }
+
+  header.page-header{
+    display:flex; align-items:baseline; justify-content:space-between;
+    margin-bottom:28px; flex-wrap:wrap; gap:10px;
+    border-bottom:2px solid var(--gold); padding-bottom:16px;
+  }
+  header.page-header h1{ font-family:'Cormorant Garamond', serif; font-size:34px; font-weight:600; color:var(--blue); }
+  header.page-header .sub{ color:var(--text-soft); font-size:13px; }
+
+  .metric-grid{ display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:28px; }
+  .metric{ background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px 16px; }
+  .metric.alert{ background:var(--red-bg); border-color:#f0c7c7; }
+  .metric .val{ font-size:26px; font-weight:700; color:var(--blue); line-height:1.1; }
+  .metric.alert .val{ color:var(--red-text); }
+  .metric .lbl{ font-size:12px; color:var(--text-soft); margin-top:4px; }
+  .metric.alert .lbl{ color:var(--red-text); }
+
+  .section{ margin-bottom:30px; }
+  .section-title{ font-family:'Cormorant Garamond', serif; font-size:20px; font-weight:600; color:var(--blue); margin-bottom:12px; }
+  .section-divider{ display:flex; align-items:center; gap:12px; margin:34px 0 16px; }
+  .divider-label{ font-size:12px; font-weight:700; color:var(--text-soft); text-transform:uppercase; letter-spacing:.04em; white-space:nowrap; }
+  .divider-line{ flex:1; height:1px; background:var(--border); }
+
+  .panel-row{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+
+  .gcard-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(250px,1fr)); gap:12px; }
+  .gcard{ background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px; }
+  .gcard.atrasado{ border-color:#f0c7c7; background:#FFF8F8; }
+  .gcard.porvencer{ border-color:#f0d39a; background:#FFFBF1; }
+  .gcard-head{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:8px; }
+  .gname{ font-weight:600; font-size:14px; color:var(--text); }
+  .glibro{ font-size:12.5px; color:var(--text-soft); font-style:italic; margin-bottom:8px; }
+  .pill{ display:inline-block; font-size:11px; font-weight:600; padding:2px 9px; border-radius:99px; margin-right:4px; margin-bottom:6px; }
+  .pill.atraso{ background:var(--red-bg); color:var(--red-text); }
+  .pill.vence{ background:var(--amber-bg); color:var(--amber-text); }
+  .pill.activo{ background:var(--green-bg); color:var(--green-text); }
+  .pill.pendiente{ background:var(--ab-bg); color:var(--ab-text); }
+
+  .wa-btn{
+    display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:500;
+    color:var(--text-soft); background:#F4F3EE; border:1px solid var(--border);
+    border-radius:8px; padding:7px 10px; cursor:pointer; text-align:left; margin-top:6px;
+  }
+  .wa-btn:hover{ background:#E9E7DF; }
+  .wa-btn .ic{ color:#25D366; font-weight:700; }
+  .ext-btn{
+    display:inline-flex; align-items:center; gap:6px; font-size:11.5px; font-weight:600;
+    color:var(--b-text); background:var(--b-bg); border:1px solid #c5d9f0;
+    border-radius:8px; padding:6px 10px; cursor:pointer; margin-top:6px; margin-left:6px;
+  }
+  .ext-btn:hover{ background:#d4e5f7; }
+  .ext-btn:disabled{ opacity:.5; cursor:not-allowed; }
+
+  .filters{ display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
+  .filters input, .filters select{
+    font-size:13px; padding:8px 12px; border-radius:8px; border:1px solid var(--border);
+    background:var(--card); color:var(--text); font-family:inherit;
+  }
+  .filters input{ width:220px; }
+
+  .table-wrap{ overflow-x:auto; background:var(--card); border:1px solid var(--border); border-radius:12px; }
+  table{ width:100%; border-collapse:collapse; font-size:13px; }
+  thead th{
+    text-align:left; font-size:11px; font-weight:700; color:var(--text-soft);
+    padding:10px 12px; border-bottom:1px solid var(--border); white-space:nowrap;
+    text-transform:uppercase; letter-spacing:.03em;
+  }
+  tbody td{ padding:10px 12px; border-bottom:1px solid var(--border); vertical-align:middle; }
+  tbody tr:last-child td{ border-bottom:none; }
+  tbody tr.atrasado-row{ background:#FFF8F8; }
+  tbody tr.porvencer-row{ background:#FFFBF1; }
+
+  .expand-row td{ padding:0 !important; }
+  .copy-panel{ display:none; background:#FAF9F5; padding:16px 18px; border-top:1px dashed var(--border); }
+  .copy-panel.open{ display:block; }
+  .copy-inner{ display:grid; grid-template-columns:1fr auto; gap:18px; align-items:start; }
+  .copy-label{ font-size:11px; font-weight:700; color:var(--text-soft); text-transform:uppercase; letter-spacing:.03em; margin-bottom:6px; }
+  .copy-text{ font-size:13.5px; line-height:1.6; background:var(--card); border:1px solid var(--border); border-radius:8px; padding:12px 14px; white-space:pre-wrap; }
+  .momento-title{ font-size:14px; font-weight:600; color:var(--blue); margin-bottom:8px; }
+  .open-wa{
+    display:inline-flex; align-items:center; gap:7px; font-size:13px; font-weight:600;
+    padding:10px 18px; border-radius:8px; background:#25D366; color:#fff; text-decoration:none; white-space:nowrap;
+  }
+  .open-wa:hover{ background:#1fb958; }
+
+  .footnote{ font-size:11.5px; color:var(--text-soft); display:flex; align-items:center; gap:6px; padding:12px 4px; }
+
+  .inline-form{ background:var(--card); border:1px solid var(--border); border-radius:12px; padding:18px; }
+  .form-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .form-row label{ display:block; font-size:11px; font-weight:600; color:var(--text-soft); margin-bottom:3px; }
+  .form-row input, .form-row select, .form-row textarea{ width:100%; font-size:13px; font-family:inherit; padding:8px 10px; border:1px solid var(--border); border-radius:6px; background:var(--bg); color:var(--text); }
+  .form-actions{ display:flex; gap:8px; margin-top:14px; align-items:center; }
+  .btn-guardar{ font-size:13px; font-weight:600; padding:9px 18px; border-radius:7px; background:var(--blue); color:#fff; border:none; cursor:pointer; }
+  .btn-guardar:hover{ background:#0d2f5e; }
+  .btn-guardar:disabled{ opacity:.5; cursor:not-allowed; }
+  .form-msg{ font-size:12px; padding:8px 12px; border-radius:6px; display:none; margin-top:10px; }
+  .form-msg.ok{ background:var(--green-bg); color:var(--green-text); display:block; }
+  .form-msg.err{ background:var(--red-bg); color:var(--red-text); display:block; }
+
+  .alta-exito{ display:none; margin-top:16px; padding:16px; background:var(--green-bg); border-radius:10px; }
+  .alta-exito.open{ display:block; }
+  .alta-exito-title{ font-weight:700; color:var(--green-text); margin-bottom:10px; }
+  .alta-exito-btns{ display:flex; gap:8px; flex-wrap:wrap; }
+  .pdf-btn{
+    display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:600;
+    color:var(--blue); background:#fff; border:1px solid var(--border); border-radius:7px; padding:8px 12px; cursor:pointer;
+  }
+  .pdf-btn:hover{ background:#F4F3EE; }
+  .pdf-btn:disabled{ opacity:.5; cursor:not-allowed; }
+
+  .sync-btn{
+    display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600;
+    color:var(--text-soft); background:var(--card); border:1px solid var(--border);
+    border-radius:8px; padding:8px 14px; cursor:pointer;
+  }
+  .sync-btn:hover{ background:#F4F3EE; }
+  .sync-msg{ font-size:12px; color:var(--text-soft); margin-left:10px; }
+
+  .loading, .errorbox{ text-align:center; padding:40px; color:var(--text-soft); font-size:14px; }
+  .errorbox{ color:var(--red-text); }
+
+  @media (max-width:720px){
+    .metric-grid{ grid-template-columns:repeat(2,1fr); }
+    .copy-inner{ grid-template-columns:1fr; }
+    .form-grid{ grid-template-columns:1fr; }
+  }
+</style>
+</head>
+<body>
+
+  <div class="topbar">
+    <div class="brand">
+      <span class="dot"></span>
+      <span class="brand-text">GEB University — Iniciativas Humanas</span>
+    </div>
+    <div class="meta">Panel interno</div>
+  </div>
+
+<div class="wrap">
+
+  <a href="index.html" class="back-link">← volver al panel general</a>
+
+  <header class="page-header">
+    <div>
+      <h1>Biblioteca Comunitaria</h1>
+      <div class="sub">GEB Iniciativas Humanas — Préstamos y Donaciones</div>
+    </div>
+    <div class="sub" id="lastSync">cargando datos...</div>
+  </header>
+
+  <div id="loadingMsg" class="loading">Cargando datos desde Google Sheets…</div>
+  <div id="errorMsg" class="errorbox" style="display:none;"></div>
+
+  <div id="appContent" style="display:none;">
+
+  <!-- JOURNEY MAP -->
+  <div class="section" style="margin-bottom:28px;">
+    <div class="section-title" style="margin-bottom:14px;">Ruta de préstamos y donaciones</div>
+    <div style="background:var(--card); border:1px solid var(--border); border-radius:14px; padding:16px; overflow-x:auto; display:flex; justify-content:center;">
+      <svg viewBox="0 0 680 270" role="img" style="width:660px; max-width:100%;">
+        <title>Journey de Biblioteca Comunitaria</title>
+        <desc>Ruta de donación y ruta de préstamo convergen en agradecimiento por devolución.</desc>
+        <defs>
+          <marker id="jarrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </marker>
+        </defs>
+
+        <!-- Ruta donación (fila superior) -->
+        <rect x="20" y="20" width="86" height="36" rx="6" fill="#EAF3DE" stroke="#3B6D11" stroke-width="0.5"/>
+        <text font-family="DM Sans,sans-serif" font-size="10" font-weight="600" fill="#27500A" x="63" y="34" text-anchor="middle" dominant-baseline="central">Bienvenida</text>
+        <text font-family="DM Sans,sans-serif" font-size="8" fill="#3B6D11" x="63" y="48" text-anchor="middle" dominant-baseline="central">WA · preguntas</text>
+        <line x1="106" y1="38" x2="124" y2="38" stroke="#888780" stroke-width="1" marker-end="url(#jarrow)"/>
+
+        <rect x="124" y="20" width="86" height="36" rx="6" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.5"/>
+        <text font-family="DM Sans,sans-serif" font-size="10" font-weight="600" fill="#633806" x="167" y="34" text-anchor="middle" dominant-baseline="central">Alta donación</text>
+        <text font-family="DM Sans,sans-serif" font-size="8" fill="#854F0B" x="167" y="48" text-anchor="middle" dominant-baseline="central">ID autonumerado</text>
+        <line x1="210" y1="38" x2="228" y2="38" stroke="#888780" stroke-width="1" marker-end="url(#jarrow)"/>
+
+        <rect x="228" y="20" width="86" height="36" rx="6" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.5"/>
+        <text font-family="DM Sans,sans-serif" font-size="10" font-weight="600" fill="#0C447C" x="271" y="34" text-anchor="middle" dominant-baseline="central">Confirmación</text>
+        <text font-family="DM Sans,sans-serif" font-size="8" fill="#185FA5" x="271" y="48" text-anchor="middle" dominant-baseline="central">dejar libro · WA</text>
+        <line x1="314" y1="38" x2="332" y2="38" stroke="#888780" stroke-width="1" marker-end="url(#jarrow)"/>
+
+        <rect x="332" y="20" width="86" height="36" rx="6" fill="#EEEDFE" stroke="#3C3489" stroke-width="0.5"/>
+        <text font-family="DM Sans,sans-serif" font-size="10" font-weight="600" fill="#262066" x="375" y="34" text-anchor="middle" dominant-baseline="central">Recibo /</text>
+        <text font-family="DM Sans,sans-serif" font-size="8" fill="#3C3489" x="375" y="48" text-anchor="middle" dominant-baseline="central">Etiqueta PDF</text>
+
+        <!-- Ruta préstamo (fila inferior) -->
+        <rect x="20" y="100" width="86" height="36" rx="6" fill="#FAECE7" stroke="#993C1D" stroke-width="0.5"/>
+        <text font-family="DM Sans,sans-serif" font-size="10" font-weight="600" fill="#712B13" x="63" y="114" text-anchor="middle" dominant-baseline="central">Solicitud</text>
+        <text font-family="DM Sans,sans-serif" font-size="8" fill="#993C1D" x="63" y="128" text-anchor="middle" dominant-baseline="central">de préstamo</text>
+        <line x1="106" y1="118" x2="124" y2="118" stroke="#888780" stroke-width="1" marker-end="url(#jarrow)"/>
+
+        <rect x="124" y="100" width="86" height="36" rx="6" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.5"/>
+        <text font-family="DM Sans,sans-serif" font-size="10" font-weight="600" fill="#633806" x="167" y="114" text-anchor="middle" dominant-baseline="central">Datos del</text>
+        <text font-family="DM Sans,sans-serif" font-size="8" fill="#854F0B" x="167" y="128" text-anchor="middle" dominant-baseline="central">préstamo · WA</text>
+        <line x1="210" y1="118" x2="228" y2="118" stroke="#888780" stroke-width="1" marker-end="url(#jarrow)"/>
+
+        <rect x="228" y="100" width="86" height="36" rx="6" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
+        <text font-family="DM Sans,sans-serif" font-size="10" font-weight="600" fill="#444441" x="271" y="114" text-anchor="middle" dominant-baseline="central">En curso</text>
+        <text font-family="DM Sans,sans-serif" font-size="8" fill="#5F5E5A" x="271" y="128" text-anchor="middle" dominant-baseline="central">recordatorios</text>
+        <line x1="314" y1="118" x2="332" y2="106" stroke="#888780" stroke-width="1" marker-end="url(#jarrow)"/>
+        <line x1="314" y1="128" x2="332" y2="148" stroke="#888780" stroke-width="1" marker-end="url(#jarrow)"/>
+
+        <rect x="332" y="86" width="86" height="36" rx="6" fill="#FCEBEB" stroke="#A32D2D" stroke-width="0.5"/>
+        <text font-family="DM Sans,sans-serif" font-size="10" font-weight="600" fill="#7A1F1F" x="375" y="100" text-anchor="middle" dominant-baseline="central">Atrasado</text>
+        <text font-family="DM Sans,sans-serif" font-size="8" fill="#A32D2D" x="375" y="114" text-anchor="middle" dominant-baseline="central">recordatorio WA</text>
+
+        <rect x="332" y="132" width="86" height="36" rx="6" fill="#EAF3DE" stroke="#3B6D11" stroke-width="0.5"/>
+        <text font-family="DM Sans,sans-serif" font-size="10" font-weight="600" fill="#27500A" x="375" y="146" text-anchor="middle" dominant-baseline="central">Devuelto</text>
+        <text font-family="DM Sans,sans-serif" font-size="8" fill="#3B6D11" x="375" y="160" text-anchor="middle" dominant-baseline="central">matching auto</text>
+
+        <line x1="418" y1="150" x2="436" y2="150" stroke="#888780" stroke-width="1" marker-end="url(#jarrow)"/>
+        <rect x="436" y="132" width="100" height="36" rx="6" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
+        <text font-family="DM Sans,sans-serif" font-size="10" font-weight="600" fill="#085041" x="486" y="146" text-anchor="middle" dominant-baseline="central">Agradecimiento</text>
+        <text font-family="DM Sans,sans-serif" font-size="8" fill="#0F6E56" x="486" y="160" text-anchor="middle" dominant-baseline="central">WA</text>
+
+        <path d="M418 104 Q427 95 436 90" fill="none" stroke="#888780" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#jarrow)"/>
+        <text font-family="DM Sans,sans-serif" font-size="8" fill="#5F5E5A" x="420" y="80" text-anchor="start">extender +14d</text>
+      </svg>
+    </div>
+  </div>
+
+  <!-- MÉTRICAS -->
+  <div class="metric-grid" id="metricsGrid"></div>
+
+  <!-- ATENCIÓN REQUERIDA -->
+  <div class="section">
+    <div class="section-title">Atención requerida</div>
+    <div class="panel-row" style="margin-bottom:8px;">
+      <span style="font-size:12.5px; color:var(--text-soft);">Atrasados</span>
+    </div>
+    <div class="gcard-grid" id="atrasadosGrid" style="margin-bottom:20px;"></div>
+
+    <div class="panel-row" style="margin-bottom:8px;">
+      <span style="font-size:12.5px; color:var(--text-soft);">Por vencer (próximos 3 días)</span>
+    </div>
+    <div class="gcard-grid" id="porVencerGrid" style="margin-bottom:20px;"></div>
+
+    <div class="panel-row" style="margin-bottom:8px;">
+      <span style="font-size:12.5px; color:var(--text-soft);">Donaciones pendientes de confirmar</span>
+    </div>
+    <div class="gcard-grid" id="donPendientesGrid"></div>
+  </div>
+
+  <!-- TABLA DE PRÉSTAMOS ACTIVOS -->
+  <div class="section">
+    <div class="section-title">Préstamos activos</div>
+    <div class="filters">
+      <input type="text" id="fSearch" placeholder="buscar nombre o libro…">
+      <select id="fEstado">
+        <option value="">todos los estados</option>
+        <option value="atrasado">solo atrasados</option>
+        <option value="porvencer">solo por vencer</option>
+        <option value="ok">al corriente</option>
+      </select>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Nombre</th><th>Libro</th><th>Fecha compromiso</th><th>Estado</th><th>Acciones</th></tr>
+        </thead>
+        <tbody id="tablaBody"></tbody>
+      </table>
+    </div>
+    <div class="footnote">📊 datos y copys desde Google Sheets · se actualizan al recargar la página</div>
+  </div>
+
+  <!-- ALTA DE DONACIÓN -->
+  <div class="section-divider"><span class="divider-label">Registrar donación</span><span class="divider-line"></span></div>
+  <div class="section">
+    <div class="inline-form">
+      <div class="form-grid">
+        <div class="form-row"><label>Donante *</label><input type="text" id="donDonante"></div>
+        <div class="form-row"><label>Correo</label><input type="email" id="donCorreo"></div>
+        <div class="form-row"><label>WhatsApp</label><input type="text" id="donWhatsapp" placeholder="10 dígitos"></div>
+        <div class="form-row"><label>Modalidad *</label>
+          <select id="donModalidad">
+            <option value="">— selecciona —</option>
+            <option value="Permanente">Permanente</option>
+            <option value="Temporal 6 meses">Temporal 6 meses</option>
+          </select>
+        </div>
+        <div class="form-row"><label>Título *</label><input type="text" id="donTitulo"></div>
+        <div class="form-row"><label>Autor</label><input type="text" id="donAutor"></div>
+      </div>
+      <div class="form-actions">
+        <button class="btn-guardar" id="btnGuardarDonacion" onclick="guardarDonacionAlta()">Registrar donación</button>
+      </div>
+      <div class="form-msg" id="donMsg"></div>
+
+      <div class="alta-exito" id="altaExito">
+        <div class="alta-exito-title">✅ Donación registrada — <span id="altaExitoId"></span></div>
+        <div class="alta-exito-btns">
+          <button class="pdf-btn" id="btnRecibo" onclick="generarReciboAlta()">📄 Generar recibo</button>
+          <button class="pdf-btn" id="btnEtiqueta" onclick="generarEtiquetaAlta()">🏷️ Generar etiqueta</button>
+          <button class="pdf-btn" id="btnWaBienvenida" onclick="enviarWaBienvenidaAlta()">💬 Enviar WA de bienvenida</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HISTORIAL DE DONACIONES -->
+  <div class="section-divider"><span class="divider-label">Historial de donaciones</span><span class="divider-line"></span></div>
+  <div class="section">
+    <div class="filters">
+      <input type="text" id="fHistSearch" placeholder="buscar donante o título…">
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Donante</th><th>Título</th><th>Tipo</th><th>Fecha ingreso</th><th>Fecha retorno</th><th>Recibo</th><th>Etiqueta</th></tr>
+        </thead>
+        <tbody id="historialBody"></tbody>
+      </table>
+    </div>
+    <div class="footnote">
+      <button class="sync-btn" onclick="sincronizarFisicos()">🔄 Sincronizar con Biblioteca Virtual</button>
+      <span class="sync-msg" id="syncMsg"></span>
+    </div>
+  </div>
+
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   CONFIGURACIÓN
+   ============================================================ */
+const SHEET_ID = "1fS5qeoB1ViuCUP4HOQ1zTJgh4tfWUkObvb5LMr3to5A";
+const WEBAPP_URL = "https://script.google.com/macros/s/AKfycby8QmMkIKFlse1yIsIxJk6LjvBW8WYjNTf51f54KubtakiKkYhUOPZmYUN4S76JBF_YeQ/exec";
+const TABS = {
+  prestamos: "BIB_Prestamos",
+  donaciones: "BIB_Donaciones",
+  devoluciones: "BIB_Devoluciones",
+  copys: "BIB_Copys"
+};
+
+// Nombres de columna fijos por pestaña — verificar contra el orden real
+// de BIB_Prestamos/BIB_Donaciones tras la migración (Fase 1) y ajustar si difiere.
+const SCHEMA = {
+  BIB_Prestamos: ["timestamp","nombre","correo","whatsapp","id_libro","titulo","fecha_prestamo","fecha_compromiso","disclosure_aceptado","devuelto","fecha_devolucion_real","condicion_devolucion","comentarios","depto"],
+  BIB_Donaciones: ["timestamp","donante","correo","whatsapp","titulo","autor","tipo","fecha_ingreso","fecha_retorno","id_libro","recibo_enviado","etiqueta_generada","link_recibo","link_etiqueta"],
+  BIB_Devoluciones: ["timestamp","nombre","id_libro","titulo","condicion","descripcion_dano","recomendaria","comentarios","procesado"],
+  BIB_Copys: ["Momento","Copy_Texto","Numero_WA","Activo"]
+};
+
+/* ============================================================
+   LECTURA DE GOOGLE SHEETS (endpoint público gviz, sin API key)
+   ============================================================ */
+function gvizUrl(tabName){
+  return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(tabName)}`;
+}
+
+function formatTel(val){
+  if(!val) return "";
+  const s = String(val).replace(/\.0$/,"").replace(/\D/g,"");
+  if(s.length === 10) return "+52" + s;
+  if(s.length === 12 && s.startsWith("52")) return "+" + s;
+  return s;
+}
+
+async function fetchSheetTab(tabName){
+  const res = await fetch(gvizUrl(tabName));
+  const text = await res.text();
+  const jsonStr = text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1);
+  const data = JSON.parse(jsonStr);
+  const headers = SCHEMA[tabName];
+
+  const schemaSet = new Set(headers.map(h => h.toLowerCase()));
+  return data.table.rows
+    .map((r, i) => ({ r, _fila: i + 2 })) // fila real en el Sheet (1=encabezado)
+    .filter(o => o.r && o.r.c && o.r.c.some(cell => cell && cell.v !== null && cell.v !== ""))
+    .filter(o => {
+      const firstVal = o.r.c && o.r.c[0] ? String(o.r.c[0].v || "").trim() : "";
+      if(firstVal.startsWith("#") || schemaSet.has(firstVal.toLowerCase())) return false;
+      return true;
+    })
+    .map(o => {
+      const obj = { _fila: o._fila };
+      headers.forEach((col, i) => {
+        const cell = o.r.c ? o.r.c[i] : null;
+        let val = cell ? (cell.f !== undefined && cell.f !== null ? cell.f : cell.v) : "";
+        if(val === null || val === undefined) val = "";
+        if(col === "whatsapp") val = formatTel(val);
+        obj[col] = val;
+      });
+      return obj;
+    });
+}
+
+/* ============================================================
+   UTILIDADES
+   ============================================================ */
+function initials(name){
+  if(!name) return "?";
+  const parts = String(name).trim().split(/\s+/);
+  return ((parts[0]?.[0]||"") + (parts[1]?.[0]||"")).toUpperCase();
+}
+
+function waLink(numero, texto){
+  const phone = (numero || "").replace(/[^\d+]/g, "");
+  return `https://wa.me/${phone.replace("+","")}?text=${encodeURIComponent(texto)}`;
+}
+
+function parseFecha(val){
+  if(!val) return null;
+  const d = new Date(val);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function formatFechaCorta(d){
+  if(!d) return "—";
+  return d.toLocaleDateString("es-MX", { day:"2-digit", month:"2-digit", year:"numeric" });
+}
+
+function esSiBib(val){
+  const v = String(val||"").trim().toLowerCase();
+  return v === "sí" || v === "si" || v === "true";
+}
+
+function sustituirVariablesBib(texto, vars){
+  let t = texto || "";
+  Object.keys(vars).forEach(k => {
+    t = t.replace(new RegExp(`\\{${k}\\}`, "g"), vars[k] || "");
+  });
+  return t;
+}
+
+function buildCopyMapBib(){
+  const map = {};
+  COPYS.forEach(c => {
+    if(esSiBib(c.Activo) || c.Activo === true) map[c.Momento] = c;
+  });
+  return map;
+}
+
+/* ============================================================
+   LÓGICA DE NEGOCIO — cálculo en vivo de atrasados/por vencer
+   ============================================================ */
+function calcularEstadoPrestamo(p){
+  if(esSiBib(p.devuelto)) return { estado:"devuelto", dias:0 };
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const fc = parseFecha(p.fecha_compromiso);
+  if(!fc) return { estado:"sinFecha", dias:0 };
+  fc.setHours(0,0,0,0);
+  const dias = Math.floor((fc - hoy) / (1000*60*60*24));
+  if(dias < 0) return { estado:"atrasado", dias: Math.abs(dias) };
+  if(dias <= 3) return { estado:"porvencer", dias };
+  return { estado:"ok", dias };
+}
+
+function prestamosActivos(){
+  return PRESTAMOS.filter(p => !esSiBib(p.devuelto));
+}
+
+/* ============================================================
+   RENDER
+   ============================================================ */
+let PRESTAMOS = [], DONACIONES = [], DEVOLUCIONES = [], COPYS = [];
+
+function renderMetrics(){
+  const activos = prestamosActivos();
+  const atrasados = activos.filter(p => calcularEstadoPrestamo(p).estado === "atrasado");
+  const porVencer = activos.filter(p => calcularEstadoPrestamo(p).estado === "porvencer");
+
+  const hoy = new Date();
+  const donacionesMes = DONACIONES.filter(d => {
+    const f = parseFecha(d.fecha_ingreso);
+    return f && f.getMonth() === hoy.getMonth() && f.getFullYear() === hoy.getFullYear();
+  });
+  const pendientesPdf = DONACIONES.filter(d => !d.recibo_enviado || !d.etiqueta_generada);
+
+  const metrics = [
+    { val: activos.length, lbl: "préstamos activos" },
+    { val: atrasados.length, lbl: "atrasados", alert: atrasados.length > 0 },
+    { val: porVencer.length, lbl: "por vencer (3 días)" },
+    { val: donacionesMes.length, lbl: "donaciones del mes" },
+    { val: pendientesPdf.length, lbl: "pendientes recibo/etiqueta" },
+  ];
+
+  document.getElementById("metricsGrid").innerHTML = metrics.map(m => `
+    <div class="metric ${m.alert?'alert':''}">
+      <div class="val">${m.val}</div>
+      <div class="lbl">${m.lbl}</div>
+    </div>
+  `).join("");
+}
+
+function renderAtencion(){
+  const copyMap = buildCopyMapBib();
+  const activos = prestamosActivos();
+  const atrasados = activos.filter(p => calcularEstadoPrestamo(p).estado === "atrasado");
+  const porVencer = activos.filter(p => calcularEstadoPrestamo(p).estado === "porvencer");
+  const donPendientes = DONACIONES.filter(d => !d.recibo_enviado && !esSiBib(d.etiqueta_generada) ? true : (!d.recibo_enviado || !d.etiqueta_generada));
+
+  function cardPrestamo(p, tipo){
+    const est = calcularEstadoPrestamo(p);
+    const momento = tipo === "atrasado" ? "recordatorio_atraso"
+      : (est.dias === 0 ? "recordatorio_vence_hoy" : "recordatorio_proximo_vencimiento");
+    const copy = copyMap[momento];
+    const fechaTxt = formatFechaCorta(parseFecha(p.fecha_compromiso));
+    const vars = { Nombre: (p.nombre||"").split(" ")[0], Titulo: p.titulo||"", Fecha: fechaTxt };
+    const texto = copy ? sustituirVariablesBib(copy.Copy_Texto, vars) : "";
+    const numero = copy ? (copy.Numero_WA || p.whatsapp || "") : (p.whatsapp || "");
+    const pillTxt = tipo === "atrasado" ? `${est.dias} día(s) de atraso` : (est.dias === 0 ? "vence hoy" : `vence en ${est.dias} día(s)`);
+    return `
+      <div class="gcard ${tipo === 'atrasado' ? 'atrasado' : 'porvencer'}">
+        <div class="gcard-head">
+          <div><div class="gname">${p.nombre}</div><div class="glibro">"${p.titulo}"</div></div>
+        </div>
+        <span class="pill ${tipo === 'atrasado' ? 'atraso' : 'vence'}">${pillTxt}</span>
+        ${copy ? `<button class="wa-btn" onclick="window.open('${waLink(numero, texto)}','_blank')"><span class="ic">●</span> Enviar recordatorio WA</button>` : ''}
+        <button class="ext-btn" onclick="extenderPrestamo('${encodeURIComponent(p.nombre)}','${encodeURIComponent(p.id_libro)}', this)">+2 semanas</button>
+      </div>
+    `;
+  }
+
+  document.getElementById("atrasadosGrid").innerHTML = atrasados.length
+    ? atrasados.map(p => cardPrestamo(p, "atrasado")).join("")
+    : `<div class="footnote">Sin préstamos atrasados.</div>`;
+
+  document.getElementById("porVencerGrid").innerHTML = porVencer.length
+    ? porVencer.map(p => cardPrestamo(p, "porvencer")).join("")
+    : `<div class="footnote">Sin préstamos por vencer en los próximos 3 días.</div>`;
+
+  document.getElementById("donPendientesGrid").innerHTML = donPendientes.length
+    ? donPendientes.map(d => {
+        const copy = copyMap["confirmacion_donacion"];
+        const vars = { Nombre: (d.donante||"").split(" ")[0], Titulo: d.titulo||"", Fecha: formatFechaCorta(parseFecha(d.fecha_ingreso)) };
+        const texto = copy ? sustituirVariablesBib(copy.Copy_Texto, vars) : "";
+        const numero = copy ? (copy.Numero_WA || d.whatsapp || "") : (d.whatsapp || "");
+        return `
+          <div class="gcard">
+            <div class="gcard-head"><div><div class="gname">${d.donante}</div><div class="glibro">"${d.titulo}"</div></div></div>
+            <span class="pill pendiente">${d.id_libro || "sin ID"}</span>
+            ${copy ? `<button class="wa-btn" onclick="window.open('${waLink(numero, texto)}','_blank')"><span class="ic">●</span> Enviar confirmación WA</button>` : ''}
+          </div>
+        `;
+      }).join("")
+    : `<div class="footnote">No hay donaciones pendientes de confirmar.</div>`;
+}
+
+function renderTabla(filtered){
+  const body = document.getElementById("tablaBody");
+  if(filtered.length === 0){
+    body.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:24px; color:var(--text-soft);">Sin resultados</td></tr>`;
+    return;
+  }
+  let html = "";
+  filtered.forEach((p, i) => {
+    const est = calcularEstadoPrestamo(p);
+    let pill = `<span class="pill activo">Al corriente</span>`;
+    let rowClass = "";
+    if(est.estado === "atrasado"){ pill = `<span class="pill atraso">${est.dias}d atraso</span>`; rowClass = "atrasado-row"; }
+    else if(est.estado === "porvencer"){ pill = `<span class="pill vence">vence en ${est.dias}d</span>`; rowClass = "porvencer-row"; }
+
+    html += `<tr class="${rowClass}">
+      <td style="font-weight:600;">${p.nombre}</td>
+      <td>"${p.titulo}"</td>
+      <td>${formatFechaCorta(parseFecha(p.fecha_compromiso))}</td>
+      <td>${pill}</td>
+      <td><button class="ext-btn" onclick="extenderPrestamo('${encodeURIComponent(p.nombre)}','${encodeURIComponent(p.id_libro)}', this)">+2 semanas</button></td>
+    </tr>`;
+  });
+  body.innerHTML = html;
+}
+
+function applyFilters(){
+  const q = document.getElementById("fSearch").value.toLowerCase();
+  const estadoF = document.getElementById("fEstado").value;
+  const filtered = prestamosActivos().filter(p => {
+    const matchQ = !q || (p.nombre||"").toLowerCase().includes(q) || (p.titulo||"").toLowerCase().includes(q);
+    const est = calcularEstadoPrestamo(p).estado;
+    const matchEstado = !estadoF || est === estadoF || (estadoF === "ok" && est !== "atrasado" && est !== "porvencer");
+    return matchQ && matchEstado;
+  });
+  renderTabla(filtered);
+}
+
+function renderHistorial(filtered){
+  const body = document.getElementById("historialBody");
+  if(!filtered || filtered.length === 0){
+    body.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-soft);">Sin registros en el historial</td></tr>`;
+    return;
+  }
+  let html = "";
+  filtered.forEach(d => {
+    html += `<tr>
+      <td style="font-weight:600;">${d.donante}</td>
+      <td>"${d.titulo}"</td>
+      <td>${d.tipo||"—"}</td>
+      <td>${formatFechaCorta(parseFecha(d.fecha_ingreso))}</td>
+      <td>${d.fecha_retorno ? formatFechaCorta(parseFecha(d.fecha_retorno)) : "—"}</td>
+      <td>${d.link_recibo ? `<a href="${d.link_recibo}" target="_blank">Ver</a>` : "—"}</td>
+      <td>${d.link_etiqueta ? `<a href="${d.link_etiqueta}" target="_blank">Ver</a>` : "—"}</td>
+    </tr>`;
+  });
+  body.innerHTML = html;
+}
+
+function applyHistorialFilters(){
+  const q = document.getElementById("fHistSearch").value.toLowerCase();
+  const filtered = DONACIONES.filter(d =>
+    !q || (d.donante||"").toLowerCase().includes(q) || (d.titulo||"").toLowerCase().includes(q)
+  );
+  renderHistorial(filtered);
+}
+
+/* ============================================================
+   ACCIONES — Web App (única vía de escritura)
+   ============================================================ */
+async function postData(payload){
+  const res = await fetch(WEBAPP_URL, { method:"POST", body:JSON.stringify(payload) });
+  return await res.json();
+}
+
+async function extenderPrestamo(nombreEnc, idLibroEnc, btnEl){
+  const nombre = decodeURIComponent(nombreEnc);
+  const idLibro = decodeURIComponent(idLibroEnc);
+  btnEl.disabled = true; btnEl.textContent = "Extendiendo…";
+  try{
+    const r = await postData({ tipo:"bib_extenderPrestamo", nombre, idLibro });
+    if(r.ok){
+      btnEl.textContent = "Extendido ✓";
+      const p = PRESTAMOS.find(x => x.nombre === nombre && x.id_libro === idLibro);
+      if(p) p.fecha_compromiso = r.nuevaFechaCompromiso;
+      renderMetrics(); renderAtencion(); applyFilters();
+    } else {
+      btnEl.disabled = false; btnEl.textContent = "+2 semanas";
+      alert("Error al extender: " + r.error);
+    }
+  } catch(e){
+    btnEl.disabled = false; btnEl.textContent = "+2 semanas";
+    alert("No se pudo conectar con el servidor.");
+  }
+}
+
+function showFormMsg(id, tipo, texto){
+  const el = document.getElementById(id);
+  el.className = "form-msg " + tipo;
+  el.textContent = texto;
+}
+
+let ULTIMA_ALTA = null;
+
+async function guardarDonacionAlta(){
+  const donante = document.getElementById("donDonante").value.trim();
+  const modalidad = document.getElementById("donModalidad").value;
+  const titulo = document.getElementById("donTitulo").value.trim();
+  if(!donante || !modalidad || !titulo){
+    showFormMsg("donMsg","err","Donante, modalidad y título son obligatorios.");
+    return;
+  }
+  const btn = document.getElementById("btnGuardarDonacion");
+  btn.disabled = true; btn.textContent = "Guardando…";
+  try{
+    const r = await postData({
+      tipo: "bib_altaDonacion",
+      donante,
+      correo: document.getElementById("donCorreo").value.trim(),
+      whatsapp: document.getElementById("donWhatsapp").value.trim(),
+      titulo,
+      autor: document.getElementById("donAutor").value.trim(),
+      modalidad
+    });
+    if(r.ok){
+      showFormMsg("donMsg","ok","Donación registrada correctamente.");
+      ULTIMA_ALTA = { fila: r.fila, idAsignado: r.idAsignado, donante, titulo };
+      document.getElementById("altaExitoId").textContent = r.idAsignado;
+      document.getElementById("altaExito").classList.add("open");
+    } else {
+      showFormMsg("donMsg","err","Error: " + r.error);
+    }
+  } catch(e){
+    showFormMsg("donMsg","err","No se pudo conectar con el servidor.");
+  } finally {
+    btn.disabled = false; btn.textContent = "Registrar donación";
+  }
+}
+
+async function generarReciboAlta(){
+  if(!ULTIMA_ALTA) return;
+  const btn = document.getElementById("btnRecibo");
+  btn.disabled = true; btn.textContent = "Generando…";
+  try{
+    const r = await postData({ tipo:"bib_generarRecibo", fila: ULTIMA_ALTA.fila });
+    if(r.ok) window.open(r.url, "_blank");
+    else alert("Error: " + r.error);
+  } catch(e){ alert("No se pudo conectar con el servidor."); }
+  finally{ btn.disabled = false; btn.textContent = "📄 Generar recibo"; }
+}
+
+async function generarEtiquetaAlta(){
+  if(!ULTIMA_ALTA) return;
+  const btn = document.getElementById("btnEtiqueta");
+  btn.disabled = true; btn.textContent = "Generando…";
+  try{
+    const r = await postData({ tipo:"bib_generarEtiqueta", filas: [ULTIMA_ALTA.fila] });
+    if(r.ok) window.open(r.url, "_blank");
+    else alert("Error: " + r.error);
+  } catch(e){ alert("No se pudo conectar con el servidor."); }
+  finally{ btn.disabled = false; btn.textContent = "🏷️ Generar etiqueta"; }
+}
+
+function enviarWaBienvenidaAlta(){
+  if(!ULTIMA_ALTA) return;
+  const copyMap = buildCopyMapBib();
+  const copy = copyMap["bienvenida_donacion"];
+  if(!copy){ alert("No se encontró el copy 'bienvenida_donacion' en BIB_Copys."); return; }
+  const texto = sustituirVariablesBib(copy.Copy_Texto, { Nombre: ULTIMA_ALTA.donante.split(" ")[0] });
+  window.open(waLink(copy.Numero_WA || "", texto), "_blank");
+}
+
+async function sincronizarFisicos(){
+  const msgEl = document.getElementById("syncMsg");
+  msgEl.textContent = "Sincronizando…";
+  try{
+    const r = await postData({ tipo:"bib_sincronizarFisicos" });
+    msgEl.textContent = r.ok ? r.mensaje : ("Error: " + r.error);
+  } catch(e){
+    msgEl.textContent = "No se pudo conectar con el servidor.";
+  }
+}
+
+/* ============================================================
+   INIT
+   ============================================================ */
+async function init(){
+  try{
+    const [prestamos, donaciones, devoluciones, copys] = await Promise.all([
+      fetchSheetTab(TABS.prestamos),
+      fetchSheetTab(TABS.donaciones),
+      fetchSheetTab(TABS.devoluciones),
+      fetchSheetTab(TABS.copys)
+    ]);
+
+    PRESTAMOS = prestamos.filter(p => p.nombre && p.nombre.trim() !== "");
+    DONACIONES = donaciones.filter(d => d.donante && d.donante.trim() !== "");
+    DEVOLUCIONES = devoluciones.filter(d => d.nombre && d.nombre.trim() !== "");
+    COPYS = copys.filter(c => c.Momento && c.Momento.trim() !== "");
+
+    document.getElementById("loadingMsg").style.display = "none";
+    document.getElementById("appContent").style.display = "block";
+    document.getElementById("lastSync").textContent = "actualizado: " + new Date().toLocaleString("es-MX", {dateStyle:"medium", timeStyle:"short"});
+
+    renderMetrics();
+    renderAtencion();
+    applyFilters();
+    applyHistorialFilters();
+
+    document.getElementById("fSearch").addEventListener("input", applyFilters);
+    document.getElementById("fEstado").addEventListener("change", applyFilters);
+    document.getElementById("fHistSearch").addEventListener("input", applyHistorialFilters);
+
+  } catch(err){
+    document.getElementById("loadingMsg").style.display = "none";
+    const eb = document.getElementById("errorMsg");
+    eb.style.display = "block";
+    eb.textContent = "No se pudieron cargar los datos desde Google Sheets. Verifica que el Sheet esté compartido como 'Cualquier persona con el enlace puede ver' y que existan las pestañas BIB_Prestamos, BIB_Donaciones, BIB_Devoluciones, BIB_Copys.";
+    console.error(err);
+  }
+}
+
+init();
+</script>
+</body>
+</html>

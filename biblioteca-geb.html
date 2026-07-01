@@ -416,6 +416,12 @@ function gvizDateToJs(v){
     const nums = v.slice(5, -1).split(",").map(n => parseInt(n, 10));
     return new Date(nums[0], nums[1], nums[2], nums[3]||0, nums[4]||0, nums[5]||0);
   }
+  // Fallback: texto en formato dd/mm/yyyy (viene de Form o entrada manual)
+  if(typeof v === "string" && /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(v.trim())){
+    const [d, m, y] = v.trim().split("/").map(n => parseInt(n, 10));
+    const dt = new Date(y, m - 1, d);
+    return isNaN(dt.getTime()) ? null : dt;
+  }
   return null;
 }
 

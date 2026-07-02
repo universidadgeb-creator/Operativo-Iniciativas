@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Retiro del Espíritu Santo — GEB Iniciativas Humanas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#0B2545;
+    --gold:#C49B4C;
+    --bg:#F7F5F0;
+    --card:#FFFFFF;
+    --text:#1C2A3A;
+    --text-soft:#5C6B7A;
+    --border:#E3E1D9;
+    --green-bg:#EAF3DE; --green-text:#3B6D11;
+    --amber-bg:#FAEEDA; --amber-text:#854F0B;
+    --gray-bg:#F1EFE8; --gray-text:#5F5E5A;
+    --red-bg:#FCEBEB; --red-text:#A32D2D;
+    --b-bg:#E6F1FB; --b-text:#185FA5;
+    --gold-bg:#FBF3E3; --gold-text:#8A6A2C;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{ font-family:'DM Sans', sans-serif; background:var(--bg); color:var(--text); padding:0; }
+  .wrap{ max-width:1180px; margin:0 auto; padding:24px 20px 60px; }
+
+  /* ---- topbar ---- */
+  .topbar{ background:var(--blue); color:#fff; padding:14px 20px; display:flex; align-items:center; justify-content:space-between; }
+  .topbar .brand{ display:flex; align-items:center; gap:10px; }
+  .topbar .brand .dot{ width:9px; height:9px; border-radius:50%; background:var(--gold); }
+  .topbar .brand-text{ font-family:'Cormorant Garamond', serif; font-size:19px; font-weight:600; letter-spacing:.01em; }
+  .topbar .meta{ font-size:12px; color:#C9D3DF; }
+
+  .back-link{ display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:500; color:var(--text-soft); text-decoration:none; margin-bottom:14px; }
+  .back-link:hover{ color:var(--blue); }
+
+  header.page-header{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:28px; flex-wrap:wrap; gap:10px; border-bottom:2px solid var(--gold); padding-bottom:16px; }
+  header.page-header h1{ font-family:'Cormorant Garamond', serif; font-size:34px; font-weight:600; color:var(--blue); }
+  header.page-header .sub{ color:var(--text-soft); font-size:13px; }
+
+  .section{ margin-bottom:30px; }
+  .section-title{ font-family:'Cormorant Garamond', serif; font-size:20px; font-weight:600; color:var(--blue); margin-bottom:12px; }
+  .panel-row{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap; gap:10px; }
+
+  /* ---- métricas ---- */
+  .metric-grid{ display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:20px; }
+  .metric-grid.global{ grid-template-columns:repeat(2,1fr); max-width:520px; }
+  .metric{ background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px 16px; }
+  .metric .val{ font-size:26px; font-weight:700; color:var(--blue); line-height:1.1; }
+  .metric .lbl{ font-size:12px; color:var(--text-soft); margin-top:4px; }
+
+  /* ---- pills ---- */
+  .pill{ display:inline-block; font-size:11px; font-weight:600; padding:2px 9px; border-radius:99px; margin-right:4px; margin-bottom:4px; }
+  .pill.activo{ background:var(--green-bg); color:var(--green-text); }
+  .pill.inactivo{ background:var(--gray-bg); color:var(--gray-text); }
+  .pill.seguimiento-tag{ background:var(--amber-bg); color:var(--amber-text); }
+
+  /* ---- edición selector ---- */
+  .edicion-bar{ background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px 16px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  .edicion-bar select{ font-size:14px; font-weight:600; padding:8px 12px; border-radius:8px; border:1px solid var(--border); background:var(--bg); color:var(--blue); font-family:inherit; }
+  .origen-tag{ font-size:11px; color:var(--text-soft); }
+
+  /* ---- avatar / cards ---- */
+  .avatar{ width:36px; height:36px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; background:var(--b-bg); color:var(--b-text); font-weight:700; font-size:13px; }
+  .gsuc{ font-size:11.5px; color:var(--text-soft); }
+
+  .wa-btn{ display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:500; color:var(--text-soft); background:#F4F3EE; border:1px solid var(--border); border-radius:8px; padding:7px 10px; cursor:pointer; text-align:left; }
+  .wa-btn:hover{ background:#E9E7DF; }
+  .wa-btn .ic{ color:#25D366; font-weight:700; }
+  .reg-btn{ display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:600; color:var(--blue); background:var(--b-bg); border:1px solid #c5d9f0; border-radius:7px; padding:6px 10px; cursor:pointer; }
+  .reg-btn:hover{ background:#d4e5f7; }
+
+  /* ---- tabla pase de lista ---- */
+  .table-wrap{ overflow-x:auto; background:var(--card); border:1px solid var(--border); border-radius:12px; }
+  table{ width:100%; border-collapse:collapse; font-size:13px; }
+  thead th{ text-align:left; font-size:11px; font-weight:700; color:var(--text-soft); padding:10px 12px; border-bottom:1px solid var(--border); white-space:nowrap; text-transform:uppercase; letter-spacing:.03em; }
+  tbody td{ padding:10px 12px; border-bottom:1px solid var(--border); vertical-align:middle; }
+  tbody tr:last-child td{ border-bottom:none; }
+  tbody select{ font-size:12.5px; padding:6px 8px; border-radius:6px; border:1px solid var(--border); background:var(--card); color:var(--text); font-family:inherit; }
+
+  /* ---- forms inline ---- */
+  .inline-form{ background:#FAF9F5; border:1px solid var(--border); border-radius:10px; padding:14px; margin-bottom:14px; display:none; }
+  .inline-form.open{ display:block; }
+  .inline-form-title{ font-size:12px; font-weight:700; color:var(--blue); margin-bottom:10px; text-transform:uppercase; letter-spacing:.03em; }
+  .form-row{ margin-bottom:8px; }
+  .form-row label{ display:block; font-size:11px; font-weight:600; color:var(--text-soft); margin-bottom:3px; }
+  .form-row input, .form-row select, .form-row textarea{ width:100%; font-size:12px; font-family:inherit; padding:6px 9px; border:1px solid var(--border); border-radius:6px; background:var(--card); color:var(--text); }
+  .form-row textarea{ resize:vertical; min-height:52px; }
+  .form-actions{ display:flex; gap:8px; margin-top:10px; }
+  .btn-guardar{ font-size:12px; font-weight:600; padding:7px 14px; border-radius:7px; background:var(--blue); color:#fff; border:none; cursor:pointer; }
+  .btn-guardar:hover{ background:#0d2f5e; }
+  .btn-guardar:disabled{ opacity:.5; cursor:not-allowed; }
+  .btn-cancelar{ font-size:12px; font-weight:500; padding:7px 12px; border-radius:7px; background:var(--bg); color:var(--text-soft); border:1px solid var(--border); cursor:pointer; }
+  .form-msg{ font-size:11.5px; margin-top:6px; padding:6px 10px; border-radius:6px; display:none; }
+  .form-msg.ok{ background:var(--green-bg); color:var(--green-text); display:block; }
+  .form-msg.err{ background:var(--red-bg); color:var(--red-text); display:block; }
+
+  /* ---- mensajes grupales ---- */
+  .grupales-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(280px,1fr)); gap:14px; }
+  .copy-group-card{ background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px; display:flex; flex-direction:column; gap:10px; }
+  .momento-title{ font-size:13px; font-weight:700; color:var(--blue); text-transform:uppercase; letter-spacing:.02em; }
+  .copy-text{ font-size:13px; line-height:1.6; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:10px 12px; white-space:pre-wrap; flex:1; }
+
+  /* ---- habitaciones ---- */
+  .hab-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(230px,1fr)); gap:14px; margin-bottom:14px; }
+  .hab-card{ background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px; }
+  .hab-card-head{ display:flex; gap:6px; margin-bottom:10px; }
+  .hab-card-head input{ flex:1; font-size:13px; font-weight:600; padding:6px 8px; border:1px solid var(--border); border-radius:6px; }
+  .hab-card-head select{ font-size:12px; padding:6px 8px; border:1px solid var(--border); border-radius:6px; }
+  .hab-card-head button{ font-size:13px; border:1px solid var(--border); background:var(--bg); border-radius:6px; cursor:pointer; padding:0 8px; }
+
+  /* ---- historial: acordeón por edición ---- */
+  .accordion{ border:1px solid var(--border); border-radius:10px; margin-bottom:10px; background:var(--card); overflow:hidden; }
+  .accordion-head{ padding:12px 16px; display:flex; justify-content:space-between; align-items:center; cursor:pointer; flex-wrap:wrap; gap:6px; }
+  .accordion-body{ display:none; padding:2px 16px 12px; border-top:1px solid var(--border); }
+  .accordion.open .accordion-body{ display:block; }
+  .accordion-arrow{ transition:transform .15s; }
+  .accordion.open .accordion-arrow{ transform:rotate(90deg); }
+  .hist-row{ display:flex; gap:14px; padding:7px 0; font-size:13px; border-bottom:1px dashed var(--border); align-items:center; }
+  .hist-row:last-child{ border-bottom:none; }
+  .hist-row span:first-child{ font-weight:600; flex:1; }
+
+  .filters{ display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
+  .filters input, .filters select{ font-size:13px; padding:8px 12px; border-radius:8px; border:1px solid var(--border); background:var(--card); color:var(--text); font-family:inherit; }
+  .filters input{ width:220px; }
+
+  .footnote{ font-size:11.5px; color:var(--text-soft); display:flex; align-items:center; gap:6px; padding:12px 4px; }
+  .loading, .errorbox{ text-align:center; padding:40px; color:var(--text-soft); font-size:14px; }
+  .errorbox{ color:var(--red-text); }
+  .section-divider{ display:flex; align-items:center; gap:10px; margin:34px 0 18px; }
+  .divider-label{ font-size:12px; font-weight:700; color:var(--text-soft); text-transform:uppercase; letter-spacing:.04em; white-space:nowrap; }
+  .divider-line{ height:1px; background:var(--border); flex:1; }
+
+  @media (max-width:720px){
+    .metric-grid{ grid-template-columns:repeat(2,1fr); }
+  }
+</style>
+</head>
+<body>
+
+  <div class="topbar">
+    <div class="brand">
+      <span class="dot"></span>
+      <span class="brand-text">GEB University — Iniciativas Humanas</span>
+    </div>
+    <div class="meta">Panel interno</div>
+  </div>
+
+<div class="wrap">
+
+  <a href="index.html" class="back-link">← volver al panel general</a>
+
+  <header class="page-header">
+    <div>
+      <h1>Retiro del Espíritu Santo</h1>
+      <div class="sub">GEB Iniciativas Humanas — Bienestar Integral</div>
+    </div>
+    <div class="sub" id="lastSync">cargando datos...</div>
+  </header>
+
+  <div id="loadingMsg" class="loading">Cargando datos desde Google Sheets…</div>
+  <div id="errorMsg" class="errorbox" style="display:none;"></div>
+
+  <div id="appContent" style="display:none;">
+
+    <!-- JOURNEY MAP -->
+    <div class="section">
+      <div class="section-title" style="margin-bottom:14px;">Ruta del colaborador</div>
+      <div style="background:var(--card); border:1px solid var(--border); border-radius:14px; padding:16px; overflow-x:auto; display:flex; justify-content:center;">
+        <svg viewBox="0 0 680 270" role="img" style="width:660px; max-width:100%;">
+          <title>Journey del colaborador — Retiro del Espíritu Santo</title>
+          <desc>Interés, saludo por WhatsApp, validación con el líder, registro en formulario, integración a grupo interno, participación en el retiro y testimonio; el ciclo regresa a interés en la siguiente edición.</desc>
+          <defs>
+            <marker id="jarrowRE" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+
+          <rect x="20" y="30" width="72" height="40" rx="7" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
+          <text font-family="DM Sans,sans-serif" font-size="13" font-weight="600" fill="#444441" x="56" y="46" text-anchor="middle" dominant-baseline="central">Interés</text>
+          <text font-family="DM Sans,sans-serif" font-size="11" fill="#5F5E5A" x="56" y="60" text-anchor="middle" dominant-baseline="central">WA espontáneo</text>
+          <line x1="92" y1="50" x2="112" y2="50" stroke="#888780" stroke-width="1" marker-end="url(#jarrowRE)"/>
+
+          <rect x="112" y="30" width="72" height="40" rx="7" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.5"/>
+          <text font-family="DM Sans,sans-serif" font-size="13" font-weight="600" fill="#0C447C" x="148" y="46" text-anchor="middle" dominant-baseline="central">Saludo WA</text>
+          <text font-family="DM Sans,sans-serif" font-size="11" fill="#185FA5" x="148" y="60" text-anchor="middle" dominant-baseline="central">saludo_interes</text>
+          <line x1="184" y1="50" x2="204" y2="50" stroke="#888780" stroke-width="1" marker-end="url(#jarrowRE)"/>
+
+          <rect x="204" y="30" width="72" height="40" rx="7" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.5"/>
+          <text font-family="DM Sans,sans-serif" font-size="13" font-weight="600" fill="#633806" x="240" y="46" text-anchor="middle" dominant-baseline="central">Validación</text>
+          <text font-family="DM Sans,sans-serif" font-size="11" fill="#854F0B" x="240" y="60" text-anchor="middle" dominant-baseline="central">con el líder</text>
+          <line x1="276" y1="50" x2="296" y2="50" stroke="#888780" stroke-width="1" marker-end="url(#jarrowRE)"/>
+
+          <rect x="296" y="30" width="72" height="40" rx="7" fill="#EAF3DE" stroke="#3B6D11" stroke-width="0.5"/>
+          <text font-family="DM Sans,sans-serif" font-size="13" font-weight="600" fill="#27500A" x="332" y="46" text-anchor="middle" dominant-baseline="central">Registro</text>
+          <text font-family="DM Sans,sans-serif" font-size="11" fill="#3B6D11" x="332" y="60" text-anchor="middle" dominant-baseline="central">Form</text>
+          <line x1="332" y1="70" x2="332" y2="140" stroke="#888780" stroke-width="1" marker-end="url(#jarrowRE)"/>
+
+          <rect x="296" y="140" width="72" height="40" rx="7" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.5"/>
+          <text font-family="DM Sans,sans-serif" font-size="13" font-weight="600" fill="#0C447C" x="332" y="156" text-anchor="middle" dominant-baseline="central">Grupo</text>
+          <text font-family="DM Sans,sans-serif" font-size="11" fill="#185FA5" x="332" y="170" text-anchor="middle" dominant-baseline="central">interno WA</text>
+          <line x1="368" y1="160" x2="388" y2="160" stroke="#888780" stroke-width="1" marker-end="url(#jarrowRE)"/>
+
+          <rect x="388" y="140" width="72" height="40" rx="7" fill="#FBF3E3" stroke="#C49B4C" stroke-width="0.7"/>
+          <text font-family="DM Sans,sans-serif" font-size="13" font-weight="600" fill="#8A6A2C" x="424" y="156" text-anchor="middle" dominant-baseline="central">Retiro</text>
+          <text font-family="DM Sans,sans-serif" font-size="11" fill="#8A6A2C" x="424" y="170" text-anchor="middle" dominant-baseline="central">fin de semana</text>
+          <line x1="460" y1="160" x2="480" y2="160" stroke="#888780" stroke-width="1" marker-end="url(#jarrowRE)"/>
+
+          <rect x="480" y="140" width="72" height="40" rx="7" fill="#EAF3DE" stroke="#3B6D11" stroke-width="0.5"/>
+          <text font-family="DM Sans,sans-serif" font-size="13" font-weight="600" fill="#27500A" x="516" y="156" text-anchor="middle" dominant-baseline="central">Testimonio</text>
+          <text font-family="DM Sans,sans-serif" font-size="11" fill="#3B6D11" x="516" y="170" text-anchor="middle" dominant-baseline="central">en comunidad</text>
+
+          <path d="M516 180 L516 225 L56 225 L56 70" fill="none" stroke="#888780" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#jarrowRE)"/>
+          <text font-family="DM Sans,sans-serif" font-size="11" fill="#5F5E5A" x="286" y="238" text-anchor="middle">nuevo ciclo · próxima edición</text>
+        </svg>
+      </div>
+    </div>
+
+    <!-- SELECTOR DE EDICIÓN -->
+    <div class="section">
+      <div class="edicion-bar">
+        <select id="edicionSelect"></select>
+        <span id="edicionBadge"></span>
+        <span class="origen-tag" id="edicionFechas"></span>
+        <span style="flex:1;"></span>
+        <button class="reg-btn" onclick="toggleAltaEdicion()">+ Nueva edición</button>
+      </div>
+      <div class="inline-form" id="altaEdicionForm">
+        <div class="inline-form-title">Nueva edición del retiro</div>
+        <div class="form-row"><label>Nombre de la edición *</label><input type="text" id="ae_nombre" placeholder="Ej. Retiro Espíritu Santo — Febrero 2026"></div>
+        <div class="form-row"><label>Fechas (texto libre) *</label><input type="text" id="ae_fechasTexto" placeholder="viernes 14 al domingo 16 de febrero"></div>
+        <div class="form-row"><label>Fecha inicio</label><input type="date" id="ae_fechaInicio"></div>
+        <div class="form-row"><label>Fecha fin</label><input type="date" id="ae_fechaFin"></div>
+        <div class="form-row"><label>Lugar</label><input type="text" id="ae_lugar"></div>
+        <div class="form-row"><label>Estado *</label>
+          <select id="ae_estado">
+            <option value="Próxima">Próxima</option>
+            <option value="Activa">Activa</option>
+            <option value="Cerrada">Cerrada</option>
+          </select>
+        </div>
+        <div class="form-row"><label>Notas</label><textarea id="ae_notas"></textarea></div>
+        <div class="form-actions">
+          <button class="btn-guardar" onclick="guardarEdicion()">Guardar</button>
+          <button class="btn-cancelar" onclick="toggleAltaEdicion()">Cancelar</button>
+        </div>
+        <div class="form-msg" id="aeMsg"></div>
+      </div>
+    </div>
+
+    <!-- MÉTRICAS GLOBALES -->
+    <div class="section">
+      <div class="section-title">Totales históricos</div>
+      <div class="metric-grid global" id="metricsGlobal"></div>
+    </div>
+
+    <!-- MÉTRICAS DE LA EDICIÓN -->
+    <div class="section">
+      <div class="section-title">Edición seleccionada</div>
+      <div class="metric-grid" id="metricsEdicion"></div>
+    </div>
+
+    <!-- PASE DE LISTA -->
+    <div class="section">
+      <div class="panel-row">
+        <div class="section-title">Pase de lista y seguimiento</div>
+        <button class="reg-btn" onclick="toggleAltaParticipante()">+ Agregar participante</button>
+      </div>
+      <div class="inline-form" id="altaParticipanteForm">
+        <div class="inline-form-title">Agregar participante a esta edición</div>
+        <div class="form-row"><label>Nombre *</label><input type="text" id="np_nombre" list="listaColaboradores"></div>
+        <datalist id="listaColaboradores"></datalist>
+        <div class="form-row"><label>Notas</label><input type="text" id="np_notas"></div>
+        <div class="form-actions">
+          <button class="btn-guardar" onclick="guardarParticipante()">Guardar</button>
+          <button class="btn-cancelar" onclick="toggleAltaParticipante()">Cancelar</button>
+        </div>
+        <div class="form-msg" id="npMsg"></div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Participante</th><th>Asistió</th><th>Testimonio</th><th>Mensajes</th></tr>
+          </thead>
+          <tbody id="paseListaBody"></tbody>
+        </table>
+      </div>
+      <div class="form-actions" style="margin-top:12px;">
+        <button class="btn-guardar" id="btnGuardarPase" onclick="guardarPaseLista()">Guardar pase de lista</button>
+      </div>
+      <div class="form-msg" id="paseListaMsg"></div>
+    </div>
+
+    <!-- MENSAJES GRUPALES -->
+    <div class="section">
+      <div class="section-title">Mensajes grupales</div>
+      <div class="grupales-grid" id="grupalesWrap"></div>
+    </div>
+
+    <!-- HABITACIONES -->
+    <div class="section">
+      <div class="panel-row">
+        <div class="section-title">Acomodo de habitaciones</div>
+        <button class="reg-btn" onclick="addHabRow()">+ Agregar habitación</button>
+      </div>
+      <div class="hab-grid" id="habGrid"></div>
+      <div class="form-actions">
+        <button class="btn-guardar" id="btnGuardarHab" onclick="guardarHabitaciones()">Guardar acomodo</button>
+      </div>
+      <div class="form-msg" id="habMsg"></div>
+    </div>
+
+    <!-- HISTORIAL GLOBAL -->
+    <div class="section-divider">
+      <span class="divider-label">Historial por edición</span>
+      <span class="divider-line"></span>
+    </div>
+    <div class="section">
+      <div class="filters">
+        <input type="text" id="fHistSearch" placeholder="buscar nombre…">
+        <select id="fHistEdicion"></select>
+      </div>
+      <div id="historialWrap"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   CONFIGURACIÓN
+   ============================================================ */
+const SHEET_ID = "1fS5qeoB1ViuCUP4HOQ1zTJgh4tfWUkObvb5LMr3to5A";
+const WEBAPP_URL = "https://script.google.com/macros/s/AKfycby8QmMkIKFlse1yIsIxJk6LjvBW8WYjNTf51f54KubtakiKkYhUOPZmYUN4S76JBF_YeQ/exec";
+const TABS = {
+  ediciones: "RE_Ediciones",
+  asistencias: "RE_Asistencias",
+  habitaciones: "RE_Habitaciones",
+  copys: "RE_Copys",
+  concentrado: "Concentrado"
+};
+const MESES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+const GRUPO_MOMENTOS = ["grupo_saludo","grupo_facturas","grupo_confirmacion_grupo_retiro","grupo_transporte","grupo_habitaciones","grupo_dia_retiro","grupo_cierre"];
+const IND_MOMENTOS = ["saludo_interes","confirmacion_lider","sin_confirmacion_lider","grupo_interno_acceso"];
+
+/* ============================================================
+   LECTURA DE GOOGLE SHEETS (endpoint público gviz, sin API key)
+   ============================================================ */
+function gvizUrl(tabName){
+  return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(tabName)}`;
+}
+
+// Nombres de columna fijos por pestaña — independiente de cómo gviz los etiquete.
+// Concentrado verificado contra el Sheet real (2026-07-02): 28 columnas, Retiro=índice 11,
+// RetiroFecha=índice 12, Camino de Santiago al final = índices 26-27.
+const SCHEMA = {
+  RE_Ediciones:  ["id_edicion","nombre_edicion","fechas_texto","fecha_inicio","fecha_fin","lugar","estado","notas"],
+  RE_Asistencias:["id_edicion","nombre","edicion_label","asistio","dio_testimonio","notas"],
+  RE_Habitaciones:["id_edicion","habitacion","genero","nombre_1","nombre_2","nombre_3","nombre_4","notas"],
+  RE_Copys:      ["Momento","Copy_Texto","Numero_WA","Activo"],
+  Concentrado:   ["Nombre","Rol","Sucursal","Unidad","Correo","FechaNac","Genero","Tel","Turno",
+                  "Psic","PsicFecha","Retiro","RetiroFecha","Impulso","Generacion","DiagEdu",
+                  "EscuelaGEB","Modalidad","Nivel","Donadores","DonadoresTipo","MesGuardia",
+                  "Ahorro","AhorroEstatus","BibDonante","BibReceptor","Camino","CaminoFecha"]
+};
+
+const DATE_FIELDS = { RE_Ediciones: ["fecha_inicio","fecha_fin"] };
+
+function formatTel(val){
+  if(!val) return "";
+  const s = String(val).replace(/\.0$/,"").replace(/\D/g,"");
+  if(s.length === 10) return "+52" + s;
+  if(s.length === 12 && s.startsWith("52")) return "+" + s;
+  return s;
+}
+
+function gvizDateToJs(v){
+  if(typeof v === "string" && v.startsWith("Date(")){
+    const nums = v.slice(5, -1).split(",").map(n => parseInt(n, 10));
+    return new Date(nums[0], nums[1], nums[2], nums[3]||0, nums[4]||0, nums[5]||0);
+  }
+  if(typeof v === "string" && /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(v.trim())){
+    const [d, m, y] = v.trim().split("/").map(n => parseInt(n, 10));
+    const dt = new Date(y, m - 1, d);
+    return isNaN(dt.getTime()) ? null : dt;
+  }
+  return null;
+}
+
+async function fetchSheetTab(tabName){
+  const res = await fetch(gvizUrl(tabName));
+  const text = await res.text();
+  const jsonStr = text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1);
+  const data = JSON.parse(jsonStr);
+  const headers = SCHEMA[tabName];
+  const dateFields = new Set(DATE_FIELDS[tabName] || []);
+
+  const schemaSet = new Set(headers.map(h => h.toLowerCase()));
+  return data.table.rows
+    .filter(r => r && r.c && r.c.some(cell => cell && cell.v !== null && cell.v !== ""))
+    .filter(r => {
+      const firstVal = r.c && r.c[0] ? String(r.c[0].v || "").trim() : "";
+      if(firstVal.startsWith("#") || schemaSet.has(firstVal.toLowerCase())) return false;
+      return true;
+    })
+    .map(r => {
+      const obj = {};
+      headers.forEach((col, i) => {
+        const cell = r.c ? r.c[i] : null;
+        if(dateFields.has(col)){
+          obj[col] = cell ? gvizDateToJs(cell.v) : null;
+          return;
+        }
+        let val = cell ? (cell.f !== undefined && cell.f !== null ? cell.f : cell.v) : "";
+        if(val === null || val === undefined) val = "";
+        if(col === "Tel") val = formatTel(val);
+        obj[col] = val;
+      });
+      return obj;
+    });
+}
+
+/* ============================================================
+   UTILIDADES
+   ============================================================ */
+function esSi(val){
+  const v = (val||"").toString().trim().toLowerCase();
+  return v === "sí" || v === "si";
+}
+
+function initials(name){
+  if(!name) return "?";
+  const parts = name.trim().split(/\s+/);
+  return ((parts[0]?.[0]||"") + (parts[1]?.[0]||"")).toUpperCase();
+}
+
+function escAttr(s){ return String(s||"").replace(/"/g,"&quot;"); }
+
+function waLink(numero, texto){
+  const phone = (numero || "").replace(/[^\d+]/g, "");
+  return `https://wa.me/${phone.replace("+","")}?text=${encodeURIComponent(texto)}`;
+}
+
+function sustituirVariablesRE(texto, ctx){
+  return (texto || "")
+    .replace(/\{Nombre\}/g, ctx.Nombre || "")
+    .replace(/\{Mes\}/g, ctx.Mes || "")
+    .replace(/\{Fechas\}/g, ctx.Fechas || "")
+    .replace(/\{Edicion\}/g, ctx.Edicion || "");
+}
+
+function getMesEdicion(ed){
+  if(ed && ed.fecha_inicio instanceof Date) return MESES[ed.fecha_inicio.getMonth()];
+  return "";
+}
+
+function findConcentradoByNombre(nombre){
+  const norm = (nombre||"").trim().toLowerCase();
+  return CONCENTRADO.find(c => (c.Nombre||"").trim().toLowerCase() === norm);
+}
+
+function buildCopyMap(){
+  const map = {};
+  COPYS.forEach(c => { if(esSi(c.Activo)) map[c.Momento] = c; });
+  return map;
+}
+
+async function postData(payload){
+  const res = await fetch(WEBAPP_URL, { method:"POST", body:JSON.stringify(payload) });
+  return await res.json();
+}
+
+function showMsg(id, tipo, texto){
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.className = "form-msg " + tipo;
+  el.textContent = texto;
+  if(tipo === "ok") setTimeout(() => { el.className="form-msg"; el.textContent=""; }, 3500);
+}
+
+/* ============================================================
+   ESTADO GLOBAL
+   ============================================================ */
+let EDICIONES = [], ASISTENCIAS = [], HABITACIONES = [], COPYS = [], CONCENTRADO = [];
+let currentEdicionId = null;
+let HAB_DRAFT = [];
+
+/* ============================================================
+   RENDER: selector de edición
+   ============================================================ */
+function renderEdicionSelector(){
+  const sel = document.getElementById("edicionSelect");
+  const ordenadas = EDICIONES.slice().sort((a,b) => (a.id_edicion||"").localeCompare(b.id_edicion||""));
+  sel.innerHTML = ordenadas.map(e => `<option value="${escAttr(e.id_edicion)}">${e.nombre_edicion || e.id_edicion}</option>`).join("");
+  if(!currentEdicionId || !EDICIONES.some(e => e.id_edicion === currentEdicionId)){
+    const activa = EDICIONES.find(e => (e.estado||"").toLowerCase() === "activa");
+    currentEdicionId = activa ? activa.id_edicion : (ordenadas.length ? ordenadas[ordenadas.length-1].id_edicion : null);
+  }
+  if(currentEdicionId) sel.value = currentEdicionId;
+}
+
+function onEdicionChange(){
+  currentEdicionId = document.getElementById("edicionSelect").value;
+  HAB_DRAFT = HABITACIONES.filter(h => h.id_edicion === currentEdicionId).map(h => ({...h}));
+  renderAll();
+}
+
+function renderBadgeEdicion(){
+  const ed = EDICIONES.find(e => e.id_edicion === currentEdicionId);
+  const badge = document.getElementById("edicionBadge");
+  const fechas = document.getElementById("edicionFechas");
+  if(!ed){ badge.innerHTML = ""; fechas.textContent = ""; return; }
+  const estado = (ed.estado||"").toLowerCase();
+  const cls = estado === "activa" ? "activo" : (estado === "próxima" || estado === "proxima") ? "seguimiento-tag" : "inactivo";
+  badge.innerHTML = `<span class="pill ${cls}">${ed.estado || "—"}</span>`;
+  fechas.textContent = ed.fechas_texto || "";
+}
+
+function toggleAltaEdicion(){ document.getElementById("altaEdicionForm").classList.toggle("open"); }
+
+async function guardarEdicion(){
+  const nombre = document.getElementById("ae_nombre").value.trim();
+  const fechasTexto = document.getElementById("ae_fechasTexto").value.trim();
+  if(!nombre || !fechasTexto){ showMsg("aeMsg","err","Nombre y fechas son obligatorios."); return; }
+
+  const btn = document.querySelector("#altaEdicionForm .btn-guardar");
+  btn.disabled = true; btn.textContent = "Guardando…";
+  try{
+    const r = await postData({
+      tipo: "re_altaEdicion",
+      nombreEdicion: nombre,
+      fechasTexto,
+      fechaInicio: document.getElementById("ae_fechaInicio").value,
+      fechaFin: document.getElementById("ae_fechaFin").value,
+      lugar: document.getElementById("ae_lugar").value.trim(),
+      estado: document.getElementById("ae_estado").value,
+      notas: document.getElementById("ae_notas").value.trim()
+    });
+    if(r.ok){
+      showMsg("aeMsg","ok","Edición creada: " + r.idAsignado);
+      EDICIONES = await fetchSheetTab(TABS.ediciones);
+      currentEdicionId = r.idAsignado;
+      HAB_DRAFT = [];
+      renderEdicionSelector();
+      renderAll();
+      initHistorialFilters();
+      toggleAltaEdicion();
+      ["ae_nombre","ae_fechasTexto","ae_fechaInicio","ae_fechaFin","ae_lugar","ae_notas"].forEach(id => { document.getElementById(id).value=""; });
+    } else {
+      showMsg("aeMsg","err","Error: " + r.error);
+    }
+  } catch(e){
+    showMsg("aeMsg","err","No se pudo conectar con el servidor.");
+  } finally {
+    btn.disabled = false; btn.textContent = "Guardar";
+  }
+}
+
+/* ============================================================
+   RENDER: métricas
+   ============================================================ */
+function renderMetricsGlobal(){
+  const totalRetiro = CONCENTRADO.filter(c => esSi(c.Retiro)).length;
+  const totalCamino = CONCENTRADO.filter(c => esSi(c.Camino)).length;
+  document.getElementById("metricsGlobal").innerHTML = `
+    <div class="metric"><div class="val">${totalRetiro}</div><div class="lbl">total histórico Retiro Espíritu Santo</div></div>
+    <div class="metric"><div class="val">${totalCamino}</div><div class="lbl">total histórico Camino de Santiago</div></div>
+  `;
+}
+
+function renderMetricsEdicion(){
+  const rows = ASISTENCIAS.filter(a => a.id_edicion === currentEdicionId);
+  const registrados = rows.length;
+  const confirmados = rows.filter(a => esSi(a.asistio)).length;
+  const pendientes = rows.filter(a => !esSi(a.asistio) && (a.asistio||"").toLowerCase() !== "no").length;
+  const testimonios = rows.filter(a => esSi(a.dio_testimonio)).length;
+  const habitaciones = HABITACIONES.filter(h => h.id_edicion === currentEdicionId).length;
+  const metrics = [
+    { val: registrados, lbl: "registrados" },
+    { val: confirmados, lbl: "confirmados asistieron" },
+    { val: pendientes, lbl: "pendientes de confirmar" },
+    { val: testimonios, lbl: "dieron testimonio" },
+    { val: habitaciones, lbl: "habitaciones asignadas" }
+  ];
+  document.getElementById("metricsEdicion").innerHTML = metrics.map(m => `
+    <div class="metric"><div class="val">${m.val}</div><div class="lbl">${m.lbl}</div></div>
+  `).join("");
+}
+
+/* ============================================================
+   RENDER: pase de lista (bulk)
+   ============================================================ */
+function renderPaseLista(){
+  const rows = ASISTENCIAS.filter(a => a.id_edicion === currentEdicionId);
+  const copyMap = buildCopyMap();
+  const body = document.getElementById("paseListaBody");
+
+  if(rows.length === 0){
+    body.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:20px; color:var(--text-soft);">Sin registrados en esta edición.</td></tr>`;
+    return;
+  }
+
+  body.innerHTML = rows.map((a, i) => {
+    const col = findConcentradoByNombre(a.nombre) || {};
+    const btns = IND_MOMENTOS.map(m => {
+      const copy = copyMap[m];
+      if(!copy) return "";
+      return `<button class="wa-btn" onclick="abrirCopyIndividual('${encodeURIComponent(a.nombre)}','${m}')"><span class="ic">●</span> ${m}</button>`;
+    }).join("");
+
+    return `<tr>
+      <td>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div class="avatar">${initials(a.nombre)}</div>
+          <div><div style="font-weight:600;">${a.nombre}</div><div class="gsuc">${col.Sucursal||""} · ${col.Genero||""}</div></div>
+        </div>
+      </td>
+      <td>
+        <select id="pl_asistio_${i}">
+          <option value="Pendiente" ${!esSi(a.asistio) && (a.asistio||"").toLowerCase()!=="no" ? "selected":""}>Pendiente</option>
+          <option value="Sí" ${esSi(a.asistio) ? "selected":""}>Sí</option>
+          <option value="No" ${(a.asistio||"").toLowerCase()==="no" ? "selected":""}>No</option>
+        </select>
+      </td>
+      <td>
+        <select id="pl_testimonio_${i}">
+          <option value="No" ${!esSi(a.dio_testimonio) ? "selected":""}>No</option>
+          <option value="Sí" ${esSi(a.dio_testimonio) ? "selected":""}>Sí</option>
+        </select>
+      </td>
+      <td><div style="display:flex; flex-wrap:wrap; gap:5px;">${btns || '<span style="color:var(--text-soft); font-size:12px;">—</span>'}</div></td>
+    </tr>`;
+  }).join("");
+}
+
+function abrirCopyIndividual(nombreEnc, momento){
+  const nombre = decodeURIComponent(nombreEnc);
+  const ed = EDICIONES.find(e => e.id_edicion === currentEdicionId);
+  const copyMap = buildCopyMap();
+  const copy = copyMap[momento];
+  if(!copy){ alert("No se encontró el copy para este momento en RE_Copys."); return; }
+  const texto = sustituirVariablesRE(copy.Copy_Texto, {
+    Nombre: (nombre||"").split(" ")[0],
+    Mes: getMesEdicion(ed),
+    Fechas: ed ? ed.fechas_texto : "",
+    Edicion: ed ? ed.nombre_edicion : ""
+  });
+  window.open(waLink(copy.Numero_WA, texto), "_blank");
+}
+
+function toggleAltaParticipante(){ document.getElementById("altaParticipanteForm").classList.toggle("open"); }
+
+async function guardarParticipante(){
+  const nombre = document.getElementById("np_nombre").value.trim();
+  if(!nombre){ showMsg("npMsg","err","El nombre es obligatorio."); return; }
+  if(!currentEdicionId){ showMsg("npMsg","err","Selecciona una edición primero."); return; }
+
+  const btn = document.querySelector("#altaParticipanteForm .btn-guardar");
+  btn.disabled = true; btn.textContent = "Guardando…";
+  try{
+    const r = await postData({ tipo:"re_registro", nombre, idEdicion: currentEdicionId, notas: document.getElementById("np_notas").value.trim() });
+    if(r.ok){
+      showMsg("npMsg","ok","Participante agregado.");
+      ASISTENCIAS = await fetchSheetTab(TABS.asistencias);
+      renderAll();
+      toggleAltaParticipante();
+      document.getElementById("np_nombre").value = "";
+      document.getElementById("np_notas").value = "";
+    } else {
+      showMsg("npMsg","err","Error: " + r.error);
+    }
+  } catch(e){
+    showMsg("npMsg","err","No se pudo conectar con el servidor.");
+  } finally {
+    btn.disabled = false; btn.textContent = "Guardar";
+  }
+}
+
+async function guardarPaseLista(){
+  const rows = ASISTENCIAS.filter(a => a.id_edicion === currentEdicionId);
+  if(rows.length === 0) return;
+  const registros = rows.map((a, i) => ({
+    nombre: a.nombre,
+    asistio: document.getElementById(`pl_asistio_${i}`).value,
+    dioTestimonio: document.getElementById(`pl_testimonio_${i}`).value
+  }));
+
+  const btn = document.getElementById("btnGuardarPase");
+  btn.disabled = true; btn.textContent = "Guardando…";
+  try{
+    const r = await postData({ tipo:"re_asistenciaLote", idEdicion: currentEdicionId, registros });
+    if(r.ok){
+      showMsg("paseListaMsg","ok","Pase de lista guardado correctamente.");
+      const [asis, conc] = await Promise.all([fetchSheetTab(TABS.asistencias), fetchSheetTab(TABS.concentrado)]);
+      ASISTENCIAS = asis.filter(a => a.nombre && a.nombre.trim() !== "");
+      CONCENTRADO = conc.filter(c => c.Nombre && c.Nombre.trim() !== "");
+      renderAll();
+    } else {
+      showMsg("paseListaMsg","err","Error: " + r.error);
+    }
+  } catch(e){
+    showMsg("paseListaMsg","err","No se pudo conectar con el servidor.");
+  } finally {
+    btn.disabled = false; btn.textContent = "Guardar pase de lista";
+  }
+}
+
+/* ============================================================
+   RENDER: mensajes grupales
+   ============================================================ */
+function renderMensajesGrupales(){
+  const copyMap = buildCopyMap();
+  const ed = EDICIONES.find(e => e.id_edicion === currentEdicionId);
+  const ctx = { Nombre:"", Mes: getMesEdicion(ed), Fechas: ed ? ed.fechas_texto : "", Edicion: ed ? ed.nombre_edicion : "" };
+  const wrap = document.getElementById("grupalesWrap");
+
+  wrap.innerHTML = GRUPO_MOMENTOS.map((m, i) => {
+    const copy = copyMap[m];
+    if(!copy) return `<div class="copy-group-card"><div class="momento-title">${m}</div><div class="copy-text" style="color:var(--text-soft);">Sin copy activo en RE_Copys.</div></div>`;
+    const texto = sustituirVariablesRE(copy.Copy_Texto, ctx);
+    return `<div class="copy-group-card">
+      <div class="momento-title">${m}</div>
+      <div class="copy-text" id="grupal-${i}">${texto}</div>
+      <button class="wa-btn" onclick="copiarTexto('grupal-${i}', this)">📋 Copiar texto</button>
+    </div>`;
+  }).join("");
+}
+
+function copiarTexto(id, btnEl){
+  const el = document.getElementById(id);
+  const texto = el.innerText;
+  navigator.clipboard.writeText(texto).then(() => {
+    const orig = btnEl.textContent;
+    btnEl.textContent = "✓ Copiado";
+    setTimeout(() => { btnEl.textContent = orig; }, 2000);
+  }).catch(() => { alert("No se pudo copiar automáticamente. Selecciona y copia el texto manualmente."); });
+}
+
+/* ============================================================
+   RENDER: habitaciones (editable en el panel)
+   ============================================================ */
+function addHabRow(){
+  HAB_DRAFT.push({ id_edicion: currentEdicionId, habitacion:"", genero:"", nombre_1:"", nombre_2:"", nombre_3:"", nombre_4:"", notas:"" });
+  renderHabitaciones();
+}
+function removeHabRow(i){ HAB_DRAFT.splice(i,1); renderHabitaciones(); }
+function updateHabField(i, field, value){ HAB_DRAFT[i][field] = value; renderHabitaciones(); }
+
+function renderHabitaciones(){
+  const wrap = document.getElementById("habGrid");
+  const confirmados = ASISTENCIAS.filter(a => a.id_edicion === currentEdicionId && esSi(a.asistio));
+
+  if(HAB_DRAFT.length === 0){
+    wrap.innerHTML = `<div class="footnote">No hay habitaciones para esta edición. Agrega una con "+ Agregar habitación".</div>`;
+    return;
+  }
+
+  wrap.innerHTML = HAB_DRAFT.map((h, i) => {
+    const disponibles = confirmados.filter(c => {
+      const col = findConcentradoByNombre(c.nombre);
+      return !h.genero || !col || (col.Genero||"").toLowerCase() === h.genero.toLowerCase();
+    });
+
+    const asignadosEnOtras = new Set();
+    HAB_DRAFT.forEach((hh, hi) => {
+      [1,2,3,4].forEach(n => {
+        if(hi === i) return;
+        if(hh[`nombre_${n}`]) asignadosEnOtras.add(hh[`nombre_${n}`]);
+      });
+    });
+
+    const slots = [1,2,3,4].map(n => {
+      const currentVal = h[`nombre_${n}`] || "";
+      const opts = disponibles
+        .filter(c => c.nombre === currentVal || !asignadosEnOtras.has(c.nombre))
+        .map(c => `<option value="${escAttr(c.nombre)}" ${c.nombre === currentVal ? "selected":""}>${c.nombre}</option>`)
+        .join("");
+      return `<div class="form-row"><label>Ocupante ${n}</label>
+        <select onchange="updateHabField(${i},'nombre_${n}',this.value)">
+          <option value="">— vacío —</option>${opts}
+        </select></div>`;
+    }).join("");
+
+    return `<div class="hab-card">
+      <div class="hab-card-head">
+        <input type="text" placeholder="Núm./nombre de habitación" value="${escAttr(h.habitacion)}" oninput="updateHabField(${i},'habitacion',this.value)">
+        <select onchange="updateHabField(${i},'genero',this.value)">
+          <option value="">género</option>
+          <option value="Mujer" ${h.genero==='Mujer'?'selected':''}>Mujer</option>
+          <option value="Hombre" ${h.genero==='Hombre'?'selected':''}>Hombre</option>
+        </select>
+        <button onclick="removeHabRow(${i})" title="Eliminar habitación">🗑</button>
+      </div>
+      ${slots}
+      <div class="form-row"><label>Notas</label><input type="text" value="${escAttr(h.notas)}" oninput="updateHabField(${i},'notas',this.value)"></div>
+    </div>`;
+  }).join("");
+}
+
+async function guardarHabitaciones(){
+  const btn = document.getElementById("btnGuardarHab");
+  btn.disabled = true; btn.textContent = "Guardando…";
+  try{
+    const habitaciones = HAB_DRAFT
+      .filter(h => (h.habitacion||"").trim() !== "")
+      .map(h => ({
+        habitacion: h.habitacion.trim(),
+        genero: h.genero || "",
+        notas: h.notas || "",
+        ocupantes: [h.nombre_1||"", h.nombre_2||"", h.nombre_3||"", h.nombre_4||""]
+      }));
+    const r = await postData({ tipo:"re_guardarHabitaciones", idEdicion: currentEdicionId, habitaciones });
+    if(r.ok){
+      showMsg("habMsg","ok","Acomodo guardado correctamente.");
+      HABITACIONES = await fetchSheetTab(TABS.habitaciones);
+      HAB_DRAFT = HABITACIONES.filter(h => h.id_edicion === currentEdicionId).map(h => ({...h}));
+      renderMetricsEdicion();
+      renderHabitaciones();
+    } else {
+      showMsg("habMsg","err","Error: " + r.error);
+    }
+  } catch(e){
+    showMsg("habMsg","err","No se pudo conectar con el servidor.");
+  } finally {
+    btn.disabled = false; btn.textContent = "Guardar acomodo";
+  }
+}
+
+/* ============================================================
+   RENDER: historial global agrupado por edición
+   ============================================================ */
+function renderHistorial(){
+  const q = document.getElementById("fHistSearch").value.trim().toLowerCase();
+  const edFilter = document.getElementById("fHistEdicion").value;
+
+  const grouped = {};
+  ASISTENCIAS.forEach(a => {
+    if(edFilter && a.id_edicion !== edFilter) return;
+    if(q && !(a.nombre||"").toLowerCase().includes(q)) return;
+    (grouped[a.id_edicion] = grouped[a.id_edicion] || []).push(a);
+  });
+
+  const ids = Object.keys(grouped).sort().reverse();
+  const wrap = document.getElementById("historialWrap");
+  if(ids.length === 0){
+    wrap.innerHTML = `<div class="footnote">Sin resultados.</div>`;
+    return;
+  }
+
+  wrap.innerHTML = ids.map(id => {
+    const ed = EDICIONES.find(e => e.id_edicion === id) || { nombre_edicion:id, fechas_texto:"", estado:"" };
+    const personas = grouped[id];
+    const testimonios = personas.filter(p => esSi(p.dio_testimonio)).length;
+    const rows = personas.map(p => {
+      const estadoPill = esSi(p.asistio)
+        ? '<span class="pill activo">asistió</span>'
+        : (p.asistio||"").toLowerCase() === "no"
+          ? '<span class="pill inactivo">no asistió</span>'
+          : '<span class="pill seguimiento-tag">pendiente</span>';
+      return `<div class="hist-row"><span>${p.nombre}</span><span>${estadoPill}</span><span style="color:var(--text-soft); font-size:12px;">testimonio: ${esSi(p.dio_testimonio) ? "Sí":"No"}</span></div>`;
+    }).join("");
+
+    return `<div class="accordion">
+      <div class="accordion-head" onclick="this.parentElement.classList.toggle('open')">
+        <div><span class="accordion-arrow" style="display:inline-block;">▸</span> <strong>${ed.nombre_edicion || id}</strong> <span class="origen-tag">· ${ed.fechas_texto||""} · ${ed.estado||""}</span></div>
+        <div style="font-size:12px; color:var(--text-soft);">${personas.length} participantes · ${testimonios} testimonios</div>
+      </div>
+      <div class="accordion-body">${rows}</div>
+    </div>`;
+  }).join("");
+}
+
+function initHistorialFilters(){
+  const selEd = document.getElementById("fHistEdicion");
+  selEd.innerHTML = `<option value="">todas las ediciones</option>` + EDICIONES.map(e => `<option value="${escAttr(e.id_edicion)}">${e.nombre_edicion || e.id_edicion}</option>`).join("");
+}
+
+/* ============================================================
+   RENDER GLOBAL
+   ============================================================ */
+function renderAll(){
+  renderBadgeEdicion();
+  renderMetricsGlobal();
+  renderMetricsEdicion();
+  renderPaseLista();
+  renderMensajesGrupales();
+  renderHabitaciones();
+  renderHistorial();
+}
+
+/* ============================================================
+   INIT
+   ============================================================ */
+async function init(){
+  try{
+    const [ediciones, asistencias, habitaciones, copys, concentrado] = await Promise.all([
+      fetchSheetTab(TABS.ediciones),
+      fetchSheetTab(TABS.asistencias),
+      fetchSheetTab(TABS.habitaciones),
+      fetchSheetTab(TABS.copys),
+      fetchSheetTab(TABS.concentrado)
+    ]);
+
+    EDICIONES = ediciones.filter(e => e.id_edicion && e.id_edicion.trim() !== "");
+    ASISTENCIAS = asistencias.filter(a => a.nombre && a.nombre.trim() !== "");
+    HABITACIONES = habitaciones.filter(h => h.id_edicion && h.id_edicion.trim() !== "");
+    COPYS = copys.filter(c => c.Momento && c.Momento.trim() !== "");
+    CONCENTRADO = concentrado.filter(c => c.Nombre && c.Nombre.trim() !== "");
+
+    document.getElementById("listaColaboradores").innerHTML = CONCENTRADO.map(c => `<option value="${escAttr(c.Nombre)}">`).join("");
+
+    document.getElementById("loadingMsg").style.display = "none";
+    document.getElementById("appContent").style.display = "block";
+    document.getElementById("lastSync").textContent = "actualizado: " + new Date().toLocaleString("es-MX", {dateStyle:"medium", timeStyle:"short"});
+
+    renderEdicionSelector();
+    HAB_DRAFT = HABITACIONES.filter(h => h.id_edicion === currentEdicionId).map(h => ({...h}));
+    initHistorialFilters();
+    renderAll();
+
+    document.getElementById("edicionSelect").addEventListener("change", onEdicionChange);
+    document.getElementById("fHistSearch").addEventListener("input", renderHistorial);
+    document.getElementById("fHistEdicion").addEventListener("change", renderHistorial);
+
+  } catch(err){
+    console.error("Error en init:", err.message, err.stack);
+    document.getElementById("loadingMsg").style.display = "none";
+    const eb = document.getElementById("errorMsg");
+    eb.style.display = "block";
+    eb.textContent = "No se pudieron cargar los datos desde Google Sheets. Verifica que existan las pestañas RE_Ediciones, RE_Asistencias, RE_Habitaciones y RE_Copys en el Sheet maestro.";
+  }
+}
+
+init();
+</script>
+</body>
+</html>

@@ -23,6 +23,10 @@ function doPost(e) {
     if (tipo === "ap_cambioModalidad") return handleApCambioModalidad(payload);
     if (tipo === "ap_sesionesI43")     return handleApSesionesI43(payload);
     if (tipo === "ra_reaccion")        return handleRaReaccion(payload);
+    if (tipo === "re_altaEdicion")           return handleReAltaEdicion(payload);
+    if (tipo === "re_registro")             return handleReRegistro(payload);
+    if (tipo === "re_asistenciaLote")        return handleReAsistenciaLote(payload);
+    if (tipo === "re_guardarHabitaciones")   return handleReGuardarHabitaciones(payload);
     if (tipo === "bib_altaDonacion")        return handleBibAltaDonacion(payload);
     if (tipo === "bib_procesarDevolucion")  return handleBibProcesarDevolucion(payload);
     if (tipo === "bib_extenderPrestamo")    return handleBibExtenderPrestamo(payload);
@@ -230,6 +234,127 @@ function handleRaReaccion(p) {
       }
     }
   }
+
+  return resp({ ok: true });
+}
+
+// ── Retiro del Espíritu Santo: Alta de nueva edición ────────────
+// Cols RE_Ediciones: A=id_edicion, B=nombre_edicion, C=fechas_texto,
+//                    D=fecha_inicio, E=fecha_fin, F=lugar, G=estado, H=notas
+function handleReAltaEdicion(p) {
+  const ws = SS.getSheetByName("RE_Ediciones");
+  if (!ws) return resp({ ok: false, error: "Pestaña RE_Ediciones no encontrada" });
+
+  const anio = p.fechaInicio ? new Date(p.fechaInicio).getFullYear() : new Date().getFullYear();
+  const datos = ws.getDataRange().getValues();
+  let maxNum = 0;
+  const patron = new RegExp("^RE-" + anio + "-(\\d+)$");
+  for (let i = 1; i < datos.length; i++) {
+    const m = String(datos[i][0] || "").match(patron);
+    if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
+  }
+  const idEdicion = "RE-" + anio + "-" + String(maxNum + 1).padStart(2, "0");
+
+  ws.appendRow([
+    idEdicion,
+    p.nombreEdicion || "",
+    p.fechasTexto || "",
+    p.fechaInicio ? new Date(p.fechaInicio) : "",
+    p.fechaFin ? new Date(p.fechaFin) : "",
+    p.lugar || "",
+    p.estado || "Próxima",
+    p.notas || ""
+  ]);
+
+  return resp({ ok: true, idAsignado: idEdicion });
+}
+
+// ── Retiro del Espíritu Santo: Alta manual de un participante ──
+// Cols RE_Asistencias: A=id_edicion, B=nombre, C=edicion_label, D=asistio, E=dio_testimonio, F=notas
+function handleReRegistro(p) {
+  const ws = SS.getSheetByName("RE_Asistencias");
+  if (!ws) return resp({ ok: false, error: "Pestaña RE_Asistencias no encontrada" });
+
+  const nombre = (p.nombre || "").trim();
+  const idEdicion = (p.idEdicion || "").trim();
+  if (!nombre || !idEdicion) return resp({ ok: false, error: "Nombre y edición son obligatorios." });
+
+  const data = ws.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim() === idEdicion && String(data[i][1]).trim().toLowerCase() === nombre.toLowerCase()) {
+      return resp({ ok: false, error: "Este participante ya está registrado en esta edición." });
+    }
+  }
+
+  ws.appendRow([idEdicion, nombre, "", "Pendiente", "—", p.notas || ""]);
+  return resp({ ok: true });
+}
+
+// ── Retiro del Espíritu Santo: Pase de lista en lote ────────────
+// Actualiza RE_Asistencias y, si asistio="Sí", también Concentrado (col L=Retiro, M=RetiroFecha)
+function handleReAsistenciaLote(p) {
+  const ws = SS.getSheetByName("RE_Asistencias");
+  if (!ws) return resp({ ok: false, error: "Pestaña RE_Asistencias no encontrada" });
+
+  const idEdicion = (p.idEdicion || "").trim();
+  const registros = p.registros || [];
+  const data = ws.getDataRange().getValues();
+
+  registros.forEach(function(reg) {
+    const nombre = (reg.nombre || "").trim();
+    let found = false;
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0]).trim() === idEdicion && String(data[i][1]).trim().toLowerCase() === nombre.toLowerCase()) {
+        ws.getRange(i + 1, 4).setValue(reg.asistio || "");
+        ws.getRange(i + 1, 5).setValue(reg.dioTestimonio || "");
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      ws.appendRow([idEdicion, nombre, "", reg.asistio || "", reg.dioTestimonio || "", ""]);
+    }
+  });
+
+  // Sincroniza Concentrado para quienes asistieron (col 12=Retiro, col 13=RetiroFecha)
+  const wsConc = SS.getSheetByName("Concentrado");
+  if (wsConc) {
+    const concData = wsConc.getDataRange().getValues();
+    registros.forEach(function(reg) {
+      if (reg.asistio !== "Sí") return;
+      const nombre = (reg.nombre || "").trim().toLowerCase();
+      for (let j = 1; j < concData.length; j++) {
+        if (String(concData[j][0]).trim().toLowerCase() === nombre) {
+          wsConc.getRange(j + 1, 12).setValue("Sí");
+          wsConc.getRange(j + 1, 13).setValue(idEdicion);
+          break;
+        }
+      }
+    });
+  }
+
+  return resp({ ok: true });
+}
+
+// ── Retiro del Espíritu Santo: Guardar acomodo de habitaciones ──
+// Cols RE_Habitaciones: A=id_edicion, B=habitacion, C=genero, D-G=nombre_1..4, H=notas
+// Borra y reescribe todas las filas de la edición (el panel manda el estado completo).
+function handleReGuardarHabitaciones(p) {
+  const ws = SS.getSheetByName("RE_Habitaciones");
+  if (!ws) return resp({ ok: false, error: "Pestaña RE_Habitaciones no encontrada" });
+
+  const idEdicion = (p.idEdicion || "").trim();
+  const habitaciones = p.habitaciones || [];
+
+  const data = ws.getDataRange().getValues();
+  for (let i = data.length - 1; i >= 1; i--) {
+    if (String(data[i][0]).trim() === idEdicion) ws.deleteRow(i + 1);
+  }
+
+  habitaciones.forEach(function(h) {
+    const oc = h.ocupantes || [];
+    ws.appendRow([idEdicion, h.habitacion || "", h.genero || "", oc[0]||"", oc[1]||"", oc[2]||"", oc[3]||"", h.notas || ""]);
+  });
 
   return resp({ ok: true });
 }

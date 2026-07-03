@@ -233,7 +233,7 @@
       <div class="filters">
         <input type="text" id="fGenSearch" placeholder="buscar nombre…">
         <select id="fGenServicio"><option value="">todos los servicios</option><option value="ELA">ELA</option><option value="IMPULSO43">Impulso43</option></select>
-        <select id="fGenEstado"><option value="">todos</option><option value="Lista de espera">Lista de espera</option><option value="Activo">Activo</option><option value="Completó">Completó</option><option value="Histórico">Histórico</option></select>
+        <select id="fGenEstado"><option value="">todos</option><option value="Lista de espera">Lista de espera</option><option value="Activo">Activo</option><option value="Histórico">Histórico</option></select>
         <select id="fGenUrgencia"><option value="">urgencia</option><option value="Alta">Alta</option><option value="Media">Media</option><option value="Baja">Baja</option></select>
       </div>
       <div class="table-wrap">
@@ -561,6 +561,16 @@ function renderTablaGeneral(filtered){
   }).join("");
 }
 
+// Orden fijo de la tabla general, sin importar el filtro: ELA primero,
+// luego Impulso43, y al final los históricos (Activo_Programa=Inactivo).
+function grupoOrdenGeneral(d){
+  if(esHistorico(d))return 2;
+  var mod=(d.Modalidad_Servicio||"").toUpperCase();
+  if(mod==="ELA")return 0;
+  if(mod==="IMPULSO43")return 1;
+  return 2;
+}
+
 function applyGenFilters(){
   var q=(document.getElementById("fGenSearch").value||"").toLowerCase();
   var servicio=document.getElementById("fGenServicio").value;
@@ -574,13 +584,13 @@ function applyGenFilters(){
     var matchEstado=true;
     if(estado==="Lista de espera")matchEstado=esEnEsperaPrograma(d);
     else if(estado==="Activo")matchEstado=esActivoOcupado(d)&&!esCompletoEstado(d);
-    else if(estado==="Completó")matchEstado=esCompletoEstado(d);
     else if(estado==="Histórico")matchEstado=esHistorico(d);
     return(!q||(d.Nombre||"").toLowerCase().indexOf(q)>=0)
       &&matchServicio
       &&matchEstado
       &&(!urg||d.Urgencia===urg);
   });
+  f.sort(function(a,b){return grupoOrdenGeneral(a)-grupoOrdenGeneral(b);});
   renderTablaGeneral(f);
 }
 

@@ -309,6 +309,23 @@
     <div class="footnote">📊 datos y copys desde Google Sheets · se actualizan al recargar la página</div>
   </div>
 
+  <!-- HISTORIAL DE PRÉSTAMOS -->
+  <div class="section-divider"><span class="divider-label">Historial de préstamos</span><span class="divider-line"></span></div>
+  <div class="section">
+    <div class="filters">
+      <input type="text" id="fHistPrestSearch" placeholder="buscar nombre o libro…">
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Nombre</th><th>Libro</th><th>Fecha compromiso</th><th>Fecha devolución</th><th>Condición</th><th>Comentarios</th></tr>
+        </thead>
+        <tbody id="historialPrestBody"></tbody>
+      </table>
+    </div>
+    <div class="footnote">📊 préstamos ya devueltos (BIB_Prestamos, columna "devuelto" = Sí)</div>
+  </div>
+
   <!-- ALTA DE DONACIÓN -->
   <div class="section-divider"><span class="divider-label">Registrar donación</span><span class="divider-line"></span></div>
   <div class="section">
@@ -379,10 +396,13 @@ const TABS = {
   copys: "BIB_Copys"
 };
 
-// Nombres de columna fijos por pestaña — verificar contra el orden real
-// de BIB_Prestamos/BIB_Donaciones tras la migración (Fase 1) y ajustar si difiere.
+// Nombres de columna fijos por pestaña, verificados contra el Sheet real (2026-07-03).
+// BIB_Prestamos NO tiene una columna "fecha_prestamo" separada (el alta se registra
+// con "timestamp" y la fecha límite es directamente "fecha_compromiso") — el SCHEMA
+// tenía un campo de más que corría todo lo demás una posición, rompiendo el cálculo
+// de atrasados/por vencer (leía disclosure_aceptado como si fuera una fecha).
 const SCHEMA = {
-  BIB_Prestamos: ["timestamp","nombre","correo","whatsapp","id_libro","titulo","fecha_prestamo","fecha_compromiso","disclosure_aceptado","devuelto","fecha_devolucion_real","condicion_devolucion","comentarios","depto"],
+  BIB_Prestamos: ["timestamp","nombre","correo","whatsapp","id_libro","titulo","fecha_compromiso","disclosure_aceptado","devuelto","fecha_devolucion_real","condicion_devolucion","comentarios","depto"],
   BIB_Donaciones: ["timestamp","donante","correo","whatsapp","titulo","autor","tipo","fecha_ingreso","fecha_retorno","id_libro","recibo_enviado","etiqueta_generada","link_recibo","link_etiqueta"],
   BIB_Devoluciones: ["timestamp","nombre","id_libro","titulo","condicion","descripcion_dano","recomendaria","comentarios","procesado"],
   BIB_Copys: ["Momento","Copy_Texto","Numero_WA","Activo"]
@@ -406,7 +426,7 @@ function formatTel(val){
 // Columnas de fecha por pestaña — se leen del valor crudo de gviz (Date(y,m,d,...))
 // en vez del texto ya formateado, porque new Date("dd/mm/yyyy") se interpreta mal en JS.
 const DATE_FIELDS = {
-  BIB_Prestamos: ["timestamp","fecha_prestamo","fecha_compromiso","fecha_devolucion_real"],
+  BIB_Prestamos: ["timestamp","fecha_compromiso","fecha_devolucion_real"],
   BIB_Donaciones: ["timestamp","fecha_ingreso","fecha_retorno"],
   BIB_Devoluciones: ["timestamp"]
 };
@@ -718,6 +738,38 @@ function applyHistorialFilters(){
   renderHistorial(filtered);
 }
 
+function prestamosDevueltos(){
+  return PRESTAMOS.filter(p => esSiBib(p.devuelto));
+}
+
+function renderHistorialPrestamos(filtered){
+  const body = document.getElementById("historialPrestBody");
+  if(!filtered || filtered.length === 0){
+    body.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-soft);">Sin préstamos devueltos todavía</td></tr>`;
+    return;
+  }
+  let html = "";
+  filtered.forEach(p => {
+    html += `<tr>
+      <td style="font-weight:600;">${p.nombre}</td>
+      <td>"${p.titulo}"</td>
+      <td>${formatFechaCorta(parseFecha(p.fecha_compromiso))}</td>
+      <td>${p.fecha_devolucion_real ? formatFechaCorta(parseFecha(p.fecha_devolucion_real)) : "—"}</td>
+      <td>${p.condicion_devolucion || "—"}</td>
+      <td style="font-size:12px;color:var(--text-soft);">${p.comentarios||""}</td>
+    </tr>`;
+  });
+  body.innerHTML = html;
+}
+
+function applyHistorialPrestamosFilters(){
+  const q = document.getElementById("fHistPrestSearch").value.toLowerCase();
+  const filtered = prestamosDevueltos().filter(p =>
+    !q || (p.nombre||"").toLowerCase().includes(q) || (p.titulo||"").toLowerCase().includes(q)
+  );
+  renderHistorialPrestamos(filtered);
+}
+
 /* ============================================================
    ACCIONES — Web App (única vía de escritura)
    ============================================================ */
@@ -859,10 +911,12 @@ async function init(){
     renderAtencion();
     applyFilters();
     applyHistorialFilters();
+    applyHistorialPrestamosFilters();
 
     document.getElementById("fSearch").addEventListener("input", applyFilters);
     document.getElementById("fEstado").addEventListener("change", applyFilters);
     document.getElementById("fHistSearch").addEventListener("input", applyHistorialFilters);
+    document.getElementById("fHistPrestSearch").addEventListener("input", applyHistorialPrestamosFilters);
 
   } catch(err){
     document.getElementById("loadingMsg").style.display = "none";

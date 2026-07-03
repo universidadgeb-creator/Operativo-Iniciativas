@@ -316,9 +316,9 @@
           <option>B+</option><option>B-</option><option>AB+</option><option>AB-</option>
         </select>
         <select id="fEstado">
-          <option value="">activos e inactivos</option>
+          <option value="">activos y dados de baja</option>
           <option value="Activo">solo activos</option>
-          <option value="Inactivo">solo inactivos</option>
+          <option value="Inactivo">solo dados de baja</option>
         </select>
         <select id="fSeguimiento">
           <option value="">todos</option>
@@ -330,7 +330,7 @@
           <thead>
             <tr>
               <th>Colaborador</th><th>Sucursal</th><th>Tipo</th>
-              <th>Mes guardia</th><th>Estado</th><th>Mensajes</th>
+              <th>Mes guardia</th><th>Mensajes</th><th>Seguimiento</th>
             </tr>
           </thead>
           <tbody id="tablaBody"></tbody>
@@ -402,7 +402,7 @@ function gvizUrl(tabName){
 
 // Nombres de columna fijos por pestaña — independiente de cómo gviz los etiquete
 const SCHEMA = {
-  SV_Donadores: ["Nombre","Sucursal","Tipo_Sangre","Mes_Guardia","Telefono_WA","Estado","Requiere_Seguimiento"],
+  SV_Donadores: ["Nombre","Sucursal","Telefono_WA","Tipo_Sangre","Mes_Guardia","Estado","Requiere_Seguimiento"],
   SV_Historial: ["Nombre","Mes","Año","Dono","Fecha_Donacion","Talon_Recibido","Notas"],
   SV_Copys:     ["Momento","Copy_Texto","Numero_WA","Activo"],
 };
@@ -496,14 +496,20 @@ function donadorHaDonado(historial, nombre){
   return getHistorialDonador(historial, nombre).some(function(h){ return esSi(h.Dono); });
 }
 
-function getMomentosDisponibles(d, historial){
-  const _seg = (d.Requiere_Seguimiento || "").trim().toLowerCase();
-  const requiereSeg = _seg === "sí" || _seg === "si" || _seg === "";
+function esPendienteSeguimiento(d){
+  var v = (d.Requiere_Seguimiento || "").trim().toLowerCase();
+  return v === "sí" || v === "si";
+}
 
-  if(requiereSeg){
+function esBaja(d){
+  return (d.Estado || "").trim().toLowerCase() === "inactivo";
+}
+
+function getMomentosDisponibles(d, historial){
+  if(esPendienteSeguimiento(d)){
     return ["Bienvenida"];
   }
-  if((d.Estado || "").toLowerCase() !== "activo"){
+  if(esBaja(d)){
     return [];
   }
   if(!d.Mes_Guardia){
@@ -552,10 +558,7 @@ function renderMetrics(){
   const activos = DONADORES.filter(d => (d.Estado||"").toLowerCase() === "activo").length;
   const guardiaMes = DONADORES.filter(d => (d.Mes_Guardia||"").toLowerCase() === MES_ACTUAL).length;
   const donacionesCiclo = HISTORIAL.filter(h => h.Dono === "Sí").length;
-  const seguimiento = DONADORES.filter(d => {
-    const v = (d.Requiere_Seguimiento||"").toLowerCase();
-    return v === "sí" || v === "si";
-  }).length;
+  const seguimiento = DONADORES.filter(esPendienteSeguimiento).length;
 
   const metrics = [
     { val: total, lbl: "donadores registrados" },
@@ -597,8 +600,7 @@ function renderGuardias(){
 
   grid.innerHTML = deGuardia.map((d, idx) => {
     const momentos = getMomentosDisponibles(d, HISTORIAL);
-    const _rs = (d.Requiere_Seguimiento||"").trim().toLowerCase();
-    const isSeg = _rs === "sí" || _rs === "si" || _rs === "";
+    const isSeg = esPendienteSeguimiento(d);
     const tc = tipoClass(d.Tipo_Sangre);
 
     const btns = momentos.map(m => {
@@ -620,7 +622,7 @@ function renderGuardias(){
           </div>
         </div>
         <span class="pill ${tc}">${d.Tipo_Sangre||"—"}</span>
-        ${isSeg ? `<span class="pill seguimiento-tag">🏳 seguimiento</span>` : `<span class="pill activo">activo</span>`}
+        ${isSeg ? `<span class="pill seguimiento-tag">🏳 seguimiento</span>` : ``}
         <div class="gactions">${btns}</div>
         <button class="reg-btn" onclick="toggleFormDonacion('${formId}')">+ Registrar donación</button>
         <div class="inline-form" id="${formId}">
@@ -683,11 +685,8 @@ function renderTabla(filtered){
   let html = "";
   filtered.forEach((d, i) => {
     const tc = tipoClass(d.Tipo_Sangre);
-    const _rs = (d.Requiere_Seguimiento||"").trim().toLowerCase();
-    const isSeg = _rs === "sí" || _rs === "si" || _rs === "";
-    const estadoPill = (d.Estado||"").toLowerCase() === "activo"
-      ? `<span class="pill activo">Activo</span>`
-      : `<span class="pill inactivo">Inactivo</span>`;
+    const isSeg = esPendienteSeguimiento(d);
+    const baja = esBaja(d);
 
     const momentos = getMomentosDisponibles(d, HISTORIAL);
     const btns = momentos.map(m => {
@@ -700,7 +699,17 @@ function renderTabla(filtered){
 
     const origenTag = isSeg
       ? `<span class="origen-tag">nuevo — requiere seguimiento</span>`
-      : `<span class="origen-tag">${(d.Estado||"").toLowerCase()}</span>`;
+      : baja ? `<span class="origen-tag">dado de baja</span>` : "";
+
+    let segCell;
+    if(baja){
+      segCell = `<span class="pill inactivo">Dado de baja</span>`;
+    } else if(isSeg){
+      segCell = `<span class="pill seguimiento-tag">Pendiente</span> `
+        + `<button class="atender-btn" onclick="marcarAtendido('${encodeURIComponent(d.Nombre)}', this)">✓ marcar atendido</button>`;
+    } else {
+      segCell = `<button class="atender-btn" style="color:var(--red-text); background:var(--red-bg); border-color:#f0c7c7;" onclick="marcarBaja('${encodeURIComponent(d.Nombre)}', this)">✕ dar de baja</button>`;
+    }
 
     const tFormId = 'form-tbl-' + i;
     const tMesesOpts = MESES.map(function(m){ return '<option value="'+m+'">'+m.charAt(0).toUpperCase()+m.slice(1)+'</option>'; }).join("");
@@ -712,7 +721,6 @@ function renderTabla(filtered){
       + '<td>'+(d.Sucursal||"")+'</td>'
       + '<td><span class="pill '+tc+'" style="margin:0;">'+(d.Tipo_Sangre||"—")+'</span></td>'
       + '<td>'+(d.Mes_Guardia || '<span style="color:var(--text-soft); font-size:12px;">sin asignar</span>')+'</td>'
-      + '<td>'+estadoPill+(isSeg ? ' <button class="atender-btn" onclick="alert(\'Para marcar como atendido, cambia la columna Requiere_Seguimiento a No en el Sheet (pestaña SV_Donadores) para '+d.Nombre.replace(/'/g,"\\'")+'.\')">✓ marcar atendido</button>' : '')+'</td>'
       + '<td>'
       + '<div style="display:flex; flex-wrap:wrap; gap:5px;">'+(btns || '<span style="color:var(--text-soft); font-size:12px;">—</span>')+'</div>'
       + '<button class="reg-btn" style="margin-top:6px;" onclick="toggleFormDonacion(\''+tFormId+'\')">+ Registrar donación</button>'
@@ -727,7 +735,9 @@ function renderTabla(filtered){
       + '<div class="form-actions"><button class="btn-guardar" onclick="guardarDonacion(\''+tFormId+'\',\''+encodeURIComponent(d.Nombre)+'\')">Guardar</button><button class="btn-cancelar" onclick="toggleFormDonacion(\''+tFormId+'\')">Cancelar</button></div>'
       + '<div class="form-msg" id="'+tFormId+'_msg"></div>'
       + '</div>'
-      + '</td></tr>'
+      + '</td>'
+      + '<td>'+segCell+'</td>'
+      + '</tr>'
       + '<tr class="expand-row" id="exp-'+i+'"><td colspan="6"><div class="copy-panel" id="cp-'+i+'"></div></td></tr>';
   });
 
@@ -792,9 +802,7 @@ function applyFilters(){
     const matchQ = !q || (d.Nombre||"").toLowerCase().includes(q) || (d.Sucursal||"").toLowerCase().includes(q);
     const matchTipo = !tipo || d.Tipo_Sangre === tipo;
     const matchEstado = !estado || d.Estado === estado;
-    const reqSeg = (d.Requiere_Seguimiento||"").toLowerCase();
-    const isSeg = reqSeg === "sí" || reqSeg === "si";
-    const matchSeg = !seguimiento || (seguimiento === "Si" && isSeg);
+    const matchSeg = !seguimiento || (seguimiento === "Si" && esPendienteSeguimiento(d));
     return matchQ && matchTipo && matchEstado && matchSeg;
   });
 
@@ -860,6 +868,45 @@ async function guardarDonacion(formId, nombreEnc){
     showMsg(formId+"_msg","err","No se pudo conectar con el servidor.");
   } finally{
     btn.disabled = false; btn.textContent = "Guardar";
+  }
+}
+
+async function marcarAtendido(nombreEnc, btnEl){
+  const nombre = decodeURIComponent(nombreEnc);
+  if(btnEl){ btnEl.disabled = true; btnEl.textContent = "…"; }
+  try{
+    const r = await postData({ tipo: "sv_atendido", nombre });
+    if(r.ok){
+      const d = DONADORES.find(x => x.Nombre === nombre);
+      if(d) d.Requiere_Seguimiento = "";
+      renderMetrics(); renderGuardias(); applyFilters();
+    } else {
+      alert("Error: " + r.error);
+      if(btnEl){ btnEl.disabled = false; btnEl.textContent = "✓ marcar atendido"; }
+    }
+  } catch(e){
+    alert("No se pudo conectar con el servidor.");
+    if(btnEl){ btnEl.disabled = false; btnEl.textContent = "✓ marcar atendido"; }
+  }
+}
+
+async function marcarBaja(nombreEnc, btnEl){
+  const nombre = decodeURIComponent(nombreEnc);
+  if(!confirm(`¿Dar de baja a ${nombre}? Se conserva su historial de donaciones.`)) return;
+  if(btnEl){ btnEl.disabled = true; btnEl.textContent = "…"; }
+  try{
+    const r = await postData({ tipo: "sv_baja", nombre });
+    if(r.ok){
+      const d = DONADORES.find(x => x.Nombre === nombre);
+      if(d){ d.Estado = "Inactivo"; d.Requiere_Seguimiento = "No"; }
+      renderMetrics(); renderGuardias(); applyFilters();
+    } else {
+      alert("Error: " + r.error);
+      if(btnEl){ btnEl.disabled = false; btnEl.textContent = "✕ dar de baja"; }
+    }
+  } catch(e){
+    alert("No se pudo conectar con el servidor.");
+    if(btnEl){ btnEl.disabled = false; btnEl.textContent = "✕ dar de baja"; }
   }
 }
 

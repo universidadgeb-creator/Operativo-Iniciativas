@@ -77,6 +77,8 @@
   .action-btn.cambio:hover{background:#dddcfe;}
   .atender-btn{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:var(--amber-text);background:var(--amber-bg);border:1px solid #f0d39a;border-radius:8px;padding:6px 10px;cursor:pointer;margin-top:4px;}
   .atender-btn:hover{background:#f5e2bd;}
+  .action-btn.baja{color:var(--red-text);background:var(--red-bg);border-color:#f0c7c7;}
+  .action-btn.baja:hover{background:#f8d8d8;}
   .filters{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
   .filters input,.filters select{font-size:13px;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:inherit;}
   .filters input{width:220px;}
@@ -144,6 +146,9 @@
 
   <div id="appContent" style="display:none;">
 
+    <!-- Indicadores generales -->
+    <div class="metric-grid" id="globalMetrics"></div>
+
     <!-- ═══════ SECCIÓN ELA ═══════ -->
     <div class="section-divider">
       <span class="divider-label">ELA — Escucha Libre y Acompañamiento</span>
@@ -192,9 +197,6 @@
       </div>
     </div>
 
-    <!-- Métricas ELA -->
-    <div class="metric-grid" id="elaMetrics"></div>
-
     <!-- En atención activa ELA -->
     <div class="section">
       <div class="section-title">En atención activa</div>
@@ -207,24 +209,6 @@
       <div class="guardia-grid" id="elaEsperaGrid"></div>
     </div>
 
-    <!-- Tabla ELA -->
-    <div class="section-divider" style="cursor:pointer;" onclick="toggleSeccion('elaTablaSection','elaTablaToggle')">
-      <span class="divider-label">Todos los inscritos ELA</span>
-      <span class="divider-line"></span>
-      <span id="elaTablaToggle" style="font-size:13px;color:var(--text-soft);font-weight:600;">▾ ocultar</span>
-    </div>
-    <div class="section" id="elaTablaSection">
-      <div class="filters">
-        <input type="text" id="fElaSearch" placeholder="buscar nombre…">
-        <select id="fElaEstado"><option value="">todos</option><option value="Lista de espera">Lista de espera</option><option value="Activo">Activo</option><option value="Sesión pendiente">Sesión pendiente</option><option value="Completó">Completó</option></select>
-        <select id="fElaUrgencia"><option value="">urgencia</option><option value="Alta">Alta</option><option value="Media">Media</option><option value="Baja">Baja</option></select>
-      </div>
-      <div class="table-wrap">
-        <table><thead><tr><th>Colaborador</th><th>Sucursal</th><th>Urgencia</th><th>Modalidad</th><th>Progreso</th><th>Estado</th><th>Mensajes</th></tr></thead>
-        <tbody id="elaTablaBody"></tbody></table>
-      </div>
-    </div>
-
     <!-- ═══════ SECCIÓN IMPULSO43 ═══════ -->
     <div class="section-divider">
       <span class="divider-label">Impulso43 — Clínica externa</span>
@@ -233,25 +217,28 @@
     </div>
 
     <div class="i43-section">
-      <div class="metric-grid" id="i43Metrics" style="margin-bottom:20px;"></div>
       <div class="section">
         <div class="section-title">Activos Impulso43</div>
         <div class="guardia-grid" id="i43ActivosGrid"></div>
       </div>
-      <div class="section-divider" style="cursor:pointer;" onclick="toggleSeccion('i43TablaSection','i43TablaToggle')">
-        <span class="divider-label">Todos Impulso43</span>
-        <span class="divider-line"></span>
-        <span id="i43TablaToggle" style="font-size:13px;color:var(--text-soft);font-weight:600;">▸ mostrar</span>
+    </div>
+
+    <!-- Tabla general: ELA + Impulso43 + históricos -->
+    <div class="section-divider" style="cursor:pointer;" onclick="toggleSeccion('genTablaSection','genTablaToggle')">
+      <span class="divider-label">Todos los inscritos</span>
+      <span class="divider-line"></span>
+      <span id="genTablaToggle" style="font-size:13px;color:var(--text-soft);font-weight:600;">▾ ocultar</span>
+    </div>
+    <div class="section" id="genTablaSection">
+      <div class="filters">
+        <input type="text" id="fGenSearch" placeholder="buscar nombre…">
+        <select id="fGenServicio"><option value="">todos los servicios</option><option value="ELA">ELA</option><option value="IMPULSO43">Impulso43</option></select>
+        <select id="fGenEstado"><option value="">todos</option><option value="Lista de espera">Lista de espera</option><option value="Activo">Activo</option><option value="Completó">Completó</option><option value="Histórico">Histórico</option></select>
+        <select id="fGenUrgencia"><option value="">urgencia</option><option value="Alta">Alta</option><option value="Media">Media</option><option value="Baja">Baja</option></select>
       </div>
-      <div class="section" id="i43TablaSection" style="display:none;">
-        <div class="filters">
-          <input type="text" id="fI43Search" placeholder="buscar nombre…">
-          <select id="fI43Estado"><option value="">todos</option><option value="Contactado">Contactado</option><option value="En seguimiento">En seguimiento</option><option value="Completó">Completó</option></select>
-        </div>
-        <div class="table-wrap">
-          <table><thead><tr><th>Colaborador</th><th>Sucursal</th><th>Sesiones</th><th>Estado</th><th>Mensajes</th></tr></thead>
-          <tbody id="i43TablaBody"></tbody></table>
-        </div>
+      <div class="table-wrap">
+        <table><thead><tr><th>Colaborador</th><th>Servicio</th><th>Sucursal</th><th>Urgencia</th><th>Progreso / sesiones</th><th>Estado</th><th>Mensajes</th><th>Acciones</th></tr></thead>
+        <tbody id="genTablaBody"></tbody></table>
       </div>
     </div>
 
@@ -333,13 +320,12 @@ function fetchTab(tabName){
 
 function initials(n){if(!n)return"?";var p=n.trim().split(/\s+/);return((p[0]?p[0][0]:"")+(p[1]?p[1][0]:"")).toUpperCase();}
 function esSi(v){var s=(v||"").trim().toLowerCase();return s==="sí"||s==="si";}
-// Requiere_Seguimiento ya no se usa: el copy de seguimiento (ELA_ListaEspera) ahora
-// está siempre disponible como opción en getMomentosELA, sin necesidad de marcar nada
-// a mano. La columna sigue existiendo en el Sheet (para no correr Notas de lugar) pero
-// puede quedar vacía siempre — ya no se lee en ningún lado.
+// Requiere_Seguimiento (col L, la llena el Apps Script): "Sí" en registros nuevos
+// recién capturados en el Sheet, vacía cuando ya se le dio seguimiento desde el
+// panel (asistencia, cambio de modalidad, sesiones I43), "No" cuando se marca Baja.
+function esPendienteSeguimiento(d){return esSi(d.Requiere_Seguimiento);}
 // Activo_Programa (col D, 100% manual): Activo / Inactivo / Lista de espera.
 // Estado (col H) queda exclusivo del script: "", "Sesión pendiente" o "Completó".
-function esVisiblePrograma(d){var v=(d.Activo_Programa||"").trim().toLowerCase();return v==="activo"||v.startsWith("lista");}
 function esActivoOcupado(d){return(d.Activo_Programa||"").trim().toLowerCase()==="activo";}
 function esEnEsperaPrograma(d){return(d.Activo_Programa||"").trim().toLowerCase().startsWith("lista");}
 function esCompletoEstado(d){var e=(d.Estado||"").trim().toLowerCase();return e==="completó"||e==="completo";}
@@ -385,28 +371,35 @@ function estadoPill(e){
   return'<span class="pill historico">'+e+'</span>';
 }
 // Activo_Programa: lo llena el equipo a mano (Activo/Inactivo/Lista de espera).
+function esHistorico(d){return(d.Activo_Programa||"").trim().toLowerCase()==="inactivo";}
 function programaPill(v){
   var s=(v||"").trim().toLowerCase();
   if(s==="activo")return'<span class="pill activo">Activo</span>';
-  if(s==="inactivo")return'<span class="pill historico">Inactivo</span>';
+  if(s==="inactivo")return'<span class="pill historico">Histórico</span>';
   if(s.startsWith("lista"))return'<span class="pill espera">Lista de espera</span>';
   return'<span class="pill historico">Sin definir</span>';
 }
 function estadoCompleto(d){return programaPill(d.Activo_Programa)+estadoPill(d.Estado);}
 
 function getMomentosELA(d){
-  var base;
-  if(esEnEsperaPrograma(d))base=["ELA_ListaEspera","ELA_ListaEsperaStatus","ELA_LugarDisponible"];
-  else if(esCompletoEstado(d))base=["ELA_Cierre"];
-  else if(esActivoOcupado(d))base=["ELA_Recordatorio","ELA_Inasistencia","ELA_CambioModalidad"];
-  else base=[];
-  // El copy de seguimiento siempre queda disponible como opción manual, sin gatillo.
-  if(base.indexOf("ELA_ListaEspera")===-1)base=["ELA_ListaEspera"].concat(base);
-  return base;
+  // Histórico (Activo_Programa = Inactivo): sin acciones, solo se conserva el registro.
+  if(esHistorico(d))return[];
+  // Pendiente de seguimiento (registro nuevo o recién movido a Activo sin atender):
+  // el copy accionable es Aceptación + Agenda, no solo una etiqueta visual.
+  if(esPendienteSeguimiento(d)&&!esEnEsperaPrograma(d))return["ELA_Aceptacion"];
+  // Lista de espera: el copy de seguimiento solo aplica mientras siga en espera,
+  // no debe mostrarse a quienes ya están Activos.
+  if(esEnEsperaPrograma(d))return["ELA_ListaEspera","ELA_ListaEsperaStatus","ELA_LugarDisponible"];
+  if(esCompletoEstado(d))return["ELA_Cierre"];
+  if(esActivoOcupado(d))return["ELA_Recordatorio","ELA_Inasistencia","ELA_CambioModalidad"];
+  return[];
 }
 function getMomentosI43(d){
+  if(esHistorico(d))return[];
   if(esCompletoEstado(d))return["I43_Cierre"];
   if(!esActivoOcupado(d))return[];
+  // Pendiente de seguimiento: el copy accionable es el primer contacto.
+  if(esPendienteSeguimiento(d))return["I43_Contacto","I43_ReporteSesiones"];
   var sesiones=parseInt(d.Sesiones_Tomadas)||0;
   if(sesiones===0)return["I43_Contacto","I43_ReporteSesiones"];
   return["I43_ReporteSesiones"];
@@ -428,22 +421,39 @@ function progressBar(tomadas,total){
     +'<div class="progress-bar"><div class="fill" style="width:'+pct+'%"></div></div>';
 }
 
-/* ── RENDER ELA ── */
-function renderElaMetrics(){
-  var ela=INSCRITOS.filter(function(d){return(d.Modalidad_Servicio||"").toUpperCase()==="ELA"&&esVisiblePrograma(d);});
-  var activos=ela.filter(function(d){return esActivoOcupado(d)&&!esCompletoEstado(d);});
-  var espera=ela.filter(esEnEsperaPrograma);
-  var completaron=ela.filter(esCompletoEstado);
-  var ocupadas=activos.length;
-  document.getElementById("elaMetrics").innerHTML=[
-    {val:ocupadas+"/"+MAX_ELA,lbl:"licencias ocupadas",alert:ocupadas>=MAX_ELA},
-    {val:espera.length,lbl:"en lista de espera",alert:false},
-    {val:activos.length,lbl:"activos en proceso",alert:false},
-    {val:completaron.length,lbl:"completaron ciclo",alert:false}
+/* ── MÉTRICAS GENERALES (arriba del panel) ── */
+function renderGlobalMetrics(){
+  var enEla=INSCRITOS.filter(function(d){return(d.Modalidad_Servicio||"").toUpperCase()==="ELA"&&esActivoOcupado(d);});
+  var espera=INSCRITOS.filter(esEnEsperaPrograma);
+  var historicos=INSCRITOS.filter(esHistorico);
+  var enI43=INSCRITOS.filter(function(d){return(d.Modalidad_Servicio||"").toUpperCase()==="IMPULSO43"&&esActivoOcupado(d);});
+
+  var elaNombres={};
+  INSCRITOS.forEach(function(d){
+    if((d.Modalidad_Servicio||"").toUpperCase()==="ELA")elaNombres[(d.Nombre||"").trim().toLowerCase()]=true;
+  });
+  var registradas=0,asistidas=0;
+  SESIONES.forEach(function(s){
+    var n=(s.Nombre||"").trim().toLowerCase();
+    if(!elaNombres[n])return;
+    var a=(s.Asistio||"").trim().toLowerCase();
+    if(a==="sí"||a==="si"){registradas++;asistidas++;}
+    else if(a==="no")registradas++;
+  });
+  var asistenciaVal=registradas>0?Math.round(asistidas/registradas*100)+"%":"—";
+
+  document.getElementById("globalMetrics").innerHTML=[
+    {val:enEla.length,lbl:"en ELA",alert:enEla.length>=MAX_ELA},
+    {val:asistenciaVal,lbl:"asistencia ciclo ELA"},
+    {val:espera.length,lbl:"en lista de espera"},
+    {val:historicos.length,lbl:"históricos"},
+    {val:enI43.length,lbl:"en Impulso43"}
   ].map(function(m){
     return'<div class="metric '+(m.alert?"alert":"")+'"><div class="val">'+m.val+'</div><div class="lbl">'+m.lbl+'</div></div>';
   }).join("");
 }
+
+/* ── RENDER ELA ── */
 
 function renderElaActivos(){
   var copyMap=buildCopyMap();
@@ -457,9 +467,11 @@ function renderElaActivos(){
     var btns=renderWaBtns(momentos,d,copyMap,"abrirCopy");
     var prox=getProximaSesion(SESIONES,d.Nombre);
     var proxNum=prox?prox.Num_Sesion:(parseInt(d.Sesiones_Tomadas)||0)+1;
-    return'<div class="gcard">'
+    var pendiente=esPendienteSeguimiento(d);
+    return'<div class="gcard'+(pendiente?" seguimiento":"")+'">'
       +'<div class="gcard-head"><div class="avatar ela">'+initials(d.Nombre)+'</div>'
-      +'<div><div class="gname">'+d.Nombre+'</div><div class="gsuc">'+(d.Sucursal||"")+'</div></div></div>'
+      +'<div><div class="gname">'+(pendiente?'<span class="dot-new" title="Pendiente de seguimiento"></span> ':"")+d.Nombre+'</div><div class="gsuc">'+(d.Sucursal||"")+'</div></div></div>'
+      +(pendiente?'<span class="pill seguimiento-tag">Pendiente seguimiento</span>':"")
       +urgPill(d.Urgencia)
       +'<span class="pill modalidad">'+(d.Modalidad_Sesion||"—")+'</span>'
       +estadoCompleto(d)
@@ -484,67 +496,19 @@ function renderElaEspera(){
   grid.innerHTML=espera.map(function(d){
     var momentos=getMomentosELA(d);
     var btns=renderWaBtns(momentos,d,copyMap,"abrirCopy");
-    return'<div class="gcard">'
+    var pendiente=esPendienteSeguimiento(d);
+    return'<div class="gcard'+(pendiente?" seguimiento":"")+'">'
       +'<div class="gcard-head"><div class="avatar ela">'+initials(d.Nombre)+'</div>'
-      +'<div><div class="gname">'+d.Nombre+'</div><div class="gsuc">'+(d.Sucursal||"")+'</div></div></div>'
+      +'<div><div class="gname">'+(pendiente?'<span class="dot-new" title="Pendiente de seguimiento"></span> ':"")+d.Nombre+'</div><div class="gsuc">'+(d.Sucursal||"")+'</div></div></div>'
+      +(pendiente?'<span class="pill seguimiento-tag">Pendiente seguimiento</span>':"")
       +urgPill(d.Urgencia)
       +estadoCompleto(d)
-      +'<div class="gactions">'+btns+'</div></div>';
+      +'<div class="gactions">'+btns+'</div>'
+      +'</div>';
   }).join("");
 }
 
-function renderElaTabla(filtered){
-  var copyMap=buildCopyMap();
-  var body=document.getElementById("elaTablaBody");
-  if(!filtered.length){body.innerHTML='<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-soft);">Sin resultados</td></tr>';return;}
-  var html="";
-  filtered.forEach(function(d,i){
-    var momentos=getMomentosELA(d);
-    var btns=renderWaBtns(momentos,d,copyMap,"abrirCopy");
-    html+='<tr>'
-      +'<td><div class="name-cell"><div style="font-weight:600;">'+d.Nombre+'</div></div></td>'
-      +'<td>'+(d.Sucursal||"—")+'</td>'
-      +'<td>'+urgPill(d.Urgencia)+'</td>'
-      +'<td><span class="pill modalidad">'+(d.Modalidad_Sesion||"—")+'</span></td>'
-      +'<td>'+progressBar(d.Sesiones_Tomadas,d.Total_Sesiones)+'</td>'
-      +'<td>'+estadoCompleto(d)+'</td>'
-      +'<td><div style="display:flex;flex-wrap:wrap;gap:4px;">'+(btns||'<span style="color:var(--text-soft);font-size:12px;">—</span>')+'</div></td>'
-      +'</tr>';
-  });
-  body.innerHTML=html;
-}
-
-function applyElaFilters(){
-  var q=(document.getElementById("fElaSearch").value||"").toLowerCase();
-  var estado=document.getElementById("fElaEstado").value;
-  var urg=document.getElementById("fElaUrgencia").value;
-  var ela=INSCRITOS.filter(function(d){return(d.Modalidad_Servicio||"").toUpperCase()==="ELA"&&esVisiblePrograma(d);});
-  var f=ela.filter(function(d){
-    var matchEstado=true;
-    if(estado==="Lista de espera")matchEstado=esEnEsperaPrograma(d);
-    else if(estado==="Activo")matchEstado=esActivoOcupado(d)&&!esCompletoEstado(d);
-    else if(estado)matchEstado=(d.Estado||"")===estado;
-    return(!q||(d.Nombre||"").toLowerCase().indexOf(q)>=0)
-      &&matchEstado
-      &&(!urg||d.Urgencia===urg);
-  });
-  renderElaTabla(f);
-}
-
 /* ── RENDER I43 ── */
-function renderI43Metrics(){
-  var i43=INSCRITOS.filter(function(d){return(d.Modalidad_Servicio||"").toUpperCase()==="IMPULSO43"&&esVisiblePrograma(d);});
-  var completaron=i43.filter(esCompletoEstado);
-  var enProceso=i43.filter(function(d){return esActivoOcupado(d)&&!esCompletoEstado(d);});
-  var contactados=enProceso.filter(function(d){return(parseInt(d.Sesiones_Tomadas)||0)===0;});
-  var seguimiento=enProceso.filter(function(d){return(parseInt(d.Sesiones_Tomadas)||0)>0;});
-  document.getElementById("i43Metrics").innerHTML=[
-    {val:contactados.length,lbl:"contactados"},
-    {val:seguimiento.length,lbl:"en seguimiento"},
-    {val:completaron.length,lbl:"completaron"}
-  ].map(function(m){return'<div class="metric"><div class="val">'+m.val+'</div><div class="lbl">'+m.lbl+'</div></div>';}).join("");
-}
-
 function renderI43Activos(){
   var copyMap=buildCopyMap();
   var activos=INSCRITOS.filter(function(d){
@@ -555,9 +519,11 @@ function renderI43Activos(){
   grid.innerHTML=activos.map(function(d){
     var momentos=getMomentosI43(d);
     var btns=renderWaBtns(momentos,d,copyMap,"abrirCopy");
-    return'<div class="gcard">'
+    var pendiente=esPendienteSeguimiento(d);
+    return'<div class="gcard'+(pendiente?" seguimiento":"")+'">'
       +'<div class="gcard-head"><div class="avatar i43">'+initials(d.Nombre)+'</div>'
-      +'<div><div class="gname">'+d.Nombre+'</div><div class="gsuc">'+(d.Sucursal||"")+'</div></div></div>'
+      +'<div><div class="gname">'+(pendiente?'<span class="dot-new" title="Pendiente de seguimiento"></span> ':"")+d.Nombre+'</div><div class="gsuc">'+(d.Sucursal||"")+'</div></div></div>'
+      +(pendiente?'<span class="pill seguimiento-tag">Pendiente seguimiento</span>':"")
       +estadoCompleto(d)
       +'<div style="font-size:12px;color:var(--text-soft);margin-bottom:6px;">Sesiones reportadas: <strong>'+(d.Sesiones_Tomadas||0)+'</strong></div>'
       +'<div class="gactions">'+btns+'</div>'
@@ -566,34 +532,56 @@ function renderI43Activos(){
   }).join("");
 }
 
-function renderI43Tabla(filtered){
+/* ── TABLA GENERAL: ELA + Impulso43 + históricos ── */
+function renderTablaGeneral(filtered){
   var copyMap=buildCopyMap();
-  var body=document.getElementById("i43TablaBody");
-  if(!filtered.length){body.innerHTML='<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--text-soft);">Sin resultados</td></tr>';return;}
+  var body=document.getElementById("genTablaBody");
+  if(!filtered.length){body.innerHTML='<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-soft);">Sin resultados</td></tr>';return;}
   body.innerHTML=filtered.map(function(d){
-    var momentos=getMomentosI43(d);
+    var mod=(d.Modalidad_Servicio||"").toUpperCase();
+    var esELA=mod==="ELA",esI43=mod==="IMPULSO43";
+    var momentos=esELA?getMomentosELA(d):(esI43?getMomentosI43(d):[]);
     var btns=renderWaBtns(momentos,d,copyMap,"abrirCopy");
-    return'<tr><td style="font-weight:600;">'+d.Nombre+'</td>'
+    var pendiente=esPendienteSeguimiento(d);
+    var progresoCell=esELA?progressBar(d.Sesiones_Tomadas,d.Total_Sesiones)
+      :esI43?('Sesiones reportadas: <strong>'+(d.Sesiones_Tomadas||0)+'</strong>')
+      :'—';
+    var servicioCell=esELA?'<span class="pill modalidad">ELA</span>':esI43?'<span class="pill modalidad">Impulso43</span>':'—';
+    var accionesCell=esHistorico(d)?'—':'<button class="action-btn baja" onclick="marcarBaja(\''+encodeURIComponent(d.Nombre)+'\')">✕ Baja</button>';
+    return'<tr'+(pendiente?' class="seguimiento-row"':"")+'>'
+      +'<td><div class="name-cell">'+(pendiente?'<span class="dot-new" title="Pendiente de seguimiento"></span>':"")+'<div style="font-weight:600;">'+d.Nombre+'</div></div></td>'
+      +'<td>'+servicioCell+'</td>'
       +'<td>'+(d.Sucursal||"—")+'</td>'
-      +'<td>'+(d.Sesiones_Tomadas||0)+'</td>'
+      +'<td>'+(esELA?urgPill(d.Urgencia):'—')+'</td>'
+      +'<td>'+progresoCell+'</td>'
       +'<td>'+estadoCompleto(d)+'</td>'
-      +'<td><div style="display:flex;flex-wrap:wrap;gap:4px;">'+(btns||"—")+'</div></td></tr>';
+      +'<td><div style="display:flex;flex-wrap:wrap;gap:4px;">'+(btns||'<span style="color:var(--text-soft);font-size:12px;">—</span>')+'</div></td>'
+      +'<td>'+accionesCell+'</td>'
+      +'</tr>';
   }).join("");
 }
 
-function applyI43Filters(){
-  var q=(document.getElementById("fI43Search").value||"").toLowerCase();
-  var estado=document.getElementById("fI43Estado").value;
-  var i43=INSCRITOS.filter(function(d){return(d.Modalidad_Servicio||"").toUpperCase()==="IMPULSO43"&&esVisiblePrograma(d);});
-  var f=i43.filter(function(d){
-    var sesiones=parseInt(d.Sesiones_Tomadas)||0;
+function applyGenFilters(){
+  var q=(document.getElementById("fGenSearch").value||"").toLowerCase();
+  var servicio=document.getElementById("fGenServicio").value;
+  var estado=document.getElementById("fGenEstado").value;
+  var urg=document.getElementById("fGenUrgencia").value;
+  var f=INSCRITOS.filter(function(d){
+    var mod=(d.Modalidad_Servicio||"").toUpperCase();
+    var matchServicio=true;
+    if(servicio==="ELA")matchServicio=mod==="ELA";
+    else if(servicio==="IMPULSO43")matchServicio=mod==="IMPULSO43";
     var matchEstado=true;
-    if(estado==="Contactado")matchEstado=esActivoOcupado(d)&&!esCompletoEstado(d)&&sesiones===0;
-    else if(estado==="En seguimiento")matchEstado=esActivoOcupado(d)&&!esCompletoEstado(d)&&sesiones>0;
+    if(estado==="Lista de espera")matchEstado=esEnEsperaPrograma(d);
+    else if(estado==="Activo")matchEstado=esActivoOcupado(d)&&!esCompletoEstado(d);
     else if(estado==="Completó")matchEstado=esCompletoEstado(d);
-    return(!q||(d.Nombre||"").toLowerCase().indexOf(q)>=0)&&matchEstado;
+    else if(estado==="Histórico")matchEstado=esHistorico(d);
+    return(!q||(d.Nombre||"").toLowerCase().indexOf(q)>=0)
+      &&matchServicio
+      &&matchEstado
+      &&(!urg||d.Urgencia===urg);
   });
-  renderI43Tabla(f);
+  renderTablaGeneral(f);
 }
 
 /* ── COPY DIRECTO ── */
@@ -689,6 +677,16 @@ async function guardarSesionesI43(){
   finally{btn.disabled=false;btn.textContent="Guardar";}
 }
 
+async function marcarBaja(nombreEnc){
+  var nombre=decodeURIComponent(nombreEnc);
+  if(!confirm("¿Marcar a "+nombre+" como Baja? Pasará a históricos y dejará de mostrarse como activo/lista de espera, pero se conserva su registro.")) return;
+  try{
+    var r=await fetch(WEBAPP_URL,{method:"POST",body:JSON.stringify({tipo:"ap_baja",nombre:nombre})}).then(function(r){return r.json();});
+    if(r.ok||r.success)location.reload();
+    else alert("Error: "+(r.error||"desconocido"));
+  }catch(e){alert("No se pudo conectar.");}
+}
+
 /* ── INIT ── */
 async function init(){
   try{
@@ -701,19 +699,16 @@ async function init(){
     document.getElementById("appContent").style.display="block";
     document.getElementById("lastSync").textContent="actualizado: "+new Date().toLocaleString("es-MX",{dateStyle:"medium",timeStyle:"short"});
 
-    renderElaMetrics();
+    renderGlobalMetrics();
     renderElaActivos();
     renderElaEspera();
-    applyElaFilters();
-    renderI43Metrics();
     renderI43Activos();
-    applyI43Filters();
+    applyGenFilters();
 
-    document.getElementById("fElaSearch").addEventListener("input",applyElaFilters);
-    document.getElementById("fElaEstado").addEventListener("change",applyElaFilters);
-    document.getElementById("fElaUrgencia").addEventListener("change",applyElaFilters);
-    document.getElementById("fI43Search").addEventListener("input",applyI43Filters);
-    document.getElementById("fI43Estado").addEventListener("change",applyI43Filters);
+    document.getElementById("fGenSearch").addEventListener("input",applyGenFilters);
+    document.getElementById("fGenServicio").addEventListener("change",applyGenFilters);
+    document.getElementById("fGenEstado").addEventListener("change",applyGenFilters);
+    document.getElementById("fGenUrgencia").addEventListener("change",applyGenFilters);
   }catch(err){
     console.error("ERROR:",err.message,err.stack);
     document.getElementById("loadingMsg").style.display="none";

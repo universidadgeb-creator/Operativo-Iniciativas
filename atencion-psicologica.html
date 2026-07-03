@@ -216,7 +216,7 @@
     <div class="section" id="elaTablaSection">
       <div class="filters">
         <input type="text" id="fElaSearch" placeholder="buscar nombre…">
-        <select id="fElaEstado"><option value="">todos</option><option value="Lista de espera">Lista de espera</option><option value="Activo">Activo</option><option value="Sesión pendiente">Sesión pendiente</option><option value="Completó">Completó</option><option value="Histórico">Histórico</option></select>
+        <select id="fElaEstado"><option value="">todos</option><option value="Lista de espera">Lista de espera</option><option value="Activo">Activo</option><option value="Sesión pendiente">Sesión pendiente</option><option value="Completó">Completó</option></select>
         <select id="fElaUrgencia"><option value="">urgencia</option><option value="Alta">Alta</option><option value="Media">Media</option><option value="Baja">Baja</option></select>
       </div>
       <div class="table-wrap">
@@ -246,7 +246,7 @@
       <div class="section" id="i43TablaSection" style="display:none;">
         <div class="filters">
           <input type="text" id="fI43Search" placeholder="buscar nombre…">
-          <select id="fI43Estado"><option value="">todos</option><option value="Contactado">Contactado</option><option value="En seguimiento">En seguimiento</option><option value="Completó">Completó</option><option value="Histórico">Histórico</option></select>
+          <select id="fI43Estado"><option value="">todos</option><option value="Contactado">Contactado</option><option value="En seguimiento">En seguimiento</option><option value="Completó">Completó</option></select>
         </div>
         <div class="table-wrap">
           <table><thead><tr><th>Colaborador</th><th>Sucursal</th><th>Sesiones</th><th>Estado</th><th>Mensajes</th></tr></thead>
@@ -296,7 +296,12 @@ var SHEET_ID = "1fS5qeoB1ViuCUP4HOQ1zTJgh4tfWUkObvb5LMr3to5A";
 var WEBAPP_URL = "https://script.google.com/macros/s/AKfycby8QmMkIKFlse1yIsIxJk6LjvBW8WYjNTf51f54KubtakiKkYhUOPZmYUN4S76JBF_YeQ/exec";
 var TABS = { inscritos:"AP_Inscritos", sesiones:"AP_Sesiones", copys:"AP_Copys" };
 var SCHEMA = {
-  AP_Inscritos:["Nombre","Sucursal","Telefono_WA","Fecha_Registro","Modalidad_Servicio","Modalidad_Sesion","Urgencia","Estado","Fecha_Inicio","Total_Sesiones","Sesiones_Tomadas","Requiere_Seguimiento","Notas"],
+  // Activo_Programa (col D, 100% manual): Activo / Inactivo / Lista de espera.
+  // Decide si alguien cuenta en las vistas/métricas operativas. Estado (col H) queda
+  // exclusivo del script: solo puede quedar vacío, "Sesión pendiente" o "Completó" —
+  // nadie debe escribir Estado a mano. Reemplaza a Fecha_Registro (col D), que nunca
+  // se usaba en el código ni tenía datos llenos.
+  AP_Inscritos:["Nombre","Sucursal","Telefono_WA","Activo_Programa","Modalidad_Servicio","Modalidad_Sesion","Urgencia","Estado","Fecha_Inicio","Total_Sesiones","Sesiones_Tomadas","Requiere_Seguimiento","Notas"],
   AP_Sesiones:["Nombre","Num_Sesion","Fecha_Programada","Hora_Programada","Modalidad","Asistio","Cambio_Modalidad","Notas_Sesion"],
   AP_Copys:["Momento","Servicio","Copy_Texto","Numero_WA","Activo"]
 };
@@ -328,7 +333,16 @@ function fetchTab(tabName){
 
 function initials(n){if(!n)return"?";var p=n.trim().split(/\s+/);return((p[0]?p[0][0]:"")+(p[1]?p[1][0]:"")).toUpperCase();}
 function esSi(v){var s=(v||"").trim().toLowerCase();return s==="sí"||s==="si";}
-function isSeguimiento(d){var v=(d.Requiere_Seguimiento||"").trim().toLowerCase();return v==="sí"||v==="si"||v==="";}
+// Requiere_Seguimiento ya no se usa: el copy de seguimiento (ELA_ListaEspera) ahora
+// está siempre disponible como opción en getMomentosELA, sin necesidad de marcar nada
+// a mano. La columna sigue existiendo en el Sheet (para no correr Notas de lugar) pero
+// puede quedar vacía siempre — ya no se lee en ningún lado.
+// Activo_Programa (col D, 100% manual): Activo / Inactivo / Lista de espera.
+// Estado (col H) queda exclusivo del script: "", "Sesión pendiente" o "Completó".
+function esVisiblePrograma(d){var v=(d.Activo_Programa||"").trim().toLowerCase();return v==="activo"||v.startsWith("lista");}
+function esActivoOcupado(d){return(d.Activo_Programa||"").trim().toLowerCase()==="activo";}
+function esEnEsperaPrograma(d){return(d.Activo_Programa||"").trim().toLowerCase().startsWith("lista");}
+function esCompletoEstado(d){var e=(d.Estado||"").trim().toLowerCase();return e==="completó"||e==="completo";}
 function waLink(tel,txt){var p=(tel||"").replace(/[^\d+]/g,"");return"https://wa.me/"+p.replace("+","")+"?text="+encodeURIComponent(txt);}
 
 function sustituirVars(texto,d,sesiones){
@@ -362,32 +376,40 @@ function urgPill(u){
   if(v==="media")return'<span class="pill urg-media">Media</span>';
   return'<span class="pill urg-baja">'+(u||"Baja")+'</span>';
 }
+// Estado ya solo lo mueve el script: vacío ("en curso"), Sesión pendiente o Completó.
 function estadoPill(e){
-  var v=(e||"").toLowerCase();
-  if(v==="activo")return'<span class="pill activo">Activo</span>';
-  if(v.startsWith("lista"))return'<span class="pill espera">Lista de espera</span>';
+  var v=(e||"").trim().toLowerCase();
   if(v==="sesión pendiente"||v==="sesion pendiente")return'<span class="pill pendiente">Sesión pendiente</span>';
   if(v==="completó"||v==="completo")return'<span class="pill completo">Completó</span>';
-  if(v==="histórico"||v==="historico")return'<span class="pill historico">Histórico</span>';
-  if(v==="contactado")return'<span class="pill contactado">Contactado</span>';
-  if(v==="en seguimiento")return'<span class="pill activo">En seguimiento</span>';
-  return'<span class="pill historico">'+(e||"—")+'</span>';
+  if(!v)return"";
+  return'<span class="pill historico">'+e+'</span>';
 }
+// Activo_Programa: lo llena el equipo a mano (Activo/Inactivo/Lista de espera).
+function programaPill(v){
+  var s=(v||"").trim().toLowerCase();
+  if(s==="activo")return'<span class="pill activo">Activo</span>';
+  if(s==="inactivo")return'<span class="pill historico">Inactivo</span>';
+  if(s.startsWith("lista"))return'<span class="pill espera">Lista de espera</span>';
+  return'<span class="pill historico">Sin definir</span>';
+}
+function estadoCompleto(d){return programaPill(d.Activo_Programa)+estadoPill(d.Estado);}
 
 function getMomentosELA(d){
-  var e=(d.Estado||"").toLowerCase();
-  if(isSeguimiento(d))return["ELA_ListaEspera"];
-  if(e.startsWith("lista"))return["ELA_ListaEspera","ELA_ListaEsperaStatus","ELA_LugarDisponible"];
-  if(e==="activo"||e==="sesión pendiente"||e==="sesion pendiente")return["ELA_Recordatorio","ELA_Inasistencia","ELA_CambioModalidad"];
-  if(e==="completó"||e==="completo")return["ELA_Cierre"];
-  return[];
+  var base;
+  if(esEnEsperaPrograma(d))base=["ELA_ListaEspera","ELA_ListaEsperaStatus","ELA_LugarDisponible"];
+  else if(esCompletoEstado(d))base=["ELA_Cierre"];
+  else if(esActivoOcupado(d))base=["ELA_Recordatorio","ELA_Inasistencia","ELA_CambioModalidad"];
+  else base=[];
+  // El copy de seguimiento siempre queda disponible como opción manual, sin gatillo.
+  if(base.indexOf("ELA_ListaEspera")===-1)base=["ELA_ListaEspera"].concat(base);
+  return base;
 }
 function getMomentosI43(d){
-  var e=(d.Estado||"").toLowerCase();
-  if(e==="contactado")return["I43_Contacto","I43_ReporteSesiones"];
-  if(e==="en seguimiento")return["I43_ReporteSesiones"];
-  if(e==="completó"||e==="completo")return["I43_Cierre"];
-  return[];
+  if(esCompletoEstado(d))return["I43_Cierre"];
+  if(!esActivoOcupado(d))return[];
+  var sesiones=parseInt(d.Sesiones_Tomadas)||0;
+  if(sesiones===0)return["I43_Contacto","I43_ReporteSesiones"];
+  return["I43_ReporteSesiones"];
 }
 
 function renderWaBtns(momentos,d,copyMap,clickFn){
@@ -408,18 +430,16 @@ function progressBar(tomadas,total){
 
 /* ── RENDER ELA ── */
 function renderElaMetrics(){
-  var ela=INSCRITOS.filter(function(d){return(d.Modalidad_Servicio||"").toUpperCase()==="ELA";});
-  var activos=ela.filter(function(d){var e=(d.Estado||"").toLowerCase();return e==="activo"||e==="sesión pendiente"||e==="sesion pendiente";});
-  var espera=ela.filter(function(d){return(d.Estado||"").toLowerCase().startsWith("lista");});
-  var completaron=ela.filter(function(d){var e=(d.Estado||"").toLowerCase();return e==="completó"||e==="completo";});
-  var seg=ela.filter(isSeguimiento);
+  var ela=INSCRITOS.filter(function(d){return(d.Modalidad_Servicio||"").toUpperCase()==="ELA"&&esVisiblePrograma(d);});
+  var activos=ela.filter(function(d){return esActivoOcupado(d)&&!esCompletoEstado(d);});
+  var espera=ela.filter(esEnEsperaPrograma);
+  var completaron=ela.filter(esCompletoEstado);
   var ocupadas=activos.length;
   document.getElementById("elaMetrics").innerHTML=[
     {val:ocupadas+"/"+MAX_ELA,lbl:"licencias ocupadas",alert:ocupadas>=MAX_ELA},
     {val:espera.length,lbl:"en lista de espera",alert:false},
     {val:activos.length,lbl:"activos en proceso",alert:false},
-    {val:completaron.length,lbl:"completaron ciclo",alert:false},
-    {val:seg.length,lbl:"pendientes seguimiento",alert:seg.length>0}
+    {val:completaron.length,lbl:"completaron ciclo",alert:false}
   ].map(function(m){
     return'<div class="metric '+(m.alert?"alert":"")+'"><div class="val">'+m.val+'</div><div class="lbl">'+m.lbl+'</div></div>';
   }).join("");
@@ -428,24 +448,21 @@ function renderElaMetrics(){
 function renderElaActivos(){
   var copyMap=buildCopyMap();
   var activos=INSCRITOS.filter(function(d){
-    var e=(d.Estado||"").toLowerCase();
-    return(d.Modalidad_Servicio||"").toUpperCase()==="ELA"&&(e==="activo"||e==="sesión pendiente"||e==="sesion pendiente");
+    return(d.Modalidad_Servicio||"").toUpperCase()==="ELA"&&esActivoOcupado(d)&&!esCompletoEstado(d);
   });
   var grid=document.getElementById("elaActivosGrid");
   if(!activos.length){grid.innerHTML='<div class="footnote">No hay colaboradores en atención activa.</div>';return;}
   grid.innerHTML=activos.map(function(d){
-    var seg=isSeguimiento(d);
     var momentos=getMomentosELA(d);
     var btns=renderWaBtns(momentos,d,copyMap,"abrirCopy");
     var prox=getProximaSesion(SESIONES,d.Nombre);
     var proxNum=prox?prox.Num_Sesion:(parseInt(d.Sesiones_Tomadas)||0)+1;
-    return'<div class="gcard '+(seg?"seguimiento":"")+'">'
+    return'<div class="gcard">'
       +'<div class="gcard-head"><div class="avatar ela">'+initials(d.Nombre)+'</div>'
       +'<div><div class="gname">'+d.Nombre+'</div><div class="gsuc">'+(d.Sucursal||"")+'</div></div></div>'
       +urgPill(d.Urgencia)
       +'<span class="pill modalidad">'+(d.Modalidad_Sesion||"—")+'</span>'
-      +estadoPill(d.Estado)
-      +(seg?'<span class="pill seguimiento-tag">🏳 seguimiento</span>':"")
+      +estadoCompleto(d)
       +progressBar(d.Sesiones_Tomadas,d.Total_Sesiones)
       +'<div class="gactions">'+btns+'</div>'
       +'<button class="action-btn reg" onclick="abrirModalAsist(\''+encodeURIComponent(d.Nombre)+'\','+proxNum+')">✓ Registrar asistencia</button>'
@@ -457,7 +474,7 @@ function renderElaActivos(){
 function renderElaEspera(){
   var copyMap=buildCopyMap();
   var espera=INSCRITOS.filter(function(d){
-    return(d.Modalidad_Servicio||"").toUpperCase()==="ELA"&&(d.Estado||"").toLowerCase().startsWith("lista");
+    return(d.Modalidad_Servicio||"").toUpperCase()==="ELA"&&esEnEsperaPrograma(d);
   }).sort(function(a,b){
     var ord={alta:0,media:1,baja:2};
     return(ord[(a.Urgencia||"baja").toLowerCase()]||2)-(ord[(b.Urgencia||"baja").toLowerCase()]||2);
@@ -465,15 +482,13 @@ function renderElaEspera(){
   var grid=document.getElementById("elaEsperaGrid");
   if(!espera.length){grid.innerHTML='<div class="footnote">No hay colaboradores en lista de espera.</div>';return;}
   grid.innerHTML=espera.map(function(d){
-    var seg=isSeguimiento(d);
     var momentos=getMomentosELA(d);
     var btns=renderWaBtns(momentos,d,copyMap,"abrirCopy");
-    return'<div class="gcard '+(seg?"seguimiento":"")+'">'
+    return'<div class="gcard">'
       +'<div class="gcard-head"><div class="avatar ela">'+initials(d.Nombre)+'</div>'
       +'<div><div class="gname">'+d.Nombre+'</div><div class="gsuc">'+(d.Sucursal||"")+'</div></div></div>'
       +urgPill(d.Urgencia)
-      +estadoPill(d.Estado)
-      +(seg?'<span class="pill seguimiento-tag">🏳 seguimiento</span>':"")
+      +estadoCompleto(d)
       +'<div class="gactions">'+btns+'</div></div>';
   }).join("");
 }
@@ -484,16 +499,15 @@ function renderElaTabla(filtered){
   if(!filtered.length){body.innerHTML='<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-soft);">Sin resultados</td></tr>';return;}
   var html="";
   filtered.forEach(function(d,i){
-    var seg=isSeguimiento(d);
     var momentos=getMomentosELA(d);
     var btns=renderWaBtns(momentos,d,copyMap,"abrirCopy");
-    html+='<tr class="'+(seg?"seguimiento-row":"")+'">'
-      +'<td><div class="name-cell">'+(seg?'<span class="dot-new"></span>':"")+'<div style="font-weight:600;">'+d.Nombre+'</div></div></td>'
+    html+='<tr>'
+      +'<td><div class="name-cell"><div style="font-weight:600;">'+d.Nombre+'</div></div></td>'
       +'<td>'+(d.Sucursal||"—")+'</td>'
       +'<td>'+urgPill(d.Urgencia)+'</td>'
       +'<td><span class="pill modalidad">'+(d.Modalidad_Sesion||"—")+'</span></td>'
       +'<td>'+progressBar(d.Sesiones_Tomadas,d.Total_Sesiones)+'</td>'
-      +'<td>'+estadoPill(d.Estado)+'</td>'
+      +'<td>'+estadoCompleto(d)+'</td>'
       +'<td><div style="display:flex;flex-wrap:wrap;gap:4px;">'+(btns||'<span style="color:var(--text-soft);font-size:12px;">—</span>')+'</div></td>'
       +'</tr>';
   });
@@ -504,10 +518,14 @@ function applyElaFilters(){
   var q=(document.getElementById("fElaSearch").value||"").toLowerCase();
   var estado=document.getElementById("fElaEstado").value;
   var urg=document.getElementById("fElaUrgencia").value;
-  var ela=INSCRITOS.filter(function(d){return(d.Modalidad_Servicio||"").toUpperCase()==="ELA";});
+  var ela=INSCRITOS.filter(function(d){return(d.Modalidad_Servicio||"").toUpperCase()==="ELA"&&esVisiblePrograma(d);});
   var f=ela.filter(function(d){
+    var matchEstado=true;
+    if(estado==="Lista de espera")matchEstado=esEnEsperaPrograma(d);
+    else if(estado==="Activo")matchEstado=esActivoOcupado(d)&&!esCompletoEstado(d);
+    else if(estado)matchEstado=(d.Estado||"")===estado;
     return(!q||(d.Nombre||"").toLowerCase().indexOf(q)>=0)
-      &&(!estado||d.Estado===estado)
+      &&matchEstado
       &&(!urg||d.Urgencia===urg);
   });
   renderElaTabla(f);
@@ -515,10 +533,11 @@ function applyElaFilters(){
 
 /* ── RENDER I43 ── */
 function renderI43Metrics(){
-  var i43=INSCRITOS.filter(function(d){return(d.Modalidad_Servicio||"").toUpperCase()==="IMPULSO43";});
-  var contactados=i43.filter(function(d){return(d.Estado||"").toLowerCase()==="contactado";});
-  var seguimiento=i43.filter(function(d){return(d.Estado||"").toLowerCase()==="en seguimiento";});
-  var completaron=i43.filter(function(d){var e=(d.Estado||"").toLowerCase();return e==="completó"||e==="completo";});
+  var i43=INSCRITOS.filter(function(d){return(d.Modalidad_Servicio||"").toUpperCase()==="IMPULSO43"&&esVisiblePrograma(d);});
+  var completaron=i43.filter(esCompletoEstado);
+  var enProceso=i43.filter(function(d){return esActivoOcupado(d)&&!esCompletoEstado(d);});
+  var contactados=enProceso.filter(function(d){return(parseInt(d.Sesiones_Tomadas)||0)===0;});
+  var seguimiento=enProceso.filter(function(d){return(parseInt(d.Sesiones_Tomadas)||0)>0;});
   document.getElementById("i43Metrics").innerHTML=[
     {val:contactados.length,lbl:"contactados"},
     {val:seguimiento.length,lbl:"en seguimiento"},
@@ -529,8 +548,7 @@ function renderI43Metrics(){
 function renderI43Activos(){
   var copyMap=buildCopyMap();
   var activos=INSCRITOS.filter(function(d){
-    var e=(d.Estado||"").toLowerCase();
-    return(d.Modalidad_Servicio||"").toUpperCase()==="IMPULSO43"&&(e==="contactado"||e==="en seguimiento");
+    return(d.Modalidad_Servicio||"").toUpperCase()==="IMPULSO43"&&esActivoOcupado(d)&&!esCompletoEstado(d);
   });
   var grid=document.getElementById("i43ActivosGrid");
   if(!activos.length){grid.innerHTML='<div class="footnote">No hay colaboradores activos en Impulso43.</div>';return;}
@@ -540,7 +558,7 @@ function renderI43Activos(){
     return'<div class="gcard">'
       +'<div class="gcard-head"><div class="avatar i43">'+initials(d.Nombre)+'</div>'
       +'<div><div class="gname">'+d.Nombre+'</div><div class="gsuc">'+(d.Sucursal||"")+'</div></div></div>'
-      +estadoPill(d.Estado)
+      +estadoCompleto(d)
       +'<div style="font-size:12px;color:var(--text-soft);margin-bottom:6px;">Sesiones reportadas: <strong>'+(d.Sesiones_Tomadas||0)+'</strong></div>'
       +'<div class="gactions">'+btns+'</div>'
       +'<button class="action-btn reg" onclick="abrirModalI43(\''+encodeURIComponent(d.Nombre)+'\','+(d.Sesiones_Tomadas||0)+')">+ Registrar sesiones</button>'
@@ -558,7 +576,7 @@ function renderI43Tabla(filtered){
     return'<tr><td style="font-weight:600;">'+d.Nombre+'</td>'
       +'<td>'+(d.Sucursal||"—")+'</td>'
       +'<td>'+(d.Sesiones_Tomadas||0)+'</td>'
-      +'<td>'+estadoPill(d.Estado)+'</td>'
+      +'<td>'+estadoCompleto(d)+'</td>'
       +'<td><div style="display:flex;flex-wrap:wrap;gap:4px;">'+(btns||"—")+'</div></td></tr>';
   }).join("");
 }
@@ -566,9 +584,14 @@ function renderI43Tabla(filtered){
 function applyI43Filters(){
   var q=(document.getElementById("fI43Search").value||"").toLowerCase();
   var estado=document.getElementById("fI43Estado").value;
-  var i43=INSCRITOS.filter(function(d){return(d.Modalidad_Servicio||"").toUpperCase()==="IMPULSO43";});
+  var i43=INSCRITOS.filter(function(d){return(d.Modalidad_Servicio||"").toUpperCase()==="IMPULSO43"&&esVisiblePrograma(d);});
   var f=i43.filter(function(d){
-    return(!q||(d.Nombre||"").toLowerCase().indexOf(q)>=0)&&(!estado||d.Estado===estado);
+    var sesiones=parseInt(d.Sesiones_Tomadas)||0;
+    var matchEstado=true;
+    if(estado==="Contactado")matchEstado=esActivoOcupado(d)&&!esCompletoEstado(d)&&sesiones===0;
+    else if(estado==="En seguimiento")matchEstado=esActivoOcupado(d)&&!esCompletoEstado(d)&&sesiones>0;
+    else if(estado==="Completó")matchEstado=esCompletoEstado(d);
+    return(!q||(d.Nombre||"").toLowerCase().indexOf(q)>=0)&&matchEstado;
   });
   renderI43Tabla(f);
 }

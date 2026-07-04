@@ -237,7 +237,7 @@
         <select id="fGenUrgencia"><option value="">urgencia</option><option value="Alta">Alta</option><option value="Media">Media</option><option value="Baja">Baja</option></select>
       </div>
       <div class="table-wrap">
-        <table><thead><tr><th>Colaborador</th><th>Servicio</th><th>Sucursal</th><th>Urgencia</th><th>Progreso / sesiones</th><th>Estado</th><th>Mensajes</th><th>Acciones</th></tr></thead>
+        <table><thead><tr><th>Colaborador</th><th>Servicio</th><th>Sucursal</th><th>Urgencia</th><th>Progreso / sesiones</th><th>Diagnóstico</th><th>Estado</th><th>Mensajes</th><th>Acciones</th></tr></thead>
         <tbody id="genTablaBody"></tbody></table>
       </div>
     </div>
@@ -278,6 +278,17 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="modalDiagnostico">
+  <div class="modal-box">
+    <div class="modal-title" id="modalDiagnosticoTitle">Diagnóstico</div>
+    <div class="modal-row"><label>Diagnóstico inicial (escala de severidad)</label><input type="number" id="mDiagInicial" min="0" max="10" step="1"></div>
+    <div class="modal-row"><label>Diagnóstico final (escala de severidad)</label><input type="number" id="mDiagFinal" min="0" max="10" step="1"></div>
+    <input type="hidden" id="mDiagNombre">
+    <div class="modal-actions"><button class="btn-primary" id="mDiagSave" onclick="guardarDiagnostico()">Guardar</button><button class="btn-cancel" onclick="cerrarModal('modalDiagnostico')">Cancelar</button></div>
+    <div class="modal-msg" id="mDiagMsg"></div>
+  </div>
+</div>
+
 <script>
 var SHEET_ID = "1fS5qeoB1ViuCUP4HOQ1zTJgh4tfWUkObvb5LMr3to5A";
 var WEBAPP_URL = "https://script.google.com/macros/s/AKfycby8QmMkIKFlse1yIsIxJk6LjvBW8WYjNTf51f54KubtakiKkYhUOPZmYUN4S76JBF_YeQ/exec";
@@ -288,7 +299,7 @@ var SCHEMA = {
   // exclusivo del script: solo puede quedar vacío, "Sesión pendiente" o "Completó" —
   // nadie debe escribir Estado a mano. Reemplaza a Fecha_Registro (col D), que nunca
   // se usaba en el código ni tenía datos llenos.
-  AP_Inscritos:["Nombre","Sucursal","Telefono_WA","Activo_Programa","Modalidad_Servicio","Modalidad_Sesion","Urgencia","Estado","Fecha_Inicio","Total_Sesiones","Sesiones_Tomadas","Requiere_Seguimiento","Notas"],
+  AP_Inscritos:["Nombre","Sucursal","Telefono_WA","Activo_Programa","Modalidad_Servicio","Modalidad_Sesion","Urgencia","Estado","Fecha_Inicio","Total_Sesiones","Sesiones_Tomadas","Requiere_Seguimiento","Notas","Diagnostico_Inicial","Diagnostico_Final"],
   AP_Sesiones:["Nombre","Num_Sesion","Fecha_Programada","Hora_Programada","Modalidad","Asistio","Cambio_Modalidad","Notas_Sesion"],
   AP_Copys:["Momento","Servicio","Copy_Texto","Numero_WA","Activo"]
 };
@@ -536,7 +547,7 @@ function renderI43Activos(){
 function renderTablaGeneral(filtered){
   var copyMap=buildCopyMap();
   var body=document.getElementById("genTablaBody");
-  if(!filtered.length){body.innerHTML='<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-soft);">Sin resultados</td></tr>';return;}
+  if(!filtered.length){body.innerHTML='<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--text-soft);">Sin resultados</td></tr>';return;}
   body.innerHTML=filtered.map(function(d){
     var mod=(d.Modalidad_Servicio||"").toUpperCase();
     var esELA=mod==="ELA",esI43=mod==="IMPULSO43";
@@ -547,6 +558,9 @@ function renderTablaGeneral(filtered){
       :esI43?('Sesiones reportadas: <strong>'+(d.Sesiones_Tomadas||0)+'</strong>')
       :'—';
     var servicioCell=esELA?'<span class="pill modalidad">ELA</span>':esI43?'<span class="pill modalidad">Impulso43</span>':'—';
+    var diag=diagnosticoInfo(d);
+    var diagCell='<span class="pill '+diag.clase+'">'+diag.texto+'</span> '
+      +'<button class="action-btn reg" onclick="abrirModalDiagnostico(\''+encodeURIComponent(d.Nombre)+'\',\''+encodeURIComponent(d.Diagnostico_Inicial||"")+'\',\''+encodeURIComponent(d.Diagnostico_Final||"")+'\')">✎</button>';
     var accionesCell=esHistorico(d)?'—':'<button class="action-btn baja" onclick="marcarBaja(\''+encodeURIComponent(d.Nombre)+'\')">✕ Baja</button>';
     return'<tr'+(pendiente?' class="seguimiento-row"':"")+'>'
       +'<td><div class="name-cell">'+(pendiente?'<span class="dot-new" title="Pendiente de seguimiento"></span>':"")+'<div style="font-weight:600;">'+d.Nombre+'</div></div></td>'
@@ -554,11 +568,29 @@ function renderTablaGeneral(filtered){
       +'<td>'+(d.Sucursal||"—")+'</td>'
       +'<td>'+(esELA?urgPill(d.Urgencia):'—')+'</td>'
       +'<td>'+progresoCell+'</td>'
+      +'<td>'+diagCell+'</td>'
       +'<td>'+estadoCompleto(d)+'</td>'
       +'<td><div style="display:flex;flex-wrap:wrap;gap:4px;">'+(btns||'<span style="color:var(--text-soft);font-size:12px;">—</span>')+'</div></td>'
       +'<td>'+accionesCell+'</td>'
       +'</tr>';
   }).join("");
+}
+
+// Diagnóstico inicial/final: escala numérica (ej. 1-10 de severidad). Verde = mejoró
+// (final < inicial), amarillo = igual, rojo = empeoró (final > inicial), gris = falta
+// capturar uno de los dos valores todavía.
+function diagnosticoInfo(d){
+  var iniRaw=d.Diagnostico_Inicial,finRaw=d.Diagnostico_Final;
+  var ini=(iniRaw!==""&&iniRaw!=null&&!isNaN(parseFloat(iniRaw)))?parseFloat(iniRaw):null;
+  var fin=(finRaw!==""&&finRaw!=null&&!isNaN(parseFloat(finRaw)))?parseFloat(finRaw):null;
+  var texto=(ini!==null?ini:"—")+" → "+(fin!==null?fin:"—");
+  var clase="historico";
+  if(ini!==null&&fin!==null){
+    if(fin<ini)clase="activo";
+    else if(fin>ini)clase="pendiente";
+    else clase="espera";
+  }
+  return{texto:texto,clase:clase};
 }
 
 // Orden fijo de la tabla general, sin importar el filtro: ELA primero,
@@ -684,6 +716,30 @@ async function guardarSesionesI43(){
     if(r.ok||r.success){showModalMsg("mI43Msg","ok","Actualizado.");setTimeout(function(){cerrarModal("modalI43");location.reload();},1500);}
     else showModalMsg("mI43Msg","err","Error: "+(r.error||"desconocido"));
   }catch(e){showModalMsg("mI43Msg","err","No se pudo conectar.");}
+  finally{btn.disabled=false;btn.textContent="Guardar";}
+}
+
+function abrirModalDiagnostico(nombreEnc,inicialEnc,finalEnc){
+  var nombre=decodeURIComponent(nombreEnc);
+  document.getElementById("modalDiagnosticoTitle").textContent="Diagnóstico — "+nombre.split(" ")[0];
+  document.getElementById("mDiagNombre").value=nombre;
+  document.getElementById("mDiagInicial").value=decodeURIComponent(inicialEnc||"");
+  document.getElementById("mDiagFinal").value=decodeURIComponent(finalEnc||"");
+  document.getElementById("mDiagMsg").className="modal-msg";
+  document.getElementById("modalDiagnostico").classList.add("open");
+}
+
+async function guardarDiagnostico(){
+  var nombre=document.getElementById("mDiagNombre").value;
+  var inicial=document.getElementById("mDiagInicial").value;
+  var final=document.getElementById("mDiagFinal").value;
+  var btn=document.getElementById("mDiagSave");
+  btn.disabled=true;btn.textContent="Guardando…";
+  try{
+    var r=await fetch(WEBAPP_URL,{method:"POST",body:JSON.stringify({tipo:"ap_diagnostico",nombre:nombre,diagnosticoInicial:inicial,diagnosticoFinal:final})}).then(function(r){return r.json();});
+    if(r.ok||r.success){showModalMsg("mDiagMsg","ok","Guardado.");setTimeout(function(){cerrarModal("modalDiagnostico");location.reload();},1500);}
+    else showModalMsg("mDiagMsg","err","Error: "+(r.error||"desconocido"));
+  }catch(e){showModalMsg("mDiagMsg","err","No se pudo conectar.");}
   finally{btn.disabled=false;btn.textContent="Guardar";}
 }
 

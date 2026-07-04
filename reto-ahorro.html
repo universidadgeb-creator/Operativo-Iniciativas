@@ -73,6 +73,8 @@
   .wa-btn .ic{color:#25D366;font-weight:700;}
   .atender-btn{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:var(--amber-text);background:var(--amber-bg);border:1px solid #f0d39a;border-radius:8px;padding:6px 10px;cursor:pointer;margin-top:4px;}
   .atender-btn:hover{background:#f5e2bd;}
+  .baja-btn{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:var(--red-text);background:var(--red-bg);border:1px solid #f0c7c7;border-radius:8px;padding:6px 10px;cursor:pointer;margin-top:4px;}
+  .baja-btn:hover{background:#f8d8d8;}
 
   .filters{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
   .filters input,.filters select{font-size:13px;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:inherit;}
@@ -495,6 +497,26 @@ async function marcarAtendidoRA(nombreEnc, btnEl){
   }
 }
 
+async function marcarBajaRA(nombreEnc, btnEl){
+  var nombre = decodeURIComponent(nombreEnc);
+  if(!confirm("¿Marcar a "+nombre+" como Baja? Se conserva su registro, solo deja de contar como activo.")) return;
+  if(btnEl){ btnEl.disabled = true; btnEl.textContent = "…"; }
+  try{
+    var r = await fetch(WEBAPP_URL, { method:"POST", body: JSON.stringify({ tipo:"ra_baja", nombre:nombre }) }).then(function(r){ return r.json(); });
+    if(r.ok){
+      var d = INSCRITOS.find(function(x){ return x.Nombre === nombre; });
+      if(d) d.Estado = "Baja";
+      renderMetrics(); renderCopyHighlight(); renderCards(); applyFilters();
+    } else {
+      alert("Error: "+(r.error||"desconocido"));
+      if(btnEl){ btnEl.disabled = false; btnEl.textContent = "✕ Baja"; }
+    }
+  }catch(e){
+    alert("No se pudo conectar con el servidor.");
+    if(btnEl){ btnEl.disabled = false; btnEl.textContent = "✕ Baja"; }
+  }
+}
+
 function renderTabla(filtered){
   var copyMap = buildCopyMap();
   var body = document.getElementById("tablaBody");
@@ -534,6 +556,7 @@ function renderTabla(filtered){
       + '</td>'
       + '<td>'+estadoPill
       + (seg ? ' <button class="atender-btn" onclick="marcarAtendidoRA(\''+encodeURIComponent(d.Nombre)+'\', this)">✓ marcar atendido</button>' : '')
+      + ' <button class="baja-btn" onclick="marcarBajaRA(\''+encodeURIComponent(d.Nombre)+'\', this)">✕ Baja</button>'
       + '</td>'
       + '<td><div style="display:flex;flex-wrap:wrap;gap:5px;">'+(btns||'<span style="color:var(--text-soft);font-size:12px;">—</span>')+'</div></td>'
       + '</tr>'

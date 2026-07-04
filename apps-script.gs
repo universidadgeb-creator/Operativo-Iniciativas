@@ -230,6 +230,7 @@ function doPost(e) {
     if (tipo === "sv_baja")           return handleSvBaja(payload);
     if (tipo === "ra_actualizarSemana") return handleRaActualizarSemana(payload);
     if (tipo === "ra_marcarAtendido")   return handleRaMarcarAtendido(payload);
+    if (tipo === "ra_baja")             return handleRaBaja(payload);
     if (tipo === "re_altaEdicion")           return handleReAltaEdicion(payload);
     if (tipo === "re_registro")             return handleReRegistro(payload);
     if (tipo === "re_asistenciaLote")        return handleReAsistenciaLote(payload);
@@ -547,6 +548,25 @@ function handleRaMarcarAtendido(p) {
   for (var i = 1; i < data.length; i++) {
     if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
       ws.getRange(i + 1, 6).setValue(""); // Requiere_Seguimiento (col F)
+      return resp({ ok: true });
+    }
+  }
+
+  return resp({ ok: false, error: "No se encontró a " + nombre + " en RA_Inscritos" });
+}
+
+// ── Reto Ahorro: Marcar de baja ──────────────────────────────────
+// Estado (col G) pasa a "Baja". Se conserva el registro para indicadores.
+function handleRaBaja(p) {
+  var ws = SS.getSheetByName("RA_Inscritos");
+  if (!ws) return resp({ ok: false, error: "Pestaña RA_Inscritos no encontrada" });
+
+  var nombre = (p.nombre || "").trim();
+  var data   = ws.getDataRange().getValues();
+
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
+      ws.getRange(i + 1, 7).setValue("Baja"); // Estado (col G)
       return resp({ ok: true });
     }
   }

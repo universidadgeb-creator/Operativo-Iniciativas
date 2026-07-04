@@ -561,7 +561,7 @@ function renderTablaGeneral(filtered){
     var diag=diagnosticoInfo(d);
     var diagCell='<span class="pill '+diag.clase+'">'+diag.texto+'</span> '
       +'<button class="action-btn reg" onclick="abrirModalDiagnostico(\''+encodeURIComponent(d.Nombre)+'\',\''+encodeURIComponent(d.Diagnostico_Inicial||"")+'\',\''+encodeURIComponent(d.Diagnostico_Final||"")+'\')">✎</button>';
-    var accionesCell=esHistorico(d)?'—':'<button class="action-btn baja" onclick="marcarBaja(\''+encodeURIComponent(d.Nombre)+'\')">✕ Baja</button>';
+    var accionesCell='<button class="action-btn baja" onclick="marcarBaja(\''+encodeURIComponent(d.Nombre)+'\')">✕ Baja</button>';
     return'<tr'+(pendiente?' class="seguimiento-row"':"")+'>'
       +'<td><div class="name-cell">'+(pendiente?'<span class="dot-new" title="Pendiente de seguimiento"></span>':"")+'<div style="font-weight:600;">'+d.Nombre+'</div></div></td>'
       +'<td>'+servicioCell+'</td>'

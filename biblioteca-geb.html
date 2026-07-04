@@ -589,7 +589,7 @@ function renderAtencion(){
     const fechaTxt = formatFechaCorta(parseFecha(p.fecha_compromiso));
     const vars = { Nombre: (p.nombre||"").split(" ")[0], Titulo: p.titulo||"", Fecha: fechaTxt };
     const texto = copy ? sustituirVariablesBib(copy.Copy_Texto, vars) : "";
-    const numero = copy ? (copy.Numero_WA || p.whatsapp || "") : (p.whatsapp || "");
+    const numero = p.whatsapp || (copy ? copy.Numero_WA : "") || "";
     const pillTxt = tipo === "atrasado" ? `${est.dias} día(s) de atraso` : (est.dias === 0 ? "vence hoy" : `vence en ${est.dias} día(s)`);
     return `
       <div class="gcard ${tipo === 'atrasado' ? 'atrasado' : 'porvencer'}">
@@ -616,7 +616,7 @@ function renderAtencion(){
         const copy = copyMap["confirmacion_donacion"];
         const vars = { Nombre: (d.donante||"").split(" ")[0], Titulo: d.titulo||"", Fecha: formatFechaCorta(parseFecha(d.fecha_ingreso)) };
         const texto = copy ? sustituirVariablesBib(copy.Copy_Texto, vars) : "";
-        const numero = copy ? (copy.Numero_WA || d.whatsapp || "") : (d.whatsapp || "");
+        const numero = d.whatsapp || (copy ? copy.Numero_WA : "") || "";
         return `
           <div class="gcard">
             <div class="gcard-head"><div><div class="gname">${d.donante}</div><div class="glibro">"${d.titulo}"</div></div></div>
@@ -787,7 +787,14 @@ async function extenderPrestamo(nombreEnc, idLibroEnc, btnEl){
     if(r.ok){
       btnEl.textContent = "Extendido ✓";
       const p = PRESTAMOS.find(x => x.nombre === nombre && x.id_libro === idLibro);
-      if(p) p.fecha_compromiso = r.nuevaFechaCompromiso;
+      // El backend regresa nuevaFechaCompromiso como texto formateado (dd/MM/yyyy) para
+      // mostrar en mensajes, no como fecha real — reconstruimos el Date en vez de asignar
+      // ese texto directo, porque new Date("dd/MM/yyyy") no lo interpreta bien y rompía
+      // el cálculo de atrasados/por vencer hasta recargar la página.
+      if(p && p.fecha_compromiso){
+        const base = parseFecha(p.fecha_compromiso) || new Date();
+        p.fecha_compromiso = new Date(base.getTime() + 14 * 24 * 60 * 60 * 1000);
+      }
       renderMetrics(); renderAtencion(); applyFilters();
     } else {
       btnEl.disabled = false; btnEl.textContent = "+2 semanas";
@@ -815,6 +822,7 @@ async function guardarDonacionAlta(){
     showFormMsg("donMsg","err","Donante, modalidad y título son obligatorios.");
     return;
   }
+  const whatsapp = formatTel(document.getElementById("donWhatsapp").value.trim());
   const btn = document.getElementById("btnGuardarDonacion");
   btn.disabled = true; btn.textContent = "Guardando…";
   try{
@@ -822,14 +830,14 @@ async function guardarDonacionAlta(){
       tipo: "bib_altaDonacion",
       donante,
       correo: document.getElementById("donCorreo").value.trim(),
-      whatsapp: document.getElementById("donWhatsapp").value.trim(),
+      whatsapp,
       titulo,
       autor: document.getElementById("donAutor").value.trim(),
       modalidad
     });
     if(r.ok){
       showFormMsg("donMsg","ok","Donación registrada correctamente.");
-      ULTIMA_ALTA = { fila: r.fila, idAsignado: r.idAsignado, donante, titulo };
+      ULTIMA_ALTA = { fila: r.fila, idAsignado: r.idAsignado, donante, titulo, whatsapp };
       document.getElementById("altaExitoId").textContent = r.idAsignado;
       document.getElementById("altaExito").classList.add("open");
     } else {
@@ -872,7 +880,7 @@ function enviarWaBienvenidaAlta(){
   const copy = copyMap["bienvenida_donacion"];
   if(!copy){ alert("No se encontró el copy 'bienvenida_donacion' en BIB_Copys."); return; }
   const texto = sustituirVariablesBib(copy.Copy_Texto, { Nombre: ULTIMA_ALTA.donante.split(" ")[0] });
-  window.open(waLink(copy.Numero_WA || "", texto), "_blank");
+  window.open(waLink(ULTIMA_ALTA.whatsapp || copy.Numero_WA || "", texto), "_blank");
 }
 
 async function sincronizarFisicos(){

@@ -603,7 +603,7 @@ function abrirCopy(nombreEnc,momentoEnc){
   var copy=buildCopyMap()[momento];
   if(!copy){alert("Copy no encontrado: "+momento);return;}
   var texto=sustituirVars(copy.Copy_Texto,d,SESIONES);
-  var numero=copy.Numero_WA||d.Telefono_WA||"";
+  var numero=d.Telefono_WA||copy.Numero_WA||"";
   window.open(waLink(numero,texto),"_blank");
 }
 

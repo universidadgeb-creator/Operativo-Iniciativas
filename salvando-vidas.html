@@ -760,7 +760,7 @@ function toggleCopyPanel(idx, nombreEnc, momentoEnc, btnEl){
   }
 
   const texto = sustituirVariables(copy.Copy_Texto, d);
-  const numero = copy.Numero_WA || d.Telefono_WA || "";
+  const numero = d.Telefono_WA || copy.Numero_WA || "";
   const url = waLink(numero, texto);
 
   panel.innerHTML = `
@@ -788,7 +788,7 @@ function abrirCopyDirecto(nombreEnc, momentoEnc){
   const copy = copyMap[momento];
   if(!copy){ alert("No se encontró el copy para este momento."); return; }
   const texto = sustituirVariables(copy.Copy_Texto, d);
-  const numero = copy.Numero_WA || d.Telefono_WA || "";
+  const numero = d.Telefono_WA || copy.Numero_WA || "";
   window.open(waLink(numero, texto), "_blank");
 }
 

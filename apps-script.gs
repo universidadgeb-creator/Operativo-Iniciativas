@@ -24,6 +24,7 @@ function onOpen() {
     .addItem("🔧 Configurar sincronización Reto Ahorro (1 vez)", "configurarSincronizacionRA")
     .addItem("🔧 Configurar sincronización Salvando Vidas (1 vez)", "configurarSincronizacionSV")
     .addItem("🔧 Configurar sincronización Escuela GEB (1 vez)", "configurarSincronizacionEG")
+    .addItem("🔧 Configurar alertas de atraso Reto Ahorro (1 vez)", "configurarAlertasAtrasoRA")
     .addToUi();
 }
 
@@ -80,8 +81,14 @@ var SYNC_AP = {
   triggerFnName: "sincronizarNuevosAP",
   formula: '=QUERY(Concentrado!A1:S989,"SELECT A,C,H WHERE J=\'Sí\'",1)',
 };
+// RA_Inscritos real solo tiene 6 columnas propias (Nombre,Sucursal,Telefono_WA,
+// Semana_Actual,Fecha_Inscripcion,Requiere_Seguimiento) — reqCol:6 apuntaba a una
+// 7ª columna que nunca existió (una "Estado" fantasma se había insertado a la
+// mitad en el SCHEMA del frontend, no aquí). Corregido a reqCol:5 (Requiere_
+// Seguimiento, índice real) y numCols:8 para reservar Estado/Fecha_Ultima_Semana,
+// agregadas al final — ver reto-ahorro.html.
 var SYNC_RA = {
-  sheet: "RA_Inscritos", numCols: 7, identityCols: 3, reqCol: 6, helperCol: 16,
+  sheet: "RA_Inscritos", numCols: 8, identityCols: 3, reqCol: 5, helperCol: 16,
   triggerFnName: "sincronizarNuevosRA",
   formula: '=QUERY(Concentrado!A1:S989,"SELECT A,C,H WHERE P=\'Sí\'",1)',
 };
@@ -221,7 +228,8 @@ function doPost(e) {
     if (tipo === "ap_diagnostico")    return handleApDiagnostico(payload);
     if (tipo === "sv_atendido")       return handleSvAtendido(payload);
     if (tipo === "sv_baja")           return handleSvBaja(payload);
-    if (tipo === "ra_reaccion")        return handleRaReaccion(payload);
+    if (tipo === "ra_actualizarSemana") return handleRaActualizarSemana(payload);
+    if (tipo === "ra_marcarAtendido")   return handleRaMarcarAtendido(payload);
     if (tipo === "re_altaEdicion")           return handleReAltaEdicion(payload);
     if (tipo === "re_registro")             return handleReRegistro(payload);
     if (tipo === "re_asistenciaLote")        return handleReAsistenciaLote(payload);
@@ -504,47 +512,87 @@ function handleApDiagnostico(p) {
   return resp({ ok: false, error: "No se encontró a " + nombre + " en AP_Inscritos" });
 }
 
-// ── Reto Ahorro: Registrar reacción semanal ─────────────────────
-// Cols RA_Semanas: A=Nombre, B=Semana, C=Reacciono, D=Notas
-function handleRaReaccion(p) {
-  var ws = SS.getSheetByName("RA_Semanas");
-  if (!ws) return resp({ ok: false, error: "Pestaña RA_Semanas no encontrada" });
+// ── Reto Ahorro: Editar semana actual desde el panel ────────────
+// Cols RA_Inscritos: D=Semana_Actual, F=Requiere_Seguimiento, G=Estado,
+// H=Fecha_Ultima_Semana (las 2 últimas agregadas al final, ver reto-ahorro.html).
+// Actualizar la semana cuenta como seguimiento dado: limpia el flag y reinicia
+// el reloj de atraso que usa revisarAtrasosRA().
+function handleRaActualizarSemana(p) {
+  var ws = SS.getSheetByName("RA_Inscritos");
+  if (!ws) return resp({ ok: false, error: "Pestaña RA_Inscritos no encontrada" });
 
-  var nombre  = (p.nombre || "").trim();
-  var semana  = String(p.semana || "").trim();
-  var data    = ws.getDataRange().getValues();
-  var found   = false;
+  var nombre = (p.nombre || "").trim();
+  var data   = ws.getDataRange().getValues();
 
   for (var i = 1; i < data.length; i++) {
-    if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()
-        && String(data[i][1]).trim() === semana) {
-      ws.getRange(i + 1, 3).setValue(p.reacciono || "");
-      ws.getRange(i + 1, 4).setValue(p.notas || "");
-      found = true;
-      break;
+    if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
+      ws.getRange(i + 1, 4).setValue(parseInt(p.semana, 10) || 0); // Semana_Actual (col D)
+      ws.getRange(i + 1, 6).setValue("");                          // Requiere_Seguimiento (col F)
+      ws.getRange(i + 1, 8).setValue(new Date());                  // Fecha_Ultima_Semana (col H)
+      return resp({ ok: true });
     }
   }
 
-  if (!found) {
-    ws.appendRow([nombre, semana, p.reacciono || "", p.notas || ""]);
-  }
+  return resp({ ok: false, error: "No se encontró a " + nombre + " en RA_Inscritos" });
+}
 
-  // Actualizar Semana_Actual en RA_Inscritos si avanzó
-  var wsIns = SS.getSheetByName("RA_Inscritos");
-  if (wsIns) {
-    var insData = wsIns.getDataRange().getValues();
-    for (var j = 1; j < insData.length; j++) {
-      if (String(insData[j][0]).trim().toLowerCase() === nombre.toLowerCase()) {
-        var semActual = parseInt(insData[j][4]) || 0;
-        if (parseInt(semana) > semActual) {
-          wsIns.getRange(j + 1, 5).setValue(parseInt(semana));
-        }
-        break;
-      }
+// ── Reto Ahorro: Marcar atendido (limpia el flag sin cambiar semana) ──
+function handleRaMarcarAtendido(p) {
+  var ws = SS.getSheetByName("RA_Inscritos");
+  if (!ws) return resp({ ok: false, error: "Pestaña RA_Inscritos no encontrada" });
+
+  var nombre = (p.nombre || "").trim();
+  var data   = ws.getDataRange().getValues();
+
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
+      ws.getRange(i + 1, 6).setValue(""); // Requiere_Seguimiento (col F)
+      return resp({ ok: true });
     }
   }
 
-  return resp({ ok: true });
+  return resp({ ok: false, error: "No se encontró a " + nombre + " en RA_Inscritos" });
+}
+
+// ── Reto Ahorro: marcar atraso automático (>3 semanas sin actualizar) ──
+// Corre diario (ver configurarAlertasAtrasoRA). Si un inscrito no dado de baja
+// no ha tenido su Semana_Actual actualizada (Fecha_Ultima_Semana, col H) en más
+// de 21 días —usando Fecha_Inscripcion (col E) como respaldo si nunca se ha
+// actualizado— se marca Requiere_Seguimiento="Sí". Se limpia automáticamente en
+// cuanto alguien actualiza su semana desde el panel o se marca "atendido".
+function revisarAtrasosRA() {
+  var ws = SS.getSheetByName("RA_Inscritos");
+  if (!ws) return;
+  var data = ws.getDataRange().getValues();
+  var ahora = new Date();
+  var LIMITE_MS = 21 * 24 * 60 * 60 * 1000;
+
+  for (var i = 1; i < data.length; i++) {
+    var estado = String(data[i][6] || "").trim().toLowerCase(); // Estado (col G)
+    if (estado === "baja") continue;
+
+    var baseline = data[i][7] || data[i][4]; // Fecha_Ultima_Semana (H) o Fecha_Inscripcion (E)
+    if (!baseline) continue;
+    var fechaBase = new Date(baseline);
+    if (isNaN(fechaBase.getTime())) continue;
+
+    var yaMarcado = String(data[i][5] || "").trim().toLowerCase() === "sí"; // Requiere_Seguimiento (F)
+    if (!yaMarcado && (ahora - fechaBase) > LIMITE_MS) {
+      ws.getRange(i + 1, 6).setValue("Sí"); // Requiere_Seguimiento (col F)
+    }
+  }
+}
+
+function _asegurarTriggerDiario(fnName) {
+  var yaExiste = ScriptApp.getProjectTriggers().some(function (t) {
+    return t.getHandlerFunction() === fnName;
+  });
+  if (!yaExiste) ScriptApp.newTrigger(fnName).timeBased().everyDays(1).atHour(8).create();
+}
+
+function configurarAlertasAtrasoRA() {
+  _asegurarTriggerDiario("revisarAtrasosRA");
+  SpreadsheetApp.getUi().alert("Listo. Cada día revisará si algún inscrito de Reto Ahorro (no dado de baja) lleva más de 3 semanas sin actualizar su semana, y marcará Requiere_Seguimiento en automático.");
 }
 
 // ── Retiro del Espíritu Santo: Alta de nueva edición ────────────

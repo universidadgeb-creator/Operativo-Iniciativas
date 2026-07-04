@@ -101,15 +101,13 @@
   .loading,.errorbox{text-align:center;padding:40px;color:var(--text-soft);font-size:14px;}
   .errorbox{color:var(--red-text);}
 
-  /* Formulario de reacción inline en tarjetas */
-  .reaccion-form{margin-top:10px;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:10px;display:none;flex-direction:column;gap:8px;}
-  .reaccion-form.open{display:flex;}
-  .reaccion-form label{font-size:11px;font-weight:700;color:var(--text-soft);text-transform:uppercase;letter-spacing:.03em;}
-  .reaccion-form select,.reaccion-form input[type=number]{font-size:13px;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:inherit;width:100%;}
-  .reaccion-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
-  .submit-reaccion{font-size:12px;font-weight:600;padding:7px 12px;border-radius:7px;border:none;background:var(--blue);color:#fff;cursor:pointer;}
-  .submit-reaccion:hover{background:#0e2f5c;}
-  .submit-reaccion:disabled{opacity:.6;cursor:default;}
+  /* Formulario de edición de semana inline (tarjetas y tabla) */
+  .semana-form{margin-top:10px;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:10px;display:none;flex-direction:row;gap:8px;align-items:center;}
+  .semana-form.open{display:flex;}
+  .semana-form input[type=number]{font-size:13px;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:inherit;width:70px;}
+  .submit-semana{font-size:12px;font-weight:600;padding:7px 12px;border-radius:7px;border:none;background:var(--blue);color:#fff;cursor:pointer;}
+  .submit-semana:hover{background:#0e2f5c;}
+  .submit-semana:disabled{opacity:.6;cursor:default;}
   .toggle-react-btn{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;color:var(--blue);background:#EEF1F7;border:1px solid #CBD4E6;border-radius:8px;padding:7px 10px;cursor:pointer;margin-top:6px;}
 
   @media(max-width:720px){
@@ -254,24 +252,6 @@
       <div class="footnote">📊 datos y copys desde Google Sheets · se actualizan al recargar la página</div>
     </div>
 
-    <!-- HISTORIAL DE SEMANAS -->
-    <div class="section-divider">
-      <span class="divider-label">Historial por semana</span>
-      <span class="divider-line"></span>
-    </div>
-    <div class="section">
-      <div class="filters">
-        <input type="text" id="fHistSearch" placeholder="buscar nombre…" style="width:200px;">
-        <select id="fHistSemana"><option value="">todas las semanas</option></select>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Colaborador</th><th>Semana</th><th>¿Reaccionó?</th><th>Notas</th></tr></thead>
-          <tbody id="historialBody"></tbody>
-        </table>
-      </div>
-    </div>
-
   </div>
 </div>
 
@@ -279,13 +259,23 @@
 var SHEET_ID = "1fS5qeoB1ViuCUP4HOQ1zTJgh4tfWUkObvb5LMr3to5A";
 var TABS = {
   inscritos: "RA_Inscritos",
-  semanas:   "RA_Semanas",
   copys:     "RA_Copys"
 };
 
 var SCHEMA = {
-  RA_Inscritos: ["Nombre","Sucursal","Telefono_WA","Estado","Semana_Actual","Fecha_Inscripcion","Requiere_Seguimiento"],
-  RA_Semanas:   ["Nombre","Semana","Reacciono","Notas"],
+  // El Sheet real de RA_Inscritos solo tenía 6 columnas (verificado vía gviz en
+  // vivo 2026-07-04): Nombre,Sucursal,Telefono_WA,Semana_Actual,Fecha_Inscripcion,
+  // Requiere_Seguimiento — "Estado" NO existía como columna real; el SCHEMA
+  // anterior la insertaba a la mitad, corriendo todo lo demás una posición
+  // (Semana_Actual leía la fecha de inscripción, Estado siempre vacío). Se agrega
+  // "Estado" como columna nueva al final (col G) en vez de a la mitad, junto con
+  // "Fecha_Ultima_Semana" (col H): se actualiza cada vez que se edita Semana_Actual
+  // desde el panel, y un script diario (revisarAtrasosRA en apps-script.gs) la usa
+  // para marcar Requiere_Seguimiento="Sí" automáticamente cuando alguien lleva más
+  // de 3 semanas sin actualizar (Fecha_Inscripcion como respaldo si nunca se ha
+  // actualizado). Como nadie ha usado "Estado" todavía, vacío se trata igual que
+  // "Activo" (nadie ha sido dado de baja aún) — solo "Baja" excluye a alguien.
+  RA_Inscritos: ["Nombre","Sucursal","Telefono_WA","Semana_Actual","Fecha_Inscripcion","Requiere_Seguimiento","Estado","Fecha_Ultima_Semana"],
   RA_Copys:     ["Momento","Copy_Texto","Activo"]
 };
 
@@ -338,7 +328,7 @@ function initials(name){
 
 function isSeguimiento(d){
   var v = (d.Requiere_Seguimiento||"").trim().toLowerCase();
-  return v === "sí" || v === "si" || v === "";
+  return v === "sí" || v === "si";
 }
 
 function waLink(telefono, texto){
@@ -352,16 +342,20 @@ function sustituirVariables(texto, d){
     .replace(/\{Semana\}/g, d.Semana_Actual||"");
 }
 
+// Nadie ha usado la columna Estado todavía (era columna fantasma hasta hace poco,
+// ver nota en SCHEMA), así que vacío cuenta como Activo — solo "Baja" excluye.
+function esBajaRA(d){
+  return (d.Estado||"").trim().toLowerCase() === "baja";
+}
+
 function getMomentosDisponibles(d){
-  var estado = (d.Estado||"").toLowerCase();
-  if(estado === "baja") return ["Baja voluntaria"];
+  if(esBajaRA(d)) return ["Baja voluntaria"];
   var semana = parseInt(d.Semana_Actual) || 0;
   if(semana > 0) return ["Copy semanal","Anuncio de bono"];
   return ["Bienvenida"];
 }
 
 var INSCRITOS = [];
-var SEMANAS = [];
 var COPYS = [];
 
 function buildCopyMap(){
@@ -375,11 +369,11 @@ function buildCopyMap(){
 
 function renderMetrics(){
   var total = INSCRITOS.length;
-  var activos = INSCRITOS.filter(function(d){ return (d.Estado||"").toLowerCase() === "activo"; }).length;
-  var bajas = INSCRITOS.filter(function(d){ return (d.Estado||"").toLowerCase() === "baja"; }).length;
+  var activos = INSCRITOS.filter(function(d){ return !esBajaRA(d); }).length;
+  var bajas = INSCRITOS.filter(esBajaRA).length;
   var semanaMax = 0;
   INSCRITOS.forEach(function(d){
-    if((d.Estado||"").toLowerCase() === "activo"){
+    if(!esBajaRA(d)){
       var s = parseInt(d.Semana_Actual) || 0;
       if(s > semanaMax) semanaMax = s;
     }
@@ -408,7 +402,7 @@ function renderCopyHighlight(){
   var box = document.getElementById("copyHighlight");
   if(!copy){ box.style.display = "none"; return; }
   var activos = INSCRITOS.filter(function(d){
-    return (d.Estado||"").toLowerCase() === "activo" && (parseInt(d.Semana_Actual)||0) > 0;
+    return !esBajaRA(d) && (parseInt(d.Semana_Actual)||0) > 0;
   }).length;
   document.getElementById("copyHighlightText").textContent = copy.Copy_Texto || "";
   document.getElementById("copyHighlightMeta").textContent = activos + " colaboradores activos para envío";
@@ -418,7 +412,7 @@ function renderCopyHighlight(){
 function renderCards(){
   var copyMap = buildCopyMap();
   var activos = INSCRITOS.filter(function(d){
-    return (d.Estado||"").toLowerCase() === "activo";
+    return !esBajaRA(d);
   });
   var grid = document.getElementById("activosGrid");
   if(activos.length === 0){
@@ -435,18 +429,12 @@ function renderCards(){
       return '<button class="wa-btn" onclick="abrirCopyDirecto(\''+encodeURIComponent(d.Nombre)+'\',\''+encodeURIComponent(m)+'\')">'
         + '<span class="ic">●</span> '+m+'</button>';
     }).join("");
-    var formId = "rf-"+d.Nombre.replace(/\s+/g,"_");
-    var reaccionForm = semana > 0
-      ? '<button class="toggle-react-btn" onclick="toggleReaccionForm(\''+formId+'\')">+ registrar reacción</button>'
-        + '<div class="reaccion-form" id="'+formId+'">'
-        + '<div class="reaccion-row">'
-        + '<div><label>Semana</label><input type="number" id="'+formId+'-sem" min="1" max="52" value="'+semana+'" style="width:100%;"></div>'
-        + '<div><label>¿Reaccionó?</label><select id="'+formId+'-rea"><option value="Sí">Sí</option><option value="No">No</option></select></div>'
-        + '</div>'
-        + '<input type="text" placeholder="Notas (opcional)" id="'+formId+'-not" style="font-size:13px;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:inherit;">'
-        + '<button class="submit-reaccion" id="'+formId+'-btn" onclick="submitReaccion(\''+encodeURIComponent(d.Nombre)+'\',\''+formId+'\')">Guardar reacción</button>'
-        + '</div>'
-      : "";
+    var formId = "cf-"+d.Nombre.replace(/\s+/g,"_");
+    var semanaForm = '<button class="toggle-react-btn" onclick="toggleSemanaForm(\''+formId+'\')">✎ editar semana</button>'
+      + '<div class="semana-form" id="'+formId+'">'
+      + '<input type="number" id="'+formId+'-val" min="0" max="52" value="'+semana+'">'
+      + '<button class="submit-semana" id="'+formId+'-btn" onclick="guardarSemana(\''+encodeURIComponent(d.Nombre)+'\',\''+formId+'\')">Guardar</button>'
+      + '</div>';
     return '<div class="gcard '+(seg?'seguimiento':'')+'">'
       + '<div class="gcard-head">'
       + '<div class="avatar">'+initials(d.Nombre)+'</div>'
@@ -454,42 +442,57 @@ function renderCards(){
       + '</div>'
       + '<span class="pill semana">Sem '+(semana||"—")+'</span>'
       + (seg ? '<span class="pill seguimiento-tag">seguimiento</span>' : '<span class="pill activo">activo</span>')
-      + '<div class="gactions">'+btns+reaccionForm+'</div>'
+      + '<div class="gactions">'+btns+semanaForm+'</div>'
       + '</div>';
   }).join("");
 }
 
-function toggleReaccionForm(formId){
+function toggleSemanaForm(formId){
   var el = document.getElementById(formId);
   if(el) el.classList.toggle("open");
 }
 
 var WEBAPP_URL = "https://script.google.com/macros/s/AKfycby8QmMkIKFlse1yIsIxJk6LjvBW8WYjNTf51f54KubtakiKkYhUOPZmYUN4S76JBF_YeQ/exec";
 
-function submitReaccion(nombreEnc, formId){
+async function guardarSemana(nombreEnc, formId){
   var nombre = decodeURIComponent(nombreEnc);
-  var semVal = document.getElementById(formId+"-sem").value;
-  var reaVal = document.getElementById(formId+"-rea").value;
-  var notVal = (document.getElementById(formId+"-not").value || "").trim();
+  var nueva = document.getElementById(formId+"-val").value;
   var btn = document.getElementById(formId+"-btn");
-  if(!semVal){ alert("Indica el número de semana."); return; }
-  btn.disabled = true;
-  btn.textContent = "Guardando…";
-  fetch(WEBAPP_URL, {
-    method:"POST",
-    body: JSON.stringify({ tipo:"ra_reaccion", nombre:nombre, semana:semVal, reacciono:reaVal, notas:notVal })
-  })
-  .then(function(r){ return r.json(); })
-  .then(function(data){
-    if(data.ok){
-      btn.textContent = "✓ Guardado";
-      setTimeout(function(){ document.getElementById(formId).classList.remove("open"); btn.disabled=false; btn.textContent="Guardar reacción"; }, 1500);
+  if(nueva === "" || isNaN(parseInt(nueva,10)) || parseInt(nueva,10) < 0){ alert("Ingresa un número de semana válido."); return; }
+  btn.disabled = true; btn.textContent = "Guardando…";
+  try{
+    var r = await fetch(WEBAPP_URL, { method:"POST", body: JSON.stringify({ tipo:"ra_actualizarSemana", nombre:nombre, semana:nueva }) }).then(function(r){ return r.json(); });
+    if(r.ok){
+      var d = INSCRITOS.find(function(x){ return x.Nombre === nombre; });
+      if(d){ d.Semana_Actual = nueva; d.Requiere_Seguimiento = ""; }
+      renderMetrics(); renderCopyHighlight(); renderCards(); applyFilters();
     } else {
-      alert("Error: "+(data.error||"desconocido"));
-      btn.disabled = false; btn.textContent = "Guardar reacción";
+      alert("Error: "+(r.error||"desconocido"));
+      btn.disabled = false; btn.textContent = "Guardar";
     }
-  })
-  .catch(function(){ alert("Error de red al guardar."); btn.disabled=false; btn.textContent="Guardar reacción"; });
+  }catch(e){
+    alert("No se pudo conectar con el servidor.");
+    btn.disabled = false; btn.textContent = "Guardar";
+  }
+}
+
+async function marcarAtendidoRA(nombreEnc, btnEl){
+  var nombre = decodeURIComponent(nombreEnc);
+  if(btnEl){ btnEl.disabled = true; btnEl.textContent = "…"; }
+  try{
+    var r = await fetch(WEBAPP_URL, { method:"POST", body: JSON.stringify({ tipo:"ra_marcarAtendido", nombre:nombre }) }).then(function(r){ return r.json(); });
+    if(r.ok){
+      var d = INSCRITOS.find(function(x){ return x.Nombre === nombre; });
+      if(d) d.Requiere_Seguimiento = "";
+      renderMetrics(); renderCards(); applyFilters();
+    } else {
+      alert("Error: "+(r.error||"desconocido"));
+      if(btnEl){ btnEl.disabled = false; btnEl.textContent = "✓ marcar atendido"; }
+    }
+  }catch(e){
+    alert("No se pudo conectar con el servidor.");
+    if(btnEl){ btnEl.disabled = false; btnEl.textContent = "✓ marcar atendido"; }
+  }
 }
 
 function renderTabla(filtered){
@@ -502,12 +505,9 @@ function renderTabla(filtered){
   var html = "";
   filtered.forEach(function(d, i){
     var seg = isSeguimiento(d);
-    var estado = (d.Estado||"").toLowerCase();
-    var estadoPill = estado === "activo"
-      ? '<span class="pill activo">Activo</span>'
-      : estado === "baja"
-        ? '<span class="pill baja">Baja</span>'
-        : '<span class="pill inactivo">'+(d.Estado||"—")+'</span>';
+    var estadoPill = esBajaRA(d)
+      ? '<span class="pill baja">Baja</span>'
+      : '<span class="pill activo">Activo</span>';
 
     var momentos = getMomentosDisponibles(d);
     var btns = momentos.map(function(m){
@@ -517,6 +517,7 @@ function renderTabla(filtered){
         + '<span class="ic">●</span> '+m+'</button>';
     }).join("");
 
+    var tFormId = "tf-"+i;
     html += '<tr class="'+(seg?'seguimiento-row':'')+'">'
       + '<td><div class="name-cell">'
       + (seg ? '<span class="dot-new"></span>' : '')
@@ -524,9 +525,15 @@ function renderTabla(filtered){
       + (seg ? '<span style="font-size:11px;color:var(--text-soft);">nuevo — requiere seguimiento</span>' : '')
       + '</div></div></td>'
       + '<td>'+(d.Sucursal||"—")+'</td>'
-      + '<td><span class="pill semana">Sem '+(d.Semana_Actual||"—")+'</span></td>'
+      + '<td><span class="pill semana">Sem '+(d.Semana_Actual||"—")+'</span> '
+      + '<button class="toggle-react-btn" style="padding:4px 8px;font-size:11px;margin-top:0;" onclick="toggleSemanaForm(\''+tFormId+'\')">✎</button>'
+      + '<div class="semana-form" id="'+tFormId+'">'
+      + '<input type="number" id="'+tFormId+'-val" min="0" max="52" value="'+(d.Semana_Actual||0)+'">'
+      + '<button class="submit-semana" id="'+tFormId+'-btn" onclick="guardarSemana(\''+encodeURIComponent(d.Nombre)+'\',\''+tFormId+'\')">Guardar</button>'
+      + '</div>'
+      + '</td>'
       + '<td>'+estadoPill
-      + (seg ? ' <button class="atender-btn" onclick="alert(\'Para marcar como atendido, cambia Requiere_Seguimiento a No en RA_Inscritos para '+d.Nombre.replace(/'/g,"\\'")+'.\')">✓ marcar atendido</button>' : '')
+      + (seg ? ' <button class="atender-btn" onclick="marcarAtendidoRA(\''+encodeURIComponent(d.Nombre)+'\', this)">✓ marcar atendido</button>' : '')
       + '</td>'
       + '<td><div style="display:flex;flex-wrap:wrap;gap:5px;">'+(btns||'<span style="color:var(--text-soft);font-size:12px;">—</span>')+'</div></td>'
       + '</tr>'
@@ -588,7 +595,7 @@ function applyFilters(){
   var seguimiento = document.getElementById("fSeguimiento").value;
   var filtered = INSCRITOS.filter(function(d){
     var matchQ = !q || (d.Nombre||"").toLowerCase().indexOf(q)>=0 || (d.Sucursal||"").toLowerCase().indexOf(q)>=0;
-    var matchE = !estado || d.Estado === estado;
+    var matchE = !estado || (estado === "Baja" ? esBajaRA(d) : !esBajaRA(d));
     var seg = isSeguimiento(d);
     var matchS = !seguimiento || (seguimiento === "Si" && seg);
     return matchQ && matchE && matchS;
@@ -596,62 +603,14 @@ function applyFilters(){
   renderTabla(filtered);
 }
 
-function renderHistorial(filtered){
-  var body = document.getElementById("historialBody");
-  if(!filtered || filtered.length === 0){
-    body.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--text-soft);">Sin registros</td></tr>';
-    return;
-  }
-  var html = "";
-  filtered.forEach(function(s){
-    var pill = (s.Reacciono||"").toLowerCase() === "sí" || (s.Reacciono||"").toLowerCase() === "si"
-      ? '<span class="pill activo">Sí</span>'
-      : '<span class="pill inactivo">'+(s.Reacciono||"—")+'</span>';
-    html += '<tr>'
-      + '<td style="font-weight:600;">'+s.Nombre+'</td>'
-      + '<td>Sem '+(s.Semana||"—")+'</td>'
-      + '<td>'+pill+'</td>'
-      + '<td style="font-size:12px;color:var(--text-soft);">'+(s.Notas||"")+'</td>'
-      + '</tr>';
-  });
-  body.innerHTML = html;
-}
-
-function applyHistorialFilters(){
-  var q = document.getElementById("fHistSearch").value.trim().toLowerCase();
-  var sem = document.getElementById("fHistSemana").value;
-  var filtered = SEMANAS.filter(function(s){
-    var matchQ = !q || (s.Nombre||"").toLowerCase().indexOf(q)>=0;
-    var matchS = !sem || String(s.Semana) === sem;
-    return matchQ && matchS;
-  });
-  renderHistorial(filtered);
-}
-
-function initHistorialFilters(){
-  var semSet = {};
-  SEMANAS.forEach(function(s){ if(s.Semana) semSet[s.Semana] = true; });
-  var sel = document.getElementById("fHistSemana");
-  Object.keys(semSet).sort(function(a,b){ return Number(a)-Number(b); }).forEach(function(s){
-    var opt = document.createElement("option");
-    opt.value = s;
-    opt.textContent = "Semana "+s;
-    sel.appendChild(opt);
-  });
-  document.getElementById("fHistSearch").addEventListener("input", applyHistorialFilters);
-  document.getElementById("fHistSemana").addEventListener("change", applyHistorialFilters);
-}
-
 async function init(){
   try{
     var results = await Promise.all([
       fetchSheetTab(TABS.inscritos),
-      fetchSheetTab(TABS.semanas),
       fetchSheetTab(TABS.copys)
     ]);
     INSCRITOS = results[0].filter(function(d){ return d.Nombre && d.Nombre.trim() !== ""; });
-    SEMANAS = results[1].filter(function(s){ return s.Nombre && s.Nombre.trim() !== ""; });
-    COPYS = results[2].filter(function(c){ return c.Momento && c.Momento.trim() !== ""; });
+    COPYS = results[1].filter(function(c){ return c.Momento && c.Momento.trim() !== ""; });
 
     document.getElementById("loadingMsg").style.display = "none";
     document.getElementById("appContent").style.display = "block";
@@ -661,8 +620,6 @@ async function init(){
     renderCopyHighlight();
     renderCards();
     applyFilters();
-    initHistorialFilters();
-    renderHistorial(SEMANAS);
 
     document.getElementById("fSearch").addEventListener("input", applyFilters);
     document.getElementById("fEstado").addEventListener("change", applyFilters);
@@ -673,7 +630,7 @@ async function init(){
     document.getElementById("loadingMsg").style.display = "none";
     var eb = document.getElementById("errorMsg");
     eb.style.display = "block";
-    eb.textContent = "No se pudieron cargar los datos desde Google Sheets. Verifica que el Sheet esté compartido y que las pestañas RA_Inscritos, RA_Semanas y RA_Copys existan.";
+    eb.textContent = "No se pudieron cargar los datos desde Google Sheets. Verifica que el Sheet esté compartido y que las pestañas RA_Inscritos y RA_Copys existan.";
   }
 }
 

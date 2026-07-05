@@ -221,6 +221,19 @@
     .metric-grid{ grid-template-columns:repeat(2,1fr); }
     .copy-inner{ grid-template-columns:1fr; }
   }
+
+  /* modal overlay (diagnóstico, baja) */
+  .modal-overlay{ display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(11,37,69,0.45); z-index:100; align-items:center; justify-content:center; }
+  .modal-overlay.open{ display:flex; }
+  .modal-box{ background:var(--card); border-radius:14px; padding:24px; max-width:380px; width:90%; box-shadow:0 12px 40px rgba(0,0,0,.15); }
+  .modal-title{ font-family:'Cormorant Garamond',serif; font-size:18px; font-weight:600; color:var(--blue); margin-bottom:14px; }
+  .modal-actions{ display:flex; gap:8px; margin-top:14px; }
+  .modal-msg{ font-size:11.5px; margin-top:8px; padding:6px 10px; border-radius:6px; display:none; }
+  .modal-msg.ok{ background:var(--green-bg); color:var(--green-text); display:block; }
+  .modal-msg.err{ background:var(--red-bg); color:var(--red-text); display:block; }
+  .action-btn{ display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:600; border-radius:7px; padding:6px 10px; cursor:pointer; margin-top:4px; border:1px solid; }
+  .action-btn.baja{ color:var(--red-text); background:var(--red-bg); border-color:#f0c7c7; }
+  .action-btn.baja:hover{ background:#f8d8d8; }
 </style>
 </head>
 <body>
@@ -356,24 +369,6 @@
           <div style="font-size:9.5px; color:var(--text-soft); margin-top:8px; border-top:1px solid var(--border); padding-top:7px;">Metodología CONEVAL · criterios SEP</div>
         </div>
 
-      </div>
-    </div>
-
-    <!-- ===== PROSPECTOS (colapsable) ===== -->
-    <div class="section-divider" style="cursor:pointer;" onclick="toggleSeccion('prospectoSection','prospectoToggle')">
-      <span class="divider-label">Prospectos</span>
-      <span class="divider-line"></span>
-      <span id="prospectoToggle" style="font-size:13px;color:var(--text-soft);font-weight:600;">▸ mostrar</span>
-    </div>
-    <div class="section" id="prospectoSection" style="display:none;">
-      <div class="filters">
-        <input type="text" id="fProspectoSearch" placeholder="buscar nombre…" style="width:200px;">
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Colaborador</th><th>Diagnóstico</th><th>Dato 1</th><th>Dato 2</th></tr></thead>
-          <tbody id="prospectoBody"></tbody>
-        </table>
       </div>
     </div>
 
@@ -523,33 +518,64 @@
   </div><!-- /appContent -->
 </div><!-- /wrap -->
 
+<div class="modal-overlay" id="modalDiagnostico">
+  <div class="modal-box">
+    <div class="modal-title" id="modalDiagnosticoTitle">Diagnóstico educativo</div>
+    <div class="form-row"><label>Diagnóstico educativo</label>
+      <select id="mDiagValor">
+        <option value="">— selecciona —</option>
+        <option>Primaria</option><option>Secundaria</option><option>Preparatoria</option>
+        <option>Carrera técnica</option><option>Licenciatura</option><option>Posgrado</option>
+      </select>
+    </div>
+    <input type="hidden" id="mDiagNombre">
+    <div class="modal-actions"><button class="btn-guardar" id="mDiagSave" onclick="guardarDiagnostico()">Guardar</button><button class="btn-cancelar" onclick="cerrarModal('modalDiagnostico')">Cancelar</button></div>
+    <div class="modal-msg" id="mDiagMsg"></div>
+  </div>
+</div>
+
 <script>
 /* ============================================================
    CONFIGURACIÓN
    ============================================================ */
-const SHEET_ID  = "1fS5qeoB1ViuCUP4HOQ1zTJgh4tfWUkObvb5LMr3to5A";
-const WEBAPP_URL = "https://script.google.com/macros/s/AKfycby8QmMkIKFlse1yIsIxJk6LjvBW8WYjNTf51f54KubtakiKkYhUOPZmYUN4S76JBF_YeQ/exec";
+// Escuela GEB totalmente desconectada del Sheet histórico (2026-07-05) — ver
+// INSTRUCCIONES_CRM.md y apps-script.gs (ALTA_INICIATIVAS/handleAltaUnificada,
+// migrarCopysRestantesASheetNuevo, migrarLogsRestantesASheetNuevo). Todas las
+// pestañas viven en el Sheet nuevo. Concentrado ya no se lee en absoluto:
+// Diagnostico_Edu vive directo en EG_Inscritos y FechaNac en Colaboradores.
+const SHEET_ID  = "1oaWADtW9SmqxuOoOM1bf65Ht_NkpE4l_o_DMutN_IbI";
+const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbypzabPFyTWszyc2-wIPjImOTIitz68R6_okV2yUgxSD6CpkEkfpFlXh8OzgaQWlZYe/exec";
 
 const TABS = {
-  inscritos:    "EG_Inscritos",
-  asistencias:  "EG_Asistencias",
-  examenes:     "EG_Examenes",
-  copys:        "EG_Copys",
-  concentrado:  "Concentrado"
+  inscritos:     "EG_Inscritos",
+  asistencias:   "EG_Asistencias",
+  examenes:      "EG_Examenes",
+  copys:         "EG_Copys",
+  colaboradores: "Colaboradores"
+};
+const TAB_SHEET = {
+  EG_Inscritos: SHEET_ID,
+  EG_Asistencias: SHEET_ID,
+  EG_Examenes: SHEET_ID,
+  EG_Copys: SHEET_ID,
+  Colaboradores: SHEET_ID
 };
 
 /* Mapeo por posición fija — nunca por label (gviz devuelve label vacío con QUERY) */
 const SCHEMA = {
+  // Esquema unificado (Nombre..Notas base + específicas), con "Nivel" agregado
+  // como 10ª columna propia — ver nota en handleMigrarEGHistorico.
   EG_Inscritos: [
     "Nombre",              // A (0)
     "Sucursal",            // B (1)
     "Telefono_WA",         // C (2)
-    "Diagnostico_Edu",     // D (3)
-    "Modalidad",           // E (4)
-    "Nivel",               // F (5)
-    "Estado",              // G (6)
-    "Fecha_Inscripcion",   // H (7)
-    "Requiere_Seguimiento" // I (8)
+    "Fecha_Inscripcion",   // D (3)
+    "Estado",              // E (4)
+    "Requiere_Seguimiento",// F (5)
+    "Notas",               // G (6)
+    "Modalidad",           // H (7)
+    "Diagnostico_Edu",     // I (8)
+    "Nivel"                // J (9)
   ],
   EG_Asistencias: [
     "Nombre",       // A (0)
@@ -574,8 +600,10 @@ const SCHEMA = {
     "Copy_Texto", // C (2)
     "Activo"      // D (3)
   ],
-  // Concentrado: leemos columnas clave por índice directamente, sin SCHEMA completo
-  Concentrado: null
+  Colaboradores: [
+    "Nombre", "Sucursal", "Unidad", "Correo", "FechaNac", "Genero",
+    "Telefono_WA", "Turno", "Rol", "Fecha_Alta_Empresa"
+  ]
 };
 
 /* Equivalencias años de escolaridad (Método INEGI datos agrupados) */
@@ -593,7 +621,7 @@ const NIVEL_LABEL = {
    FETCH GENÉRICO gviz (sin API key)
    ============================================================ */
 function gvizUrl(tabName){
-  return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(tabName)}`;
+  return `https://docs.google.com/spreadsheets/d/${TAB_SHEET[tabName]}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(tabName)}`;
 }
 
 function formatTel(val){
@@ -631,44 +659,41 @@ async function fetchSheetTab(tabName){
 }
 
 /* ============================================================
-   FETCH CONCENTRADO (columnas por índice directo, no SCHEMA)
-   Cols relevantes: B=Nombre(0) F=FechaNac(5) P=Diagnostico(15) Q=EscuelaGEB(16)
+   CALCULAR Y RENDERIZAR ESTADÍSTICAS GENERALES
+   Fuente: EG_Inscritos (Diagnostico_Edu) + Colaboradores (FechaNac), ambos
+   en el Sheet nuevo — reemplaza la lectura anterior de Concentrado, cuyas
+   columnas de diagnóstico/histórico/prospectos se reordenaron varias veces
+   y ya apuntaban a datos de otras iniciativas (Reto Ahorro, Biblioteca).
    ============================================================ */
-async function fetchConcentrado(){
-  const res  = await fetch(gvizUrl(TABS.concentrado));
-  const text = await res.text();
-  const json = JSON.parse(text.substring(text.indexOf('{'), text.lastIndexOf('}')+1));
-  return json.table.rows
-    .filter(r => r && r.c && r.c[0] && r.c[0].v && typeof r.c[0].v === 'string' && r.c[0].v.trim() !== '')
-    .filter(r => r.c[0].v !== 'Nombre') // descartar subencabezado que gviz incluye
-    .map(r => {
-      const c = r.c;
-      const get = (i) => (c[i] && c[i].v !== null && c[i].v !== undefined) ? c[i].v : null;
-      return {
-        nombre:   get(0),   // A — Nombre
-        fechaNac: get(5),   // F — Fecha nacimiento
-        diag:     get(15),  // P — Diagnóstico educativo
-        historico: get(16), // Q — Histórico Escuela GEB
-        prospecto1: get(17),// R — Prospecto dato 1
-        prospecto2: get(18),// S — Prospecto dato 2
-      };
-    });
+function extraerAñoNac(fechaNac){
+  if(!fechaNac) return null;
+  if(typeof fechaNac === 'string' && fechaNac.startsWith('Date(')){
+    return parseInt(fechaNac.replace('Date(','').split(',')[0]);
+  }
+  if(typeof fechaNac === 'number'){
+    const msPerDay = 86400000;
+    const epoch = new Date(Date.UTC(1899,11,30)).getTime();
+    return new Date(epoch + fechaNac * msPerDay).getUTCFullYear();
+  }
+  if(typeof fechaNac === 'string'){
+    const y = new Date(fechaNac).getUTCFullYear();
+    return isNaN(y) ? null : y;
+  }
+  return null;
 }
 
-/* ============================================================
-   CALCULAR Y RENDERIZAR ESTADÍSTICAS GENERALES
-   ============================================================ */
-function renderStats(concentrado){
-  const AÑO_ACTUAL = 2026;
+function renderStats(){
+  const colabPorNombre = {};
+  COLABORADORES.forEach(c => { colabPorNombre[(c.Nombre||"").trim().toLowerCase()] = c; });
 
-  // Filtrar solo quienes tienen diagnóstico válido (no vacío, no ".")
-  const validos = concentrado.filter(d => {
-    const diag = (d.diag || '').toString().trim().toLowerCase();
-    return diag && diag !== '.' && EQUIV_AÑOS[diag] !== undefined;
+  // Filtrar solo quienes tienen diagnóstico válido (no vacío)
+  const validos = INSCRITOS.filter(d => {
+    const diag = (d.Diagnostico_Edu || '').toString().trim().toLowerCase();
+    return diag && EQUIV_AÑOS[diag] !== undefined;
   });
 
   // --- Año escolaridad promedio ---
-  const sumaAños = validos.reduce((s, d) => s + EQUIV_AÑOS[d.diag.toLowerCase().trim()], 0);
+  const sumaAños = validos.reduce((s, d) => s + EQUIV_AÑOS[d.Diagnostico_Edu.toLowerCase().trim()], 0);
   const promedio = validos.length ? (sumaAños / validos.length).toFixed(2) : '—';
   const labelPromedio = promedio >= 12 ? 'Bachillerato concluido' : promedio >= 9 ? 'Secundaria concluida' : promedio >= 6 ? 'Primaria concluida' : '';
   document.getElementById('statEscPromedio').textContent = promedio;
@@ -677,7 +702,7 @@ function renderStats(concentrado){
   // --- Niveles de escolaridad ---
   const niveles = {};
   validos.forEach(d => {
-    const k = d.diag.trim().toLowerCase();
+    const k = d.Diagnostico_Edu.trim().toLowerCase();
     niveles[k] = (niveles[k] || 0) + 1;
   });
   const totalNiv = validos.length;
@@ -704,22 +729,10 @@ function renderStats(concentrado){
 
   // --- Rezago educativo CONEVAL ---
   let rezago = 0, totalRezago = 0;
-  concentrado.forEach(d => {
-    const diag = (d.diag || '').toString().trim().toLowerCase();
-    if(!diag || diag === '.') return;
-
-    // Extraer año de nacimiento desde fecha gviz (puede llegar como "Date(1990,0,15)" o timestamp)
-    let añoNac = null;
-    if(d.fechaNac) {
-      if(typeof d.fechaNac === 'string' && d.fechaNac.startsWith('Date(')) {
-        añoNac = parseInt(d.fechaNac.replace('Date(','').split(',')[0]);
-      } else if(typeof d.fechaNac === 'number') {
-        // gviz devuelve fechas como días desde 1899-12-30
-        const msPerDay = 86400000;
-        const epoch = new Date(Date.UTC(1899,11,30)).getTime();
-        añoNac = new Date(epoch + d.fechaNac * msPerDay).getUTCFullYear();
-      }
-    }
+  validos.forEach(d => {
+    const diag = d.Diagnostico_Edu.toLowerCase().trim();
+    const colab = colabPorNombre[(d.Nombre||"").trim().toLowerCase()];
+    const añoNac = colab ? extraerAñoNac(colab.FechaNac) : null;
     if(!añoNac) return;
     totalRezago++;
 
@@ -814,10 +827,11 @@ function getMomentosDisponibles(d){
 /* ============================================================
    DATOS GLOBALES
    ============================================================ */
-let INSCRITOS   = [];
-let ASISTENCIAS = [];
-let EXAMENES    = [];
-let COPYS       = [];
+let INSCRITOS     = [];
+let ASISTENCIAS   = [];
+let EXAMENES      = [];
+let COPYS         = [];
+let COLABORADORES = [];
 
 function buildCopyMap(){
   const map = {};
@@ -1038,10 +1052,14 @@ function renderTabla(filtered){
           <span class="pill ${mc2}-tag">${d.Modalidad||"—"}</span>
         </td>
         <td>${d.Nivel||"—"}</td>
-        <td>${d.Diagnostico_Edu ? `<span class="pill diag">${d.Diagnostico_Edu}</span>` : '<span style="color:var(--text-soft);font-size:12px;">—</span>'}</td>
+        <td>
+          ${d.Diagnostico_Edu ? `<span class="pill diag">${d.Diagnostico_Edu}</span>` : '<span style="color:var(--text-soft);font-size:12px;">—</span>'}
+          <button class="atender-btn" style="margin-top:4px;" onclick="abrirModalDiagnostico('${encodeURIComponent(d.Nombre)}','${encodeURIComponent(d.Diagnostico_Edu||"")}')">✎</button>
+        </td>
         <td>
           ${estadoPill(d.Estado)}
-          ${seg ? `<button class="atender-btn" onclick="alert('Para marcar como atendido, cambia Requiere_Seguimiento a No en la pestaña EG_Inscritos para ${d.Nombre.replace(/'/g,"\\'")}.')">✓ marcar atendido</button>` : ""}
+          ${seg ? `<button class="atender-btn" onclick="marcarAtendido('${encodeURIComponent(d.Nombre)}')">✓ marcar atendido</button>` : ""}
+          ${(d.Estado||"").toLowerCase() !== "baja" ? `<button class="action-btn baja" onclick="marcarBajaEG('${encodeURIComponent(d.Nombre)}')">✕ Baja</button>` : ""}
         </td>
         <td><div style="display:flex;flex-wrap:wrap;gap:5px;">${btns||'<span style="color:var(--text-soft);font-size:12px;">—</span>'}</div></td>
       </tr>
@@ -1115,11 +1133,6 @@ function abrirCopyDirecto(nombreEnc, momentoEnc){
 /* ============================================================
    RENDER: HISTORIAL ASISTENCIAS
    ============================================================ */
-/* ============================================================
-   RENDER: HISTÓRICO Y PROSPECTOS (desde Concentrado)
-   ============================================================ */
-var CONCENTRADO_DATA = [];
-
 function toggleSeccion(sectionId, toggleId){
   var sec = document.getElementById(sectionId);
   var tog = document.getElementById(toggleId);
@@ -1130,31 +1143,6 @@ function toggleSeccion(sectionId, toggleId){
     sec.style.display = "none";
     tog.textContent = "▸ mostrar";
   }
-}
-
-function renderProspectos(filtered){
-  var body = document.getElementById("prospectoBody");
-  var rows = filtered.filter(function(d){ return d.prospecto1 || d.prospecto2; });
-  if(rows.length === 0){
-    body.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--text-soft);">Sin prospectos</td></tr>';
-    return;
-  }
-  body.innerHTML = rows.map(function(d){
-    return '<tr>'
-      + '<td style="font-weight:600;">'+(d.nombre||"—")+'</td>'
-      + '<td>'+(d.diag||"—")+'</td>'
-      + '<td>'+(d.prospecto1||"—")+'</td>'
-      + '<td>'+(d.prospecto2||"—")+'</td>'
-      + '</tr>';
-  }).join("");
-}
-
-function applyProspectoFilters(){
-  var q = document.getElementById("fProspectoSearch").value.trim().toLowerCase();
-  var filtered = CONCENTRADO_DATA.filter(function(d){
-    return !q || (d.nombre||"").toLowerCase().indexOf(q) >= 0;
-  });
-  renderProspectos(filtered);
 }
 
 function renderAsistenciasVisual(){
@@ -1416,23 +1404,76 @@ async function guardarExamen(formId, nombreEnc, modalidad){
   }
 }
 
+/* ── Marcar atendido / Baja / Diagnóstico (Sheet nuevo) ────── */
+function cerrarModal(id){ document.getElementById(id).classList.remove("open"); }
+function showModalMsg(id, tipo, texto){
+  const el = document.getElementById(id);
+  el.className = "modal-msg " + tipo;
+  el.textContent = texto;
+  if(tipo === "ok") setTimeout(() => { el.className = "modal-msg"; el.textContent = ""; }, 3000);
+}
+
+async function marcarAtendido(nombreEnc){
+  const nombre = decodeURIComponent(nombreEnc);
+  try{
+    const r = await postData({ tipo:"eg_marcarAtendido", nombre });
+    if(r.ok) location.reload();
+    else alert("Error: " + (r.error||"desconocido"));
+  }catch(e){ alert("No se pudo conectar."); }
+}
+
+async function marcarBajaEG(nombreEnc){
+  const nombre = decodeURIComponent(nombreEnc);
+  if(!confirm("¿Marcar a " + nombre + " como Baja? Pasará a histórico y dejará de mostrarse como activo, pero se conserva su registro.")) return;
+  try{
+    const r = await postData({ tipo:"eg_baja", nombre });
+    if(r.ok) location.reload();
+    else alert("Error: " + (r.error||"desconocido"));
+  }catch(e){ alert("No se pudo conectar."); }
+}
+
+function abrirModalDiagnostico(nombreEnc, diagEnc){
+  const nombre = decodeURIComponent(nombreEnc);
+  document.getElementById("modalDiagnosticoTitle").textContent = "Diagnóstico — " + nombre.split(" ")[0];
+  document.getElementById("mDiagNombre").value = nombre;
+  document.getElementById("mDiagValor").value = decodeURIComponent(diagEnc||"");
+  document.getElementById("mDiagMsg").className = "modal-msg";
+  document.getElementById("modalDiagnostico").classList.add("open");
+}
+
+async function guardarDiagnostico(){
+  const nombre = document.getElementById("mDiagNombre").value;
+  const diagnosticoEdu = document.getElementById("mDiagValor").value;
+  const btn = document.getElementById("mDiagSave");
+  btn.disabled = true; btn.textContent = "Guardando…";
+  try{
+    const r = await postData({ tipo:"eg_diagnostico", nombre, diagnosticoEdu });
+    if(r.ok){
+      showModalMsg("mDiagMsg","ok","Guardado.");
+      setTimeout(() => { cerrarModal("modalDiagnostico"); location.reload(); }, 1200);
+    } else showModalMsg("mDiagMsg","err","Error: " + (r.error||"desconocido"));
+  }catch(e){ showModalMsg("mDiagMsg","err","No se pudo conectar."); }
+  finally{ btn.disabled = false; btn.textContent = "Guardar"; }
+}
+
 /* ============================================================
    INIT
    ============================================================ */
 async function init(){
   try{
-    const [inscritos, asistencias, examenes, copys, concentrado] = await Promise.all([
+    const [inscritos, asistencias, examenes, copys, colaboradores] = await Promise.all([
       fetchSheetTab(TABS.inscritos),
       fetchSheetTab(TABS.asistencias),
       fetchSheetTab(TABS.examenes),
       fetchSheetTab(TABS.copys),
-      fetchConcentrado()
+      fetchSheetTab(TABS.colaboradores)
     ]);
 
-    INSCRITOS   = inscritos.filter(d => d.Nombre && d.Nombre.trim() !== "");
-    ASISTENCIAS = asistencias.filter(a => a.Nombre && a.Nombre.trim() !== "");
-    EXAMENES    = examenes.filter(e => e.Nombre && e.Nombre.trim() !== "");
-    COPYS       = copys.filter(c => c.Momento && c.Momento.trim() !== "");
+    INSCRITOS     = inscritos.filter(d => d.Nombre && d.Nombre.trim() !== "");
+    ASISTENCIAS   = asistencias.filter(a => a.Nombre && a.Nombre.trim() !== "");
+    EXAMENES      = examenes.filter(e => e.Nombre && e.Nombre.trim() !== "");
+    COPYS         = copys.filter(c => c.Momento && c.Momento.trim() !== "");
+    COLABORADORES = colaboradores.filter(c => c.Nombre && c.Nombre.trim() !== "");
 
     document.getElementById("loadingMsg").style.display = "none";
     document.getElementById("appContent").style.display = "block";
@@ -1440,34 +1481,8 @@ async function init(){
       "actualizado: " + new Date().toLocaleString("es-MX", { dateStyle:"medium", timeStyle:"short" });
 
     renderMetrics();
-    renderStats(concentrado);
-    CONCENTRADO_DATA = concentrado;
+    renderStats();
 
-    // Inyectar históricos del Concentrado como inscritos inactivos INEA
-    // Solo gente con valor en col Q que NO esté ya en EG_Inscritos
-    var nombresInscritos = {};
-    INSCRITOS.forEach(function(ins){
-      nombresInscritos[(ins.Nombre||"").trim().toLowerCase()] = true;
-    });
-    concentrado.forEach(function(d){
-      var hVal = String(d.historico||"").trim().toLowerCase();
-      if(hVal !== "historico" && hVal !== "histórico") return;
-      var norm = (d.nombre||"").trim().toLowerCase();
-      if(!norm || nombresInscritos[norm]) return;
-      INSCRITOS.push({
-        Nombre: d.nombre || "",
-        Sucursal: "",
-        Telefono_WA: "",
-        Diagnostico_Edu: d.diag || "",
-        Modalidad: "INEA",
-        Nivel: "",
-        Estado: "Inactivo",
-        Fecha_Inscripcion: "",
-        Requiere_Seguimiento: "No"
-      });
-    });
-
-    renderProspectos(concentrado);
     renderCards("ineaGrid", "INEA");
     renderCards("uvlGrid",  "UVL");
     applyFilters();
@@ -1482,7 +1497,6 @@ async function init(){
     renderExamenes(EXAMENES);
     document.getElementById("fExamSearch").addEventListener("input", applyExamFilters);
     document.getElementById("fExamResultado").addEventListener("change", applyExamFilters);
-    document.getElementById("fProspectoSearch").addEventListener("input", applyProspectoFilters);
 
   } catch(err){
     console.error("❌ ERROR en init:", err.message, err.stack);

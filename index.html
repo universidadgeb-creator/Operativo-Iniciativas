@@ -111,8 +111,8 @@
   <div class="metric-grid">
     <div class="metric"><div class="val" id="mTotal">—</div><div class="lbl">colaboradores totales</div></div>
     <div class="metric"><div class="val" id="mDonadores">—</div><div class="lbl">donadores registrados</div></div>
-    <div class="metric"><div class="val">8</div><div class="lbl">iniciativas activas</div></div>
-    <div class="metric"><div class="val">4</div><div class="lbl">con CRM operativo</div></div>
+    <div class="metric"><div class="val">10</div><div class="lbl">iniciativas activas</div></div>
+    <div class="metric"><div class="val">10</div><div class="lbl">con CRM operativo</div></div>
   </div>
 
   <!-- BUSCADOR -->
@@ -130,6 +130,13 @@
     <div class="area-title"><span class="bar"></span>Participación por iniciativa</div>
     <div class="breakdown-grid" id="breakdownGrid">
       <div class="bk-card" style="opacity:.4;font-size:13px;color:var(--text-soft);">Cargando datos…</div>
+    </div>
+  </div>
+
+  <div style="margin:18px 0 28px;">
+    <div class="ini-card active" style="display:inline-flex;align-items:center;gap:10px;padding:12px 20px;" onclick="window.location.href='altas.html'">
+      <span class="ini-arrow">+</span>
+      <div class="ini-name">Dar de alta</div>
     </div>
   </div>
 
@@ -160,6 +167,12 @@
         <span class="ini-status live">activo</span>
         <div class="ini-stat" id="statDonadores">—</div>
       </div>
+      <div class="ini-card active" onclick="window.location.href='eco-accion.html'">
+        <span class="ini-arrow">→</span>
+        <div class="ini-name">Eco-Acción</div>
+        <span class="ini-status live">activo</span>
+        <div class="ini-stat" id="statEco">—</div>
+      </div>
     </div>
 
     <div class="area-col">
@@ -170,15 +183,17 @@
         <span class="ini-status live">activo</span>
         <div class="ini-stat" id="statEscuela">—</div>
       </div>
-      <div class="ini-card disabled">
+      <div class="ini-card active" onclick="window.location.href='impulso-geb.html'">
+        <span class="ini-arrow">→</span>
         <div class="ini-name">Impulso GEB</div>
-        <span class="ini-status soon">en construcción</span>
+        <span class="ini-status live">activo</span>
         <div class="ini-stat" id="statImpulso">—</div>
       </div>
-      <div class="ini-card disabled">
+      <div class="ini-card active" onclick="window.location.href='beca-educativa.html'">
+        <span class="ini-arrow">→</span>
         <div class="ini-name">Beca Educativa GEB</div>
-        <span class="ini-status soon">en construcción</span>
-        <div class="ini-stat">Próximamente disponible</div>
+        <span class="ini-status live">activo</span>
+        <div class="ini-stat" id="statBeca">—</div>
       </div>
     </div>
 
@@ -205,24 +220,29 @@
 <footer class="page-footer">GEB University · Iniciativas Humanas — Panel interno</footer>
 
 <script>
-const SHEET_ID = "1fS5qeoB1ViuCUP4HOQ1zTJgh4tfWUkObvb5LMr3to5A";
+// Panel general migrado al Sheet nuevo unificado (2026-07-05) — ya no lee
+// Concentrado en absoluto. Los "Sí/No" por iniciativa que antes venían de
+// columnas de Concentrado ahora se calculan viendo si el nombre de la persona
+// aparece en la pestaña _Inscritos (o equivalente) de cada iniciativa, todas
+// en el Sheet nuevo.
+const SHEET_ID = "1oaWADtW9SmqxuOoOM1bf65Ht_NkpE4l_o_DMutN_IbI";
 const PALETTE = ["#0B2545","#C49B4C","#3B6D11","#185FA5","#854F0B","#3C3489","#A32D2D","#5C6B7A","#639922","#EF9F27"];
 let COLABORADORES = [];
+let INICIATIVA_SETS = {};
 
 function gvizUrl(tab){
   return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(tab)}`;
 }
 
-async function fetchConcentrado(){
-  const res = await fetch(gvizUrl("Concentrado"));
+function normNombre(n){ return (n||"").toString().trim().toLowerCase(); }
+
+async function fetchColaboradores(){
+  const res = await fetch(gvizUrl("Colaboradores"));
   const text = await res.text();
   const j = JSON.parse(text.substring(text.indexOf('{'), text.lastIndexOf('}')+1));
-  const COLS = ["Nombre","Rol","Sucursal","Unidad","Correo","FechaNac","Genero","Tel","Turno",
-                "Psic","PsicFecha","Retiro","RetiroFecha","Impulso","Gen","DiagEdu",
-                "EscuelaGEB","EscuelaEstatus","_ColS","Donadores","TipoSangre","MesGuardia","Ahorro","AhorroEstatus",
-                "BibDonante","BibReceptor"];
+  const COLS = ["Nombre","Sucursal","Unidad","Correo","FechaNac","Genero","Telefono_WA","Turno","Rol","Fecha_Alta_Empresa"];
   return j.table.rows
-    .filter(r => r && r.c && r.c[0] && r.c[0].v && typeof r.c[0].v === 'string' && r.c[0].v.trim() !== "")
+    .filter(r => r && r.c && r.c[0] && r.c[0].v && typeof r.c[0].v === 'string' && r.c[0].v.trim() !== "" && r.c[0].v !== "Nombre")
     .map(r => {
       const obj = {};
       COLS.forEach((col, i) => {
@@ -231,6 +251,42 @@ async function fetchConcentrado(){
       });
       return obj;
     });
+}
+
+// Extrae el conjunto de nombres (normalizados) presentes en una columna de
+// una pestaña — usado para las 9 iniciativas, cada una con su propia pestaña
+// de inscritos/interesados pero todas con el nombre en una posición fija.
+async function fetchNombres(tab, colIndex){
+  const res = await fetch(gvizUrl(tab));
+  const text = await res.text();
+  const j = JSON.parse(text.substring(text.indexOf('{'), text.lastIndexOf('}')+1));
+  const set = new Set();
+  j.table.rows.forEach(r => {
+    const cell = r && r.c ? r.c[colIndex] : null;
+    const val = cell && cell.v !== null && cell.v !== undefined ? String(cell.v).trim() : "";
+    if(!val || val.startsWith("#") || val.toLowerCase() === "nombre" || val.toLowerCase() === "donante") return;
+    set.add(normNombre(val));
+  });
+  return set;
+}
+
+async function cargarIniciativaSets(){
+  const [psic, retiroAsis, retiroInt, donadores, impulso, escuela, ahorro, beca, camino, bibDonante, bibReceptor, eco] = await Promise.all([
+    fetchNombres("AP_Inscritos", 0),
+    fetchNombres("RE_Asistencias", 1),
+    fetchNombres("RE_Interesados", 0),
+    fetchNombres("SV_Inscritos", 0),
+    fetchNombres("IG_Inscritos", 0),
+    fetchNombres("EG_Inscritos", 0),
+    fetchNombres("RA_Inscritos", 0),
+    fetchNombres("BE_Inscritos", 0),
+    fetchNombres("CS_Inscritos", 0),
+    fetchNombres("BIB_Donaciones", 1),
+    fetchNombres("BIB_Prestamos", 1),
+    fetchNombres("EA_Lideres", 0),
+  ]);
+  const retiro = new Set([...retiroAsis, ...retiroInt]);
+  return { psic, retiro, donadores, impulso, escuela, ahorro, beca, camino, bibDonante, bibReceptor, eco };
 }
 
 function initials(name){
@@ -255,21 +311,23 @@ function buscarColaborador(){
   const match = COLABORADORES.find(c => (c.Nombre||"").toLowerCase().includes(q));
   if(!match){ card.classList.remove("visible"); noRes.style.display="block"; return; }
   noRes.style.display = "none";
+  const norm = normNombre(match.Nombre);
   const iniciativas = [
-    { nombre:"Atención Psicológica", col: match.Psic },
-    { nombre:"Retiros Espirituales",  col: match.Retiro },
-    { nombre:"Salvando Vidas",        col: match.Donadores },
-    { nombre:"Impulso GEB",           col: match.Impulso },
-    { nombre:"Escuela GEB",           col: match.EscuelaGEB },
-    { nombre:"Reto Ahorro",           col: match.Ahorro },
-    { nombre:"Beca Educativa GEB",    col: "" },
-    { nombre:"Biblioteca (donante)",  col: match.BibDonante },
-    { nombre:"Biblioteca (receptor)", col: match.BibReceptor },
+    { nombre:"Atención Psicológica", activo: INICIATIVA_SETS.psic.has(norm) },
+    { nombre:"Retiros Espirituales",  activo: INICIATIVA_SETS.retiro.has(norm) },
+    { nombre:"Salvando Vidas",        activo: INICIATIVA_SETS.donadores.has(norm) },
+    { nombre:"Impulso GEB",           activo: INICIATIVA_SETS.impulso.has(norm) },
+    { nombre:"Escuela GEB",           activo: INICIATIVA_SETS.escuela.has(norm) },
+    { nombre:"Reto Ahorro",           activo: INICIATIVA_SETS.ahorro.has(norm) },
+    { nombre:"Beca Educativa GEB",    activo: INICIATIVA_SETS.beca.has(norm) },
+    { nombre:"Camino de Santiago",    activo: INICIATIVA_SETS.camino.has(norm) },
+    { nombre:"Eco-Acción",            activo: INICIATIVA_SETS.eco.has(norm) },
+    { nombre:"Biblioteca (donante)",  activo: INICIATIVA_SETS.bibDonante.has(norm) },
+    { nombre:"Biblioteca (receptor)", activo: INICIATIVA_SETS.bibReceptor.has(norm) },
   ];
-  const badges = iniciativas.map(ini => {
-    const activo = (ini.col||"").toString().toLowerCase() === "sí" || (ini.col||"").toString().toLowerCase() === "si";
-    return `<span class="badge ${activo?'si':'no'}">${activo?'✓':'—'} ${ini.nombre}</span>`;
-  }).join("");
+  const badges = iniciativas.map(ini =>
+    `<span class="badge ${ini.activo?'si':'no'}">${ini.activo?'✓':'—'} ${ini.nombre}</span>`
+  ).join("");
   card.innerHTML = `
     <div class="profile-head">
       <div class="profile-avatar">${initials(match.Nombre)}</div>
@@ -282,45 +340,43 @@ function buscarColaborador(){
   card.classList.add("visible");
 }
 
-function updateCardStats(colabs){
-  const stat = (id, col, label) => {
-    const n = colabs.filter(c => (c[col]||"").toLowerCase()==="sí"||(c[col]||"").toLowerCase()==="si").length;
+function updateCardStats(){
+  const stat = (id, set, label) => {
     const el = document.getElementById(id);
-    if(el) el.innerHTML = `<strong>${n}</strong> ${label}`;
+    if(el) el.innerHTML = `<strong>${set.size}</strong> ${label}`;
   };
-  stat("statPsic","Psic","inscritos");
-  stat("statRetiro","Retiro","inscritos");
-  stat("statEscuela","EscuelaGEB","inscritos");
-  stat("statImpulso","Impulso","inscritos");
-  stat("statAhorro","Ahorro","inscritos");
-  stat("statDonadores","Donadores","donadores registrados");
-  const nDon = colabs.filter(c => (c.Donadores||"").toLowerCase()==="sí"||(c.Donadores||"").toLowerCase()==="si").length;
+  stat("statPsic", INICIATIVA_SETS.psic, "inscritos");
+  stat("statRetiro", INICIATIVA_SETS.retiro, "inscritos");
+  stat("statEscuela", INICIATIVA_SETS.escuela, "inscritos");
+  stat("statImpulso", INICIATIVA_SETS.impulso, "inscritos");
+  stat("statAhorro", INICIATIVA_SETS.ahorro, "inscritos");
+  stat("statBeca", INICIATIVA_SETS.beca, "interesados");
+  stat("statDonadores", INICIATIVA_SETS.donadores, "donadores registrados");
+  stat("statEco", INICIATIVA_SETS.eco, "líderes");
   const mDon = document.getElementById("mDonadores");
-  if(mDon) mDon.textContent = nDon;
+  if(mDon) mDon.textContent = INICIATIVA_SETS.donadores.size;
 
-  const nBibDonante = colabs.filter(c => (c.BibDonante||"").toLowerCase()==="sí"||(c.BibDonante||"").toLowerCase()==="si").length;
-  const nBibReceptor = colabs.filter(c => (c.BibReceptor||"").toLowerCase()==="sí"||(c.BibReceptor||"").toLowerCase()==="si").length;
   const elBib = document.getElementById("statBiblioteca");
-  if(elBib) elBib.innerHTML = `<strong>${nBibDonante}</strong> donadores · <strong>${nBibReceptor}</strong> receptores`;
+  if(elBib) elBib.innerHTML = `<strong>${INICIATIVA_SETS.bibDonante.size}</strong> donadores · <strong>${INICIATIVA_SETS.bibReceptor.size}</strong> receptores`;
 }
 
 function renderBreakdown(colabs){
   const iniciativas = [
-    { nombre:"Atención Psicológica", col:"Psic" },
-    { nombre:"Retiros Espirituales",  col:"Retiro" },
-    { nombre:"Salvando Vidas",        col:"Donadores" },
-    { nombre:"Impulso GEB",           col:"Impulso" },
-    { nombre:"Escuela GEB",           col:"EscuelaGEB" },
-    { nombre:"Reto Ahorro",           col:"Ahorro" },
-    { nombre:"Beca Educativa GEB",    col:"" },
-    { nombre:"Biblioteca GEB",        col:"BibReceptor" },
+    { nombre:"Atención Psicológica", set: INICIATIVA_SETS.psic },
+    { nombre:"Retiros Espirituales",  set: INICIATIVA_SETS.retiro },
+    { nombre:"Salvando Vidas",        set: INICIATIVA_SETS.donadores },
+    { nombre:"Impulso GEB",           set: INICIATIVA_SETS.impulso },
+    { nombre:"Escuela GEB",           set: INICIATIVA_SETS.escuela },
+    { nombre:"Reto Ahorro",           set: INICIATIVA_SETS.ahorro },
+    { nombre:"Beca Educativa GEB",    set: INICIATIVA_SETS.beca },
+    { nombre:"Camino de Santiago",    set: INICIATIVA_SETS.camino },
+    { nombre:"Eco-Acción",            set: INICIATIVA_SETS.eco },
+    { nombre:"Biblioteca GEB",        set: INICIATIVA_SETS.bibReceptor },
   ];
   const genColors = {"Mujer":"#C49B4C","Hombre":"#0B2545","Sin dato":"#5C6B7A"};
   const grid = document.getElementById("breakdownGrid");
   grid.innerHTML = iniciativas.map(ini => {
-    const inscritos = ini.col
-      ? colabs.filter(c => { const v=(c[ini.col]||"").toString().toLowerCase(); return v==="sí"||v==="si"; })
-      : [];
+    const inscritos = colabs.filter(c => ini.set.has(normNombre(c.Nombre)));
     if(inscritos.length === 0){
       return `<div class="bk-card">
         <div class="bk-name">${ini.nombre}</div>
@@ -349,10 +405,12 @@ function renderBreakdown(colabs){
 
 async function init(){
   try{
-    COLABORADORES = await fetchConcentrado();
+    const [colaboradores, sets] = await Promise.all([fetchColaboradores(), cargarIniciativaSets()]);
+    COLABORADORES = colaboradores;
+    INICIATIVA_SETS = sets;
     document.getElementById("mTotal").textContent = COLABORADORES.length;
-    document.getElementById("headerSub").textContent = `${COLABORADORES.length} colaboradores · 8 iniciativas · 4 enfoques`;
-    updateCardStats(COLABORADORES);
+    document.getElementById("headerSub").textContent = `${COLABORADORES.length} colaboradores · 10 iniciativas · 4 enfoques`;
+    updateCardStats();
     renderBreakdown(COLABORADORES);
   } catch(err){
     console.error("Error:", err);

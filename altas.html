@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dar de alta — GEB Iniciativas Humanas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#0B2545; --gold:#C49B4C; --bg:#F7F5F0; --card:#FFFFFF;
+    --text:#1C2A3A; --text-soft:#5C6B7A; --border:#E3E1D9;
+    --green-bg:#EAF3DE; --green-text:#3B6D11;
+    --red-bg:#FCEBEB; --red-text:#A32D2D;
+    --blue-bg:#E8F0FB;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);}
+  .wrap{max-width:760px;margin:0 auto;padding:24px 20px 60px;}
+
+  .topbar{background:var(--blue);color:#fff;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;}
+  .topbar .brand{display:flex;align-items:center;gap:10px;}
+  .topbar .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--gold);}
+  .topbar .brand-text{font-family:'Cormorant Garamond',serif;font-size:19px;font-weight:600;letter-spacing:.01em;}
+  .topbar .meta{font-size:12px;color:#C9D3DF;}
+
+  .back-link{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:500;color:var(--text-soft);text-decoration:none;margin-bottom:14px;}
+  .back-link:hover{color:var(--blue);}
+
+  header.page-header{margin-bottom:24px;border-bottom:2px solid var(--gold);padding-bottom:16px;}
+  header.page-header h1{font-family:'Cormorant Garamond',serif;font-size:32px;font-weight:600;color:var(--blue);}
+  header.page-header .sub{color:var(--text-soft);font-size:13px;margin-top:4px;}
+
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:20px;}
+  .section-title{font-family:'Cormorant Garamond',serif;font-size:19px;font-weight:600;color:var(--blue);margin-bottom:14px;}
+
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .form-row label{display:block;font-size:11px;font-weight:600;color:var(--text-soft);margin-bottom:4px;text-transform:uppercase;letter-spacing:.02em;}
+  .form-row input,.form-row select{width:100%;font-size:13px;font-family:inherit;padding:9px 11px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);}
+  .form-row.full{grid-column:1/-1;}
+
+  .ini-option{border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:12px;transition:border-color .15s,background .15s;}
+  .ini-option.checked{border-color:var(--gold);background:#FFFBF1;}
+  .ini-check{display:flex;align-items:center;gap:10px;cursor:pointer;font-weight:600;font-size:14px;color:var(--blue);}
+  .ini-check input{width:16px;height:16px;}
+  .ini-fields{display:none;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;padding-top:12px;border-top:1px dashed var(--border);}
+  .ini-fields.open{display:grid;}
+
+  .submit-bar{display:flex;align-items:center;gap:12px;margin-top:8px;}
+  .btn-primary{font-size:13px;font-weight:600;padding:11px 22px;border-radius:9px;background:var(--blue);color:#fff;border:none;cursor:pointer;}
+  .btn-primary:hover{background:#0d2f5e;}
+  .btn-primary:disabled{opacity:.5;cursor:not-allowed;}
+  .form-msg{font-size:12.5px;padding:9px 12px;border-radius:8px;display:none;}
+  .form-msg.ok{background:var(--green-bg);color:var(--green-text);display:block;}
+  .form-msg.err{background:var(--red-bg);color:var(--red-text);display:block;white-space:pre-line;}
+  .footnote{font-size:11.5px;color:var(--text-soft);margin-top:6px;}
+
+  @media(max-width:600px){
+    .form-grid,.ini-fields{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><span class="dot"></span><span class="brand-text">GEB University — Iniciativas Humanas</span></div>
+  <div class="meta">Panel interno</div>
+</div>
+
+<div class="wrap">
+
+  <a href="index.html" class="back-link">← volver al panel general</a>
+
+  <header class="page-header">
+    <h1>Dar de alta</h1>
+    <div class="sub">Registra a una persona nueva y marca a qué iniciativas entra — todo se guarda en un solo paso.</div>
+  </header>
+
+  <form id="altaForm" onsubmit="return false;">
+
+    <div class="card">
+      <div class="section-title">Datos generales</div>
+      <div class="form-grid">
+        <div class="form-row full"><label>Nombre *</label><input type="text" id="fNombre" required></div>
+        <div class="form-row"><label>Sucursal *</label><input type="text" id="fSucursal" required></div>
+        <div class="form-row"><label>Teléfono (WhatsApp) *</label><input type="text" id="fTelefono" placeholder="10 dígitos" required></div>
+        <div class="form-row"><label>Correo</label><input type="email" id="fCorreo"></div>
+        <div class="form-row"><label>Unidad</label><input type="text" id="fUnidad"></div>
+        <div class="form-row"><label>Fecha de nacimiento</label><input type="date" id="fFechaNac"></div>
+        <div class="form-row"><label>Género</label>
+          <select id="fGenero"><option value="">— selecciona —</option><option>Femenino</option><option>Masculino</option><option>Otro</option></select>
+        </div>
+        <div class="form-row"><label>Turno</label><input type="text" id="fTurno"></div>
+        <div class="form-row"><label>Rol / puesto</label><input type="text" id="fRol"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">¿A qué iniciativas entra?</div>
+
+      <div class="ini-option" id="opt_AP">
+        <label class="ini-check"><input type="checkbox" onchange="toggleIniciativa('AP')"> Atención Psicológica</label>
+        <div class="ini-fields" id="fields_AP">
+          <div class="form-row"><label>Servicio</label>
+            <select id="ap_modalidadServicio"><option value="ELA">ELA</option><option value="Impulso43">Impulso43</option></select>
+          </div>
+          <div class="form-row"><label>Modalidad de sesión</label>
+            <select id="ap_modalidadSesion"><option value="">— selecciona —</option><option>Presencial</option><option>Virtual</option><option>Híbrida</option></select>
+          </div>
+          <div class="form-row"><label>Urgencia</label>
+            <select id="ap_urgencia"><option value="Baja">Baja</option><option value="Media">Media</option><option value="Alta">Alta</option></select>
+          </div>
+          <div class="form-row"><label>Total de sesiones</label><input type="number" id="ap_totalSesiones" value="5" min="1" max="99"></div>
+          <div class="form-row"><label>Estado inicial</label>
+            <select id="ap_estado"><option value="Activo">Activo</option><option value="Lista de espera">Lista de espera</option></select>
+          </div>
+        </div>
+      </div>
+
+      <div class="ini-option" id="opt_RA">
+        <label class="ini-check"><input type="checkbox" onchange="toggleIniciativa('RA')"> Reto Ahorro</label>
+        <div class="ini-fields" id="fields_RA">
+          <div class="form-row"><label>Estado inicial</label>
+            <select id="ra_estado"><option value="Activo">Activo</option></select>
+          </div>
+        </div>
+      </div>
+
+      <div class="ini-option" id="opt_SV">
+        <label class="ini-check"><input type="checkbox" onchange="toggleIniciativa('SV')"> Donadores (Salvando Vidas)</label>
+        <div class="ini-fields" id="fields_SV">
+          <div class="form-row"><label>Tipo de sangre</label>
+            <select id="sv_tipoSangre"><option value="">— selecciona —</option><option>O+</option><option>O-</option><option>A+</option><option>A-</option><option>B+</option><option>B-</option><option>AB+</option><option>AB-</option></select>
+          </div>
+          <div class="form-row"><label>Mes de guardia</label><input type="text" id="sv_mesGuardia" placeholder="ej. Julio"></div>
+          <div class="form-row"><label>Estado inicial</label>
+            <select id="sv_estado"><option value="Activo">Activo</option></select>
+          </div>
+        </div>
+      </div>
+
+      <div class="ini-option" id="opt_EG">
+        <label class="ini-check"><input type="checkbox" onchange="toggleIniciativa('EG')"> Escuela GEB</label>
+        <div class="ini-fields" id="fields_EG">
+          <div class="form-row"><label>Modalidad</label>
+            <select id="eg_modalidad"><option value="INEA">INEA</option><option value="UVL">UVL</option><option value="Ambas">Ambas</option></select>
+          </div>
+          <div class="form-row"><label>Diagnóstico educativo</label>
+            <select id="eg_diagnosticoEdu"><option value="">— selecciona —</option><option>Primaria</option><option>Secundaria</option><option>Preparatoria</option><option>Carrera técnica</option><option>Licenciatura</option><option>Posgrado</option></select>
+          </div>
+          <div class="form-row"><label>Estado inicial</label>
+            <select id="eg_estado"><option value="Activo">Activo</option></select>
+          </div>
+        </div>
+      </div>
+
+      <div class="ini-option" id="opt_RE">
+        <label class="ini-check"><input type="checkbox" onchange="toggleIniciativa('RE')"> Retiro del Espíritu Santo (interesado)</label>
+        <div class="ini-fields" id="fields_RE">
+          <div class="form-row"><label>Notas</label><input type="text" id="re_notas" placeholder="ej. lo invitó fulano, pregunta por la próxima edición"></div>
+        </div>
+      </div>
+
+      <div class="ini-option" id="opt_CS">
+        <label class="ini-check"><input type="checkbox" onchange="toggleIniciativa('CS')"> Camino de Santiago</label>
+        <div class="ini-fields" id="fields_CS">
+          <div class="form-row"><label>Notas</label><input type="text" id="cs_notas" placeholder="observaciones"></div>
+        </div>
+      </div>
+
+      <div class="ini-option" id="opt_IG">
+        <label class="ini-check"><input type="checkbox" onchange="toggleIniciativa('IG')"> Impulso GEB (Generación 1)</label>
+        <div class="ini-fields" id="fields_IG">
+          <div class="form-row"><label>Notas</label><input type="text" id="ig_notas" placeholder="observaciones"></div>
+        </div>
+      </div>
+
+      <div class="ini-option" id="opt_BE">
+        <label class="ini-check"><input type="checkbox" onchange="toggleIniciativa('BE')"> Beca Educativa GEB</label>
+        <div class="ini-fields" id="fields_BE">
+          <div class="form-row"><label>Universidad</label>
+            <select id="be_universidad"><option value="">— selecciona —</option><option>UTEL</option><option>Universidad Cuauhtémoc</option><option>Universidad Virtual de Liverpool</option></select>
+          </div>
+          <div class="form-row"><label>Nivel</label>
+            <select id="be_nivel"><option value="">— selecciona —</option><option>Licenciatura</option><option>Posgrado</option></select>
+          </div>
+          <div class="form-row"><label>Carrera de interés</label><input type="text" id="be_carrera"></div>
+        </div>
+      </div>
+
+      <div class="ini-option" id="opt_EA">
+        <label class="ini-check"><input type="checkbox" onchange="toggleIniciativa('EA')"> Eco-Acción (líder de ubicación)</label>
+        <div class="ini-fields" id="fields_EA">
+          <div class="form-row"><label>Ubicación *</label>
+            <select id="ea_ubicacion">
+              <option value="">— selecciona —</option>
+              <option>Naciones Unidas</option><option>Valle Real</option><option>Gourmetería</option>
+              <option>Estancia</option><option>Iteso</option><option>Ávila Camacho</option>
+              <option>Aleira</option><option>Cañadas</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="submit-bar">
+      <button type="button" class="btn-primary" id="btnAlta" onclick="registrarAlta()">Registrar alta</button>
+      <div class="footnote">Se marcará "Requiere_Seguimiento = Sí" en cada iniciativa elegida, para dar el primer contacto.</div>
+    </div>
+    <div class="form-msg" id="altaMsg"></div>
+  </form>
+
+</div>
+
+<script>
+var WEBAPP_URL = "https://script.google.com/macros/s/AKfycbypzabPFyTWszyc2-wIPjImOTIitz68R6_okV2yUgxSD6CpkEkfpFlXh8OzgaQWlZYe/exec";
+
+function toggleIniciativa(cod){
+  var opt=document.getElementById("opt_"+cod);
+  var fields=document.getElementById("fields_"+cod);
+  var checked=opt.querySelector("input[type=checkbox]").checked;
+  opt.classList.toggle("checked",checked);
+  fields.classList.toggle("open",checked);
+}
+
+function showMsg(tipo,txt){
+  var el=document.getElementById("altaMsg");
+  el.className="form-msg "+tipo;
+  el.textContent=txt;
+}
+
+function iniciativasMarcadas(){
+  return ["AP","RA","SV","EG","RE","CS","IG","BE","EA"].filter(function(cod){
+    return document.getElementById("opt_"+cod).querySelector("input[type=checkbox]").checked;
+  });
+}
+
+function buildIniciativaPayload(cod){
+  if(cod==="AP"){
+    return{
+      tipo:"AP", estado:document.getElementById("ap_estado").value,
+      modalidadServicio:document.getElementById("ap_modalidadServicio").value,
+      modalidadSesion:document.getElementById("ap_modalidadSesion").value,
+      urgencia:document.getElementById("ap_urgencia").value,
+      totalSesiones:document.getElementById("ap_totalSesiones").value
+    };
+  }
+  if(cod==="RA"){
+    return{ tipo:"RA", estado:document.getElementById("ra_estado").value };
+  }
+  if(cod==="SV"){
+    return{
+      tipo:"SV", estado:document.getElementById("sv_estado").value,
+      tipoSangre:document.getElementById("sv_tipoSangre").value,
+      mesGuardia:document.getElementById("sv_mesGuardia").value
+    };
+  }
+  if(cod==="EG"){
+    return{
+      tipo:"EG", estado:document.getElementById("eg_estado").value,
+      modalidad:document.getElementById("eg_modalidad").value,
+      diagnosticoEdu:document.getElementById("eg_diagnosticoEdu").value
+    };
+  }
+  if(cod==="RE"){
+    return{ tipo:"RE", estado:"Interesado", notas:document.getElementById("re_notas").value.trim() };
+  }
+  if(cod==="CS"){
+    return{ tipo:"CS", estado:"Activo", notas:document.getElementById("cs_notas").value.trim() };
+  }
+  if(cod==="IG"){
+    return{ tipo:"IG", estado:"Activo", notas:document.getElementById("ig_notas").value.trim() };
+  }
+  if(cod==="BE"){
+    return{
+      tipo:"BE", estado:"Interesado",
+      universidad:document.getElementById("be_universidad").value,
+      nivel:document.getElementById("be_nivel").value,
+      carrera:document.getElementById("be_carrera").value.trim()
+    };
+  }
+  if(cod==="EA"){
+    return{ tipo:"EA", estado:"Activo", sucursal:document.getElementById("ea_ubicacion").value };
+  }
+}
+
+async function registrarAlta(){
+  var nombre=document.getElementById("fNombre").value.trim();
+  var sucursal=document.getElementById("fSucursal").value.trim();
+  var telefono=document.getElementById("fTelefono").value.trim();
+  if(!nombre||!sucursal||!telefono){showMsg("err","Completa Nombre, Sucursal y Teléfono.");return;}
+
+  var marcadas=iniciativasMarcadas();
+  if(!marcadas.length){showMsg("err","Marca al menos una iniciativa.");return;}
+
+  if(marcadas.indexOf("SV")>=0 && !document.getElementById("sv_tipoSangre").value){
+    showMsg("err","Selecciona el tipo de sangre para Donadores.");return;
+  }
+
+  if(marcadas.indexOf("BE")>=0 && !document.getElementById("be_universidad").value){
+    showMsg("err","Selecciona la universidad para Beca Educativa.");return;
+  }
+
+  if(marcadas.indexOf("EA")>=0 && !document.getElementById("ea_ubicacion").value){
+    showMsg("err","Selecciona la ubicación para Eco-Acción.");return;
+  }
+
+  var payload={
+    tipo:"alta_unificada",
+    nombre:nombre, sucursal:sucursal, telefono:telefono,
+    correo:document.getElementById("fCorreo").value.trim(),
+    unidad:document.getElementById("fUnidad").value.trim(),
+    fechaNac:document.getElementById("fFechaNac").value,
+    genero:document.getElementById("fGenero").value,
+    turno:document.getElementById("fTurno").value.trim(),
+    rol:document.getElementById("fRol").value.trim(),
+    iniciativas:marcadas.map(buildIniciativaPayload)
+  };
+
+  var btn=document.getElementById("btnAlta");
+  btn.disabled=true;btn.textContent="Guardando…";
+  try{
+    var r=await fetch(WEBAPP_URL,{method:"POST",body:JSON.stringify(payload)}).then(function(res){return res.json();});
+    if(r.ok||r.success){
+      var detalle=(r.creadas&&r.creadas.length?"Creado en: "+r.creadas.join(", ")+". ":"")
+        +(r.omitidas&&r.omitidas.length?"Ya existía en: "+r.omitidas.join(", ")+".":"");
+      showMsg("ok","Alta registrada. "+detalle);
+      document.getElementById("altaForm").reset();
+      ["AP","RA","SV","EG","RE","CS","IG","BE","EA"].forEach(function(cod){
+        document.getElementById("opt_"+cod).classList.remove("checked");
+        document.getElementById("fields_"+cod).classList.remove("open");
+      });
+    } else showMsg("err","Error: "+(r.error||"desconocido"));
+  }catch(e){showMsg("err","No se pudo conectar con el Web App.");}
+  finally{btn.disabled=false;btn.textContent="Registrar alta";}
+}
+</script>
+</body>
+</html>

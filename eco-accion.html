@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Eco-Acción — GEB Iniciativas Humanas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#0B2545; --gold:#C49B4C; --bg:#F7F5F0; --card:#FFFFFF;
+    --text:#1C2A3A; --text-soft:#5C6B7A; --border:#E3E1D9;
+    --green-bg:#EAF3DE; --green-text:#3B6D11;
+    --amber-bg:#FAEEDA; --amber-text:#854F0B;
+    --gray-bg:#F1EFE8; --gray-text:#5F5E5A;
+    --red-bg:#FCEBEB; --red-text:#A32D2D;
+    --blue-bg:#E6F1FB; --blue-text:#185FA5;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);}
+  .wrap{max-width:1180px;margin:0 auto;padding:24px 20px 60px;}
+
+  .topbar{background:var(--blue);color:#fff;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;}
+  .topbar .brand{display:flex;align-items:center;gap:10px;}
+  .topbar .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--gold);}
+  .topbar .brand-text{font-family:'Cormorant Garamond',serif;font-size:19px;font-weight:600;letter-spacing:.01em;}
+  .topbar .meta{font-size:12px;color:#C9D3DF;}
+
+  .back-link{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:500;color:var(--text-soft);text-decoration:none;margin-bottom:14px;}
+  .back-link:hover{color:var(--blue);}
+
+  header.page-header{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:28px;flex-wrap:wrap;gap:10px;border-bottom:2px solid var(--gold);padding-bottom:16px;}
+  header.page-header h1{font-family:'Cormorant Garamond',serif;font-size:34px;font-weight:600;color:var(--blue);}
+  header.page-header .sub{color:var(--text-soft);font-size:13px;}
+
+  .metric-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:28px;}
+  .metric{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;}
+  .metric.alert{background:var(--amber-bg);border-color:#f0d39a;}
+  .metric .val{font-size:26px;font-weight:700;color:var(--blue);line-height:1.1;}
+  .metric.alert .val{color:var(--amber-text);}
+  .metric .lbl{font-size:12px;color:var(--text-soft);margin-top:4px;}
+  .metric.alert .lbl{color:var(--amber-text);}
+
+  .section{margin-bottom:30px;}
+  .section-title{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:600;color:var(--blue);margin-bottom:12px;}
+  .panel-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;}
+  .section-divider{display:flex;align-items:center;gap:10px;margin:34px 0 18px;}
+  .divider-label{font-size:12px;font-weight:700;color:var(--text-soft);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;}
+  .divider-line{height:1px;background:var(--border);flex:1;}
+
+  .pill{display:inline-block;font-size:11px;font-weight:600;padding:2px 9px;border-radius:99px;margin-right:4px;margin-bottom:4px;}
+  .pill.activo{background:var(--green-bg);color:var(--green-text);}
+  .pill.baja{background:var(--red-bg);color:var(--red-text);}
+  .pill.seguimiento-tag{background:var(--amber-bg);color:var(--amber-text);}
+  .pill.ubicacion{background:var(--blue-bg);color:var(--blue-text);}
+  .pill.cilindros{background:var(--gray-bg);color:var(--text);}
+
+  .action-btn{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;border-radius:7px;padding:6px 10px;cursor:pointer;margin:2px;border:1px solid;}
+  .action-btn.atender{color:var(--amber-text);background:var(--amber-bg);border-color:#f0d39a;}
+  .action-btn.atender:hover{background:#f5e2bd;}
+  .action-btn.cilindro{color:var(--blue-text);background:var(--blue-bg);border-color:#c5d9f0;}
+  .action-btn.cilindro:hover{background:#d4e5f7;}
+  .action-btn.baja{color:var(--red-text);background:var(--red-bg);border-color:#f0c7c7;}
+  .action-btn.baja:hover{background:#f8d8d8;}
+
+  .filters{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
+  .filters input,.filters select{font-size:13px;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:inherit;}
+  .filters input{width:220px;}
+
+  .table-wrap{overflow-x:auto;background:var(--card);border:1px solid var(--border);border-radius:12px;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  thead th{text-align:left;font-size:11px;font-weight:700;color:var(--text-soft);padding:10px 12px;border-bottom:1px solid var(--border);white-space:nowrap;text-transform:uppercase;letter-spacing:.03em;}
+  tbody td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr.seguimiento-row{background:#FFFBF1;}
+  .name-cell{display:flex;align-items:center;gap:8px;}
+  .dot-new{width:7px;height:7px;border-radius:50%;background:var(--gold);flex-shrink:0;}
+
+  .reg-btn{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;color:var(--blue);background:var(--blue-bg);border:1px solid #c5d9f0;border-radius:7px;padding:6px 10px;cursor:pointer;}
+  .reg-btn:hover{background:#d4e5f7;}
+
+  .inline-form{background:#FAF9F5;border:1px solid var(--border);border-radius:10px;padding:14px;margin-top:10px;display:none;}
+  .inline-form.open{display:block;}
+  .inline-form-title{font-size:12px;font-weight:700;color:var(--blue);margin-bottom:10px;text-transform:uppercase;letter-spacing:.03em;}
+  .form-row{margin-bottom:8px;}
+  .form-row label{display:block;font-size:11px;font-weight:600;color:var(--text-soft);margin-bottom:3px;}
+  .form-row input,.form-row select{width:100%;font-size:12px;font-family:inherit;padding:6px 9px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);}
+  .form-actions{display:flex;gap:8px;margin-top:10px;}
+  .btn-guardar{font-size:12px;font-weight:600;padding:7px 14px;border-radius:7px;background:var(--blue);color:#fff;border:none;cursor:pointer;}
+  .btn-guardar:hover{background:#0d2f5e;}
+  .btn-guardar:disabled{opacity:.5;cursor:not-allowed;}
+  .btn-cancelar{font-size:12px;font-weight:500;padding:7px 12px;border-radius:7px;background:var(--bg);color:var(--text-soft);border:1px solid var(--border);cursor:pointer;}
+  .form-msg{font-size:11.5px;margin-top:6px;padding:6px 10px;border-radius:6px;display:none;}
+  .form-msg.ok{background:var(--green-bg);color:var(--green-text);display:block;}
+  .form-msg.err{background:var(--red-bg);color:var(--red-text);display:block;}
+
+  .footnote{font-size:11.5px;color:var(--text-soft);display:flex;align-items:center;gap:6px;padding:12px 4px;}
+  .loading,.errorbox{text-align:center;padding:40px;color:var(--text-soft);font-size:14px;}
+  .errorbox{color:var(--red-text);}
+
+  @media(max-width:720px){.metric-grid{grid-template-columns:repeat(2,1fr);}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><span class="dot"></span><span class="brand-text">GEB University — Iniciativas Humanas</span></div>
+  <div class="meta">Panel interno</div>
+</div>
+
+<div class="wrap">
+
+  <a href="index.html" class="back-link">← volver al panel general</a>
+
+  <header class="page-header">
+    <div>
+      <h1>Eco-Acción</h1>
+      <div class="sub">GEB Iniciativas Humanas — Reciclaje por ubicación</div>
+    </div>
+    <div class="sub" id="lastSync">cargando datos...</div>
+  </header>
+
+  <div id="loadingMsg" class="loading">Cargando datos desde Google Sheets…</div>
+  <div id="errorMsg" class="errorbox" style="display:none;"></div>
+
+  <div id="appContent" style="display:none;">
+
+    <div class="metric-grid" id="metricsGrid"></div>
+
+    <div class="section">
+      <div class="panel-row">
+        <div class="section-title" style="margin-bottom:0;">Líderes por ubicación</div>
+        <button class="reg-btn" onclick="toggleAlta()">+ Agregar líder</button>
+      </div>
+      <div class="inline-form" id="altaForm">
+        <div class="inline-form-title">Nuevo líder</div>
+        <div class="form-row"><label>Nombre *</label><input type="text" id="na_nombre"></div>
+        <div class="form-row"><label>Ubicación *</label>
+          <select id="na_ubicacion">
+            <option value="">— selecciona —</option>
+            <option>Naciones Unidas</option><option>Valle Real</option><option>Gourmetería</option>
+            <option>Estancia</option><option>Iteso</option><option>Ávila Camacho</option>
+            <option>Aleira</option><option>Cañadas</option>
+          </select>
+        </div>
+        <div class="form-row"><label>Teléfono (WhatsApp)</label><input type="text" id="na_telefono" placeholder="10 dígitos"></div>
+        <div class="form-actions">
+          <button class="btn-guardar" onclick="guardarAlta()">Guardar</button>
+          <button class="btn-cancelar" onclick="toggleAlta()">Cancelar</button>
+        </div>
+        <div class="form-msg" id="altaMsg"></div>
+      </div>
+
+      <div class="filters">
+        <input type="text" id="fSearch" placeholder="buscar nombre…">
+        <select id="fUbicacion">
+          <option value="">todas las ubicaciones</option>
+          <option>Naciones Unidas</option><option>Valle Real</option><option>Gourmetería</option>
+          <option>Estancia</option><option>Iteso</option><option>Ávila Camacho</option>
+          <option>Aleira</option><option>Cañadas</option>
+        </select>
+        <select id="fEstado">
+          <option value="">todos los estados</option>
+          <option value="Activo">Activo</option>
+          <option value="Baja">Baja</option>
+        </select>
+        <select id="fSeguimiento">
+          <option value="">todos</option>
+          <option value="Si">pendientes de seguimiento</option>
+        </select>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Líder</th><th>Ubicación</th><th>Cilindros recibidos</th><th>Estado</th><th>Acciones</th></tr>
+          </thead>
+          <tbody id="tablaBody"></tbody>
+        </table>
+      </div>
+      <div class="footnote">📊 datos desde Google Sheets · se actualizan al recargar la página</div>
+    </div>
+
+    <!-- REGISTRAR CILINDRO -->
+    <div class="inline-form" id="cilindroForm">
+      <div class="inline-form-title" id="cilindroFormTitle">Registrar cilindro</div>
+      <div class="form-row"><label>Fecha de recepción *</label><input type="date" id="ci_fecha"></div>
+      <div class="form-row"><label>Notas (opcional)</label><input type="text" id="ci_notas"></div>
+      <input type="hidden" id="ci_nombre">
+      <div class="form-actions">
+        <button class="btn-guardar" onclick="guardarCilindro()">Guardar</button>
+        <button class="btn-cancelar" onclick="cerrarCilindroForm()">Cancelar</button>
+      </div>
+      <div class="form-msg" id="cilindroMsg"></div>
+    </div>
+
+    <!-- HISTORIAL DE CILINDROS -->
+    <div class="section-divider">
+      <span class="divider-label">Historial de cilindros</span>
+      <span class="divider-line"></span>
+    </div>
+    <div class="section">
+      <div class="filters">
+        <input type="text" id="fHistSearch" placeholder="buscar líder…">
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Líder</th><th>Núm. cilindro</th><th>Fecha de recepción</th><th>Notas</th></tr></thead>
+          <tbody id="historialBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const SHEET_ID = "1oaWADtW9SmqxuOoOM1bf65Ht_NkpE4l_o_DMutN_IbI";
+const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbypzabPFyTWszyc2-wIPjImOTIitz68R6_okV2yUgxSD6CpkEkfpFlXh8OzgaQWlZYe/exec";
+const TABS = { lideres: "EA_Lideres", cilindros: "EA_Cilindros" };
+
+// Estado: Activo | Baja. Total_Cilindros es un contador de conveniencia,
+// actualizado por handleEaRegistrarCilindro cada vez que se registra uno
+// nuevo — el detalle fecha por fecha vive en EA_Cilindros.
+const SCHEMA = {
+  EA_Lideres: ["Nombre","Sucursal","Telefono_WA","Fecha_Alta","Estado","Requiere_Seguimiento","Notas","Total_Cilindros"],
+  EA_Cilindros: ["Nombre","Num_Cilindro","Fecha_Recepcion","Notas"]
+};
+const DATE_FIELDS = { EA_Cilindros: ["Fecha_Recepcion"] };
+
+function gvizUrl(tab){ return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(tab)}`; }
+
+function formatTel(v){
+  if(!v) return "";
+  const s = String(v).replace(/\.0$/,"").replace(/\D/g,"");
+  if(s.length === 10) return "+52" + s;
+  if(s.length === 12 && s.startsWith("52")) return "+" + s;
+  return s;
+}
+
+function gvizDateToJs(v){
+  if(typeof v === "string" && v.startsWith("Date(")){
+    const nums = v.slice(5, -1).split(",").map(n => parseInt(n, 10));
+    return new Date(nums[0], nums[1], nums[2], nums[3]||0, nums[4]||0, nums[5]||0);
+  }
+  return null;
+}
+
+async function fetchSheetTab(tabName){
+  const res = await fetch(gvizUrl(tabName));
+  const text = await res.text();
+  const json = JSON.parse(text.substring(text.indexOf('{'), text.lastIndexOf('}')+1));
+  const headers = SCHEMA[tabName];
+  const dateFields = new Set(DATE_FIELDS[tabName] || []);
+  const schemaSet = new Set(headers.map(h => h.toLowerCase()));
+  return json.table.rows
+    .filter(r => r && r.c && r.c.some(c => c && c.v !== null && c.v !== ""))
+    .filter(r => {
+      const fv = r.c && r.c[0] ? String(r.c[0].v || "").trim() : "";
+      return !fv.startsWith("#") && !schemaSet.has(fv.toLowerCase());
+    })
+    .map(r => {
+      const obj = {};
+      headers.forEach((col, i) => {
+        const cell = r.c ? r.c[i] : null;
+        if(dateFields.has(col)){ obj[col] = cell ? gvizDateToJs(cell.v) : null; return; }
+        let val = cell ? (cell.f !== undefined && cell.f !== null ? cell.f : cell.v) : "";
+        if(val === null || val === undefined) val = "";
+        if(col === "Telefono_WA") val = formatTel(val);
+        obj[col] = val;
+      });
+      return obj;
+    });
+}
+
+function esSi(v){ return (v||"").trim().toLowerCase() === "sí" || (v||"").trim().toLowerCase() === "si"; }
+function esPendiente(d){ return esSi(d.Requiere_Seguimiento); }
+function estadoLower(d){ return (d.Estado||"").trim().toLowerCase(); }
+
+let LIDERES = [], CILINDROS = [];
+
+function renderMetrics(){
+  const total = LIDERES.length;
+  const activos = LIDERES.filter(d => estadoLower(d) === "activo").length;
+  const totalCilindros = CILINDROS.length;
+  const seguimiento = LIDERES.filter(esPendiente).length;
+  const metrics = [
+    { val: total, lbl: "líderes totales" },
+    { val: activos, lbl: "activos" },
+    { val: totalCilindros, lbl: "cilindros entregados (histórico)" },
+    { val: seguimiento, lbl: "pendientes de seguimiento", alert: seguimiento > 0 }
+  ];
+  document.getElementById("metricsGrid").innerHTML = metrics.map(m => `
+    <div class="metric ${m.alert?'alert':''}"><div class="val">${m.val}</div><div class="lbl">${m.lbl}</div></div>
+  `).join("");
+}
+
+function renderTabla(filtered){
+  const body = document.getElementById("tablaBody");
+  if(filtered.length === 0){
+    body.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--text-soft);">Sin resultados</td></tr>`;
+    return;
+  }
+  body.innerHTML = filtered.map(d => {
+    const seg = esPendiente(d);
+    const e = estadoLower(d);
+    return `<tr class="${seg?'seguimiento-row':''}">
+      <td><div class="name-cell">${seg?'<span class="dot-new"></span>':''}<div><div style="font-weight:600;">${d.Nombre}</div></div></div></td>
+      <td><span class="pill ubicacion">${d.Sucursal||"—"}</span></td>
+      <td><span class="pill cilindros">${d.Total_Cilindros||0}</span></td>
+      <td>${e==="baja"?'<span class="pill baja">Baja</span>':'<span class="pill activo">Activo</span>'}</td>
+      <td>
+        ${seg?`<button class="action-btn atender" onclick="marcarAtendido('${encodeURIComponent(d.Nombre)}')">✓ atendido</button>`:""}
+        ${e!=="baja"?`<button class="action-btn cilindro" onclick="abrirCilindroForm('${encodeURIComponent(d.Nombre)}')">🛢 +1 cilindro</button>`:""}
+        ${e!=="baja"?`<button class="action-btn baja" onclick="marcarBaja('${encodeURIComponent(d.Nombre)}')">✕ Baja</button>`:""}
+      </td>
+    </tr>`;
+  }).join("");
+}
+
+function applyFilters(){
+  const q = document.getElementById("fSearch").value.toLowerCase();
+  const ubicacion = document.getElementById("fUbicacion").value;
+  const estado = document.getElementById("fEstado").value;
+  const seguimiento = document.getElementById("fSeguimiento").value;
+  const filtered = LIDERES.filter(d => {
+    const matchQ = !q || (d.Nombre||"").toLowerCase().includes(q);
+    const matchU = !ubicacion || d.Sucursal === ubicacion;
+    const matchE = !estado || d.Estado === estado;
+    const matchS = !seguimiento || (seguimiento === "Si" && esPendiente(d));
+    return matchQ && matchU && matchE && matchS;
+  });
+  renderTabla(filtered);
+}
+
+function renderHistorial(filtered){
+  const body = document.getElementById("historialBody");
+  if(!filtered || filtered.length === 0){
+    body.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--text-soft);">Sin registros todavía</td></tr>`;
+    return;
+  }
+  const ordenado = filtered.slice().sort((a,b) => (b.Fecha_Recepcion||0) - (a.Fecha_Recepcion||0));
+  body.innerHTML = ordenado.map(c => `<tr>
+    <td style="font-weight:600;">${c.Nombre}</td>
+    <td><span class="pill cilindros">#${c.Num_Cilindro}</span></td>
+    <td>${c.Fecha_Recepcion ? c.Fecha_Recepcion.toLocaleDateString("es-MX") : "—"}</td>
+    <td style="font-size:12px;color:var(--text-soft);">${c.Notas||""}</td>
+  </tr>`).join("");
+}
+
+function applyHistorialFilters(){
+  const q = document.getElementById("fHistSearch").value.toLowerCase();
+  const filtered = CILINDROS.filter(c => !q || (c.Nombre||"").toLowerCase().includes(q));
+  renderHistorial(filtered);
+}
+
+async function postData(payload){
+  const res = await fetch(WEBAPP_URL, { method:"POST", body:JSON.stringify(payload) });
+  return await res.json();
+}
+
+async function marcarAtendido(nombreEnc){
+  const nombre = decodeURIComponent(nombreEnc);
+  try{
+    const r = await postData({ tipo:"ea_marcarAtendido", nombre });
+    if(r.ok){
+      const d = LIDERES.find(x => x.Nombre === nombre);
+      if(d) d.Requiere_Seguimiento = "";
+      renderMetrics(); applyFilters();
+    } else alert("Error: " + r.error);
+  } catch(e){ alert("No se pudo conectar con el servidor."); }
+}
+
+async function marcarBaja(nombreEnc){
+  const nombre = decodeURIComponent(nombreEnc);
+  if(!confirm(`¿Dar de baja a ${nombre} de Eco-Acción? Se conserva su registro e historial de cilindros.`)) return;
+  try{
+    const r = await postData({ tipo:"ea_baja", nombre });
+    if(r.ok){
+      const d = LIDERES.find(x => x.Nombre === nombre);
+      if(d){ d.Estado = "Baja"; d.Requiere_Seguimiento = "No"; }
+      renderMetrics(); applyFilters();
+    } else alert("Error: " + r.error);
+  } catch(e){ alert("No se pudo conectar con el servidor."); }
+}
+
+function abrirCilindroForm(nombreEnc){
+  const nombre = decodeURIComponent(nombreEnc);
+  document.getElementById("cilindroFormTitle").textContent = "Registrar cilindro — " + nombre.split(" ")[0];
+  document.getElementById("ci_nombre").value = nombre;
+  document.getElementById("ci_fecha").value = new Date().toISOString().slice(0,10);
+  document.getElementById("ci_notas").value = "";
+  document.getElementById("cilindroMsg").className = "form-msg";
+  document.getElementById("cilindroForm").classList.add("open");
+  document.getElementById("cilindroForm").scrollIntoView({ behavior:"smooth", block:"center" });
+}
+function cerrarCilindroForm(){ document.getElementById("cilindroForm").classList.remove("open"); }
+
+async function guardarCilindro(){
+  const nombre = document.getElementById("ci_nombre").value;
+  const fecha = document.getElementById("ci_fecha").value;
+  const msgEl = document.getElementById("cilindroMsg");
+  if(!fecha){ msgEl.className="form-msg err"; msgEl.textContent="La fecha es obligatoria."; return; }
+  const btn = document.querySelector("#cilindroForm .btn-guardar");
+  btn.disabled = true; btn.textContent = "Guardando…";
+  try{
+    const r = await postData({
+      tipo:"ea_registrarCilindro", nombre, fecha,
+      notas: document.getElementById("ci_notas").value.trim()
+    });
+    if(r.ok){
+      msgEl.className = "form-msg ok"; msgEl.textContent = "Cilindro #" + r.numCilindro + " registrado.";
+      const [lid, cil] = await Promise.all([fetchSheetTab(TABS.lideres), fetchSheetTab(TABS.cilindros)]);
+      LIDERES = lid.filter(d => d.Nombre && d.Nombre.trim() !== "");
+      CILINDROS = cil.filter(c => c.Nombre && c.Nombre.trim() !== "");
+      renderMetrics(); applyFilters(); applyHistorialFilters();
+      setTimeout(cerrarCilindroForm, 1200);
+    } else {
+      msgEl.className = "form-msg err"; msgEl.textContent = "Error: " + r.error;
+    }
+  } catch(e){
+    msgEl.className = "form-msg err"; msgEl.textContent = "No se pudo conectar con el servidor.";
+  } finally {
+    btn.disabled = false; btn.textContent = "Guardar";
+  }
+}
+
+function toggleAlta(){ document.getElementById("altaForm").classList.toggle("open"); }
+
+async function guardarAlta(){
+  const nombre = document.getElementById("na_nombre").value.trim();
+  const ubicacion = document.getElementById("na_ubicacion").value;
+  const msgEl = document.getElementById("altaMsg");
+  if(!nombre || !ubicacion){ msgEl.className="form-msg err"; msgEl.textContent="Nombre y ubicación son obligatorios."; return; }
+  const btn = document.querySelector("#altaForm .btn-guardar");
+  btn.disabled = true; btn.textContent = "Guardando…";
+  try{
+    const r = await postData({
+      tipo: "alta_unificada", nombre,
+      telefono: document.getElementById("na_telefono").value.trim(),
+      iniciativas: [{ tipo:"EA", estado:"Activo", sucursal: ubicacion }]
+    });
+    if(r.ok){
+      msgEl.className = "form-msg ok"; msgEl.textContent = "Líder agregado.";
+      LIDERES = (await fetchSheetTab(TABS.lideres)).filter(d => d.Nombre && d.Nombre.trim() !== "");
+      renderMetrics(); applyFilters();
+      toggleAlta();
+      ["na_nombre","na_telefono"].forEach(id => { document.getElementById(id).value=""; });
+      document.getElementById("na_ubicacion").value = "";
+    } else {
+      msgEl.className = "form-msg err"; msgEl.textContent = "Error: " + (r.error || (r.omitidas&&r.omitidas.length ? "ya existía" : "desconocido"));
+    }
+  } catch(e){
+    msgEl.className = "form-msg err"; msgEl.textContent = "No se pudo conectar con el servidor.";
+  } finally {
+    btn.disabled = false; btn.textContent = "Guardar";
+  }
+}
+
+async function init(){
+  try{
+    const [lideres, cilindros] = await Promise.all([fetchSheetTab(TABS.lideres), fetchSheetTab(TABS.cilindros)]);
+    LIDERES = lideres.filter(d => d.Nombre && d.Nombre.trim() !== "");
+    CILINDROS = cilindros.filter(c => c.Nombre && c.Nombre.trim() !== "");
+
+    document.getElementById("loadingMsg").style.display = "none";
+    document.getElementById("appContent").style.display = "block";
+    document.getElementById("lastSync").textContent = "actualizado: " + new Date().toLocaleString("es-MX", {dateStyle:"medium", timeStyle:"short"});
+
+    renderMetrics();
+    applyFilters();
+    applyHistorialFilters();
+
+    document.getElementById("fSearch").addEventListener("input", applyFilters);
+    document.getElementById("fUbicacion").addEventListener("change", applyFilters);
+    document.getElementById("fEstado").addEventListener("change", applyFilters);
+    document.getElementById("fSeguimiento").addEventListener("change", applyFilters);
+    document.getElementById("fHistSearch").addEventListener("input", applyHistorialFilters);
+  } catch(err){
+    console.error("Error en init:", err.message, err.stack);
+    document.getElementById("loadingMsg").style.display = "none";
+    const eb = document.getElementById("errorMsg");
+    eb.style.display = "block";
+    eb.textContent = "No se pudieron cargar los datos desde Google Sheets. Verifica que existan las pestañas EA_Lideres y EA_Cilindros en el Sheet nuevo.";
+  }
+}
+
+init();
+</script>
+</body>
+</html>

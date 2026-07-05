@@ -262,6 +262,36 @@
       <div class="metric-grid" id="metricsEdicion"></div>
     </div>
 
+    <!-- INTERESADOS / LISTA DE ESPERA -->
+    <div class="section-divider">
+      <span class="divider-label">Interesados / lista de espera</span>
+      <span class="divider-line"></span>
+    </div>
+    <div class="section">
+      <div class="panel-row">
+        <div class="section-title" style="margin-bottom:0;">Personas interesadas, sin edición asignada todavía</div>
+        <button class="reg-btn" onclick="toggleAltaInteresado()">+ Agregar interesado</button>
+      </div>
+      <div class="inline-form" id="altaInteresadoForm">
+        <div class="inline-form-title">Nuevo interesado</div>
+        <div class="form-row"><label>Nombre *</label><input type="text" id="ni_nombre" list="listaColaboradores"></div>
+        <div class="form-row"><label>Sucursal</label><input type="text" id="ni_sucursal"></div>
+        <div class="form-row"><label>Teléfono (WhatsApp)</label><input type="text" id="ni_telefono" placeholder="10 dígitos"></div>
+        <div class="form-row"><label>Notas</label><input type="text" id="ni_notas"></div>
+        <div class="form-actions">
+          <button class="btn-guardar" onclick="guardarInteresado()">Guardar</button>
+          <button class="btn-cancelar" onclick="toggleAltaInteresado()">Cancelar</button>
+        </div>
+        <div class="form-msg" id="niMsg"></div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Interesado</th><th>Sucursal</th><th>Estado</th><th>Mensajes</th><th>Acciones</th></tr></thead>
+          <tbody id="interesadosBody"></tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- PASE DE LISTA -->
     <div class="section">
       <div class="panel-row">
@@ -312,6 +342,36 @@
       <div class="form-msg" id="habMsg"></div>
     </div>
 
+    <!-- CAMINO DE SANTIAGO -->
+    <div class="section-divider">
+      <span class="divider-label">Camino de Santiago</span>
+      <span class="divider-line"></span>
+    </div>
+    <div class="section">
+      <div class="panel-row">
+        <div class="section-title" style="margin-bottom:0;">Colaboradores en proceso o que ya hicieron el Camino</div>
+        <button class="reg-btn" onclick="toggleAltaCamino()">+ Agregar colaborador</button>
+      </div>
+      <div class="inline-form" id="altaCaminoForm">
+        <div class="inline-form-title">Nuevo colaborador — Camino de Santiago</div>
+        <div class="form-row"><label>Nombre *</label><input type="text" id="nc_nombre" list="listaColaboradores"></div>
+        <div class="form-row"><label>Sucursal</label><input type="text" id="nc_sucursal"></div>
+        <div class="form-row"><label>Teléfono (WhatsApp)</label><input type="text" id="nc_telefono" placeholder="10 dígitos"></div>
+        <div class="form-row"><label>Notas</label><input type="text" id="nc_notas"></div>
+        <div class="form-actions">
+          <button class="btn-guardar" onclick="guardarCamino()">Guardar</button>
+          <button class="btn-cancelar" onclick="toggleAltaCamino()">Cancelar</button>
+        </div>
+        <div class="form-msg" id="ncMsg"></div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Colaborador</th><th>Sucursal</th><th>Estado</th><th>Fecha del Camino</th><th>Acciones</th></tr></thead>
+          <tbody id="caminoBody"></tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- HISTORIAL GLOBAL -->
     <div class="section-divider">
       <span class="divider-label">Historial por edición</span>
@@ -332,14 +392,20 @@
 /* ============================================================
    CONFIGURACIÓN
    ============================================================ */
-const SHEET_ID = "1fS5qeoB1ViuCUP4HOQ1zTJgh4tfWUkObvb5LMr3to5A";
-const WEBAPP_URL = "https://script.google.com/macros/s/AKfycby8QmMkIKFlse1yIsIxJk6LjvBW8WYjNTf51f54KubtakiKkYhUOPZmYUN4S76JBF_YeQ/exec";
+// Retiro del Espíritu Santo migrado al Sheet nuevo unificado (2026-07-05) — ver
+// INSTRUCCIONES_CRM.md y apps-script.gs (ALTA_INICIATIVAS/handleAltaUnificada).
+// Ya no depende de Concentrado: nombres/sucursal/género salen de Colaboradores,
+// y el conteo histórico de asistencia se calcula directo de RE_Asistencias.
+const SHEET_ID = "1oaWADtW9SmqxuOoOM1bf65Ht_NkpE4l_o_DMutN_IbI";
+const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbypzabPFyTWszyc2-wIPjImOTIitz68R6_okV2yUgxSD6CpkEkfpFlXh8OzgaQWlZYe/exec";
 const TABS = {
   ediciones: "RE_Ediciones",
   asistencias: "RE_Asistencias",
   habitaciones: "RE_Habitaciones",
   copys: "RE_Copys",
-  concentrado: "Concentrado"
+  interesados: "RE_Interesados",
+  camino: "CS_Inscritos",
+  colaboradores: "Colaboradores"
 };
 const MESES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
 const GRUPO_MOMENTOS = ["grupo_saludo","grupo_facturas","grupo_confirmacion_grupo_retiro","grupo_transporte","grupo_habitaciones","grupo_dia_retiro","grupo_cierre"];
@@ -353,20 +419,17 @@ function gvizUrl(tabName){
 }
 
 // Nombres de columna fijos por pestaña — independiente de cómo gviz los etiquete.
-// Concentrado verificado contra el Sheet real (2026-07-02): 28 columnas, Retiro=índice 11,
-// RetiroFecha=índice 12, Camino de Santiago al final = índices 26-27.
 const SCHEMA = {
   RE_Ediciones:  ["id_edicion","nombre_edicion","fechas_texto","fecha_inicio","fecha_fin","lugar","estado","notas"],
   RE_Asistencias:["id_edicion","nombre","edicion_label","asistio","dio_testimonio","notas"],
   RE_Habitaciones:["id_edicion","habitacion","genero","nombre_1","nombre_2","nombre_3","nombre_4","notas"],
   RE_Copys:      ["Momento","Copy_Texto","Numero_WA","Activo"],
-  Concentrado:   ["Nombre","Rol","Sucursal","Unidad","Correo","FechaNac","Genero","Tel","Turno",
-                  "Psic","PsicFecha","Retiro","RetiroFecha","Impulso","Generacion","DiagEdu",
-                  "EscuelaGEB","Modalidad","Nivel","Donadores","DonadoresTipo","MesGuardia",
-                  "Ahorro","AhorroEstatus","BibDonante","BibReceptor","Camino","CaminoFecha"]
+  RE_Interesados:["Nombre","Sucursal","Telefono_WA","Fecha_Alta","Estado","Requiere_Seguimiento","Notas"],
+  CS_Inscritos:  ["Nombre","Sucursal","Telefono_WA","Fecha_Alta","Estado","Requiere_Seguimiento","Notas","Fecha_Camino"],
+  Colaboradores: ["Nombre","Sucursal","Unidad","Correo","FechaNac","Genero","Telefono_WA","Turno","Rol","Fecha_Alta_Empresa"]
 };
 
-const DATE_FIELDS = { RE_Ediciones: ["fecha_inicio","fecha_fin"] };
+const DATE_FIELDS = { RE_Ediciones: ["fecha_inicio","fecha_fin"], CS_Inscritos: ["Fecha_Camino"] };
 
 function formatTel(val){
   if(!val) return "";
@@ -456,9 +519,9 @@ function getMesEdicion(ed){
   return "";
 }
 
-function findConcentradoByNombre(nombre){
+function findColaboradorByNombre(nombre){
   const norm = (nombre||"").trim().toLowerCase();
-  return CONCENTRADO.find(c => (c.Nombre||"").trim().toLowerCase() === norm);
+  return COLABORADORES.find(c => (c.Nombre||"").trim().toLowerCase() === norm);
 }
 
 function buildCopyMap(){
@@ -483,7 +546,8 @@ function showMsg(id, tipo, texto){
 /* ============================================================
    ESTADO GLOBAL
    ============================================================ */
-let EDICIONES = [], ASISTENCIAS = [], HABITACIONES = [], COPYS = [], CONCENTRADO = [];
+let EDICIONES = [], ASISTENCIAS = [], HABITACIONES = [], COPYS = [], COLABORADORES = [];
+let INTERESADOS = [], CAMINO = [];
 let currentEdicionId = null;
 let HAB_DRAFT = [];
 
@@ -562,8 +626,9 @@ async function guardarEdicion(){
    RENDER: métricas
    ============================================================ */
 function renderMetricsGlobal(){
-  const totalRetiro = CONCENTRADO.filter(c => esSi(c.Retiro)).length;
-  const totalCamino = CONCENTRADO.filter(c => esSi(c.Camino)).length;
+  const asistentesUnicos = new Set(ASISTENCIAS.filter(a => esSi(a.asistio)).map(a => (a.nombre||"").trim().toLowerCase()));
+  const totalRetiro = asistentesUnicos.size;
+  const totalCamino = CAMINO.filter(c => (c.Estado||"").toLowerCase() === "completado").length;
   document.getElementById("metricsGlobal").innerHTML = `
     <div class="metric"><div class="val">${totalRetiro}</div><div class="lbl">total histórico Retiro Espíritu Santo</div></div>
     <div class="metric"><div class="val">${totalCamino}</div><div class="lbl">total histórico Camino de Santiago</div></div>
@@ -603,7 +668,7 @@ function renderPaseLista(){
   }
 
   body.innerHTML = rows.map((a, i) => {
-    const col = findConcentradoByNombre(a.nombre) || {};
+    const col = findColaboradorByNombre(a.nombre) || {};
     const btns = IND_MOMENTOS.map(m => {
       const copy = copyMap[m];
       if(!copy) return "";
@@ -693,9 +758,7 @@ async function guardarPaseLista(){
     const r = await postData({ tipo:"re_asistenciaLote", idEdicion: currentEdicionId, registros });
     if(r.ok){
       showMsg("paseListaMsg","ok","Pase de lista guardado correctamente.");
-      const [asis, conc] = await Promise.all([fetchSheetTab(TABS.asistencias), fetchSheetTab(TABS.concentrado)]);
-      ASISTENCIAS = asis.filter(a => a.nombre && a.nombre.trim() !== "");
-      CONCENTRADO = conc.filter(c => c.Nombre && c.Nombre.trim() !== "");
+      ASISTENCIAS = (await fetchSheetTab(TABS.asistencias)).filter(a => a.nombre && a.nombre.trim() !== "");
       renderAll();
     } else {
       showMsg("paseListaMsg","err","Error: " + r.error);
@@ -705,6 +768,220 @@ async function guardarPaseLista(){
   } finally {
     btn.disabled = false; btn.textContent = "Guardar pase de lista";
   }
+}
+
+/* ============================================================
+   INTERESADOS / LISTA DE ESPERA
+   ============================================================ */
+function toggleAltaInteresado(){ document.getElementById("altaInteresadoForm").classList.toggle("open"); }
+
+async function guardarInteresado(){
+  const nombre = document.getElementById("ni_nombre").value.trim();
+  if(!nombre){ showMsg("niMsg","err","El nombre es obligatorio."); return; }
+  const btn = document.querySelector("#altaInteresadoForm .btn-guardar");
+  btn.disabled = true; btn.textContent = "Guardando…";
+  try{
+    const r = await postData({
+      tipo:"re_altaInteresado", nombre,
+      sucursal: document.getElementById("ni_sucursal").value.trim(),
+      telefono: document.getElementById("ni_telefono").value.trim(),
+      notas: document.getElementById("ni_notas").value.trim()
+    });
+    if(r.ok){
+      showMsg("niMsg","ok","Interesado agregado.");
+      INTERESADOS = (await fetchSheetTab(TABS.interesados)).filter(i => i.Nombre && i.Nombre.trim() !== "");
+      renderInteresados();
+      toggleAltaInteresado();
+      ["ni_nombre","ni_sucursal","ni_telefono","ni_notas"].forEach(id => { document.getElementById(id).value=""; });
+    } else {
+      showMsg("niMsg","err","Error: " + r.error);
+    }
+  } catch(e){
+    showMsg("niMsg","err","No se pudo conectar con el servidor.");
+  } finally {
+    btn.disabled = false; btn.textContent = "Guardar";
+  }
+}
+
+function esPendienteRE(d){
+  const v = (d.Requiere_Seguimiento||"").trim().toLowerCase();
+  return v === "sí" || v === "si";
+}
+
+function renderInteresados(){
+  const copyMap = buildCopyMap();
+  const body = document.getElementById("interesadosBody");
+  const activos = INTERESADOS.filter(i => (i.Estado||"").toLowerCase() === "interesado");
+
+  if(activos.length === 0){
+    body.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:20px; color:var(--text-soft);">Sin interesados pendientes.</td></tr>`;
+    return;
+  }
+
+  body.innerHTML = activos.map(d => {
+    const col = findColaboradorByNombre(d.Nombre) || {};
+    const copy = copyMap["saludo_interes"];
+    const btn = copy ? `<button class="wa-btn" onclick="abrirCopyIndividual('${encodeURIComponent(d.Nombre)}','saludo_interes')"><span class="ic">●</span> saludo_interes</button>` : '<span style="color:var(--text-soft); font-size:12px;">—</span>';
+    const edSel = EDICIONES.length
+      ? `<select id="ins-${encodeURIComponent(d.Nombre)}" style="font-size:12px; padding:4px 6px; border-radius:6px; border:1px solid var(--border);">
+          ${EDICIONES.map(e => `<option value="${escAttr(e.id_edicion)}" ${e.id_edicion===currentEdicionId?'selected':''}>${e.nombre_edicion||e.id_edicion}</option>`).join("")}
+        </select>
+        <button class="reg-btn" style="padding:5px 8px;" onclick="inscribirInteresado('${encodeURIComponent(d.Nombre)}')">Inscribir</button>`
+      : "";
+    return `<tr>
+      <td><div style="font-weight:600;">${d.Nombre}</div>${esPendienteRE(d)?'<span class="pill seguimiento-tag">pendiente saludo</span>':''}</td>
+      <td>${d.Sucursal || col.Sucursal || "—"}</td>
+      <td><span class="pill seguimiento-tag">Interesado</span></td>
+      <td>${btn}</td>
+      <td style="display:flex; flex-wrap:wrap; gap:5px; align-items:center;">
+        ${esPendienteRE(d) ? `<button class="reg-btn" onclick="marcarAtendidoInteresado('${encodeURIComponent(d.Nombre)}')">✓ atendido</button>` : ""}
+        ${edSel}
+        <button class="reg-btn" style="color:var(--red-text); background:var(--red-bg); border-color:#f0c7c7;" onclick="descartarInteresado('${encodeURIComponent(d.Nombre)}')">✕ descartar</button>
+      </td>
+    </tr>`;
+  }).join("");
+}
+
+async function marcarAtendidoInteresado(nombreEnc){
+  const nombre = decodeURIComponent(nombreEnc);
+  try{
+    const r = await postData({ tipo:"re_marcarAtendidoInteresado", nombre });
+    if(r.ok){
+      const d = INTERESADOS.find(x => x.Nombre === nombre);
+      if(d) d.Requiere_Seguimiento = "";
+      renderInteresados();
+    } else alert("Error: " + r.error);
+  } catch(e){ alert("No se pudo conectar con el servidor."); }
+}
+
+async function descartarInteresado(nombreEnc){
+  const nombre = decodeURIComponent(nombreEnc);
+  if(!confirm(`¿Descartar a ${nombre} de la lista de interesados?`)) return;
+  try{
+    const r = await postData({ tipo:"re_bajaInteresado", nombre });
+    if(r.ok){
+      const d = INTERESADOS.find(x => x.Nombre === nombre);
+      if(d) d.Estado = "Descartado";
+      renderInteresados();
+    } else alert("Error: " + r.error);
+  } catch(e){ alert("No se pudo conectar con el servidor."); }
+}
+
+async function inscribirInteresado(nombreEnc){
+  const nombre = decodeURIComponent(nombreEnc);
+  const sel = document.getElementById("ins-" + nombreEnc);
+  const idEdicion = sel ? sel.value : currentEdicionId;
+  if(!idEdicion){ alert("Crea una edición primero."); return; }
+  try{
+    const r = await postData({ tipo:"re_inscribirInteresado", nombre, idEdicion });
+    if(r.ok){
+      const [asis, ints] = await Promise.all([fetchSheetTab(TABS.asistencias), fetchSheetTab(TABS.interesados)]);
+      ASISTENCIAS = asis.filter(a => a.nombre && a.nombre.trim() !== "");
+      INTERESADOS = ints.filter(i => i.Nombre && i.Nombre.trim() !== "");
+      renderAll();
+    } else alert("Error: " + r.error);
+  } catch(e){ alert("No se pudo conectar con el servidor."); }
+}
+
+/* ============================================================
+   CAMINO DE SANTIAGO
+   ============================================================ */
+function toggleAltaCamino(){ document.getElementById("altaCaminoForm").classList.toggle("open"); }
+
+async function guardarCamino(){
+  const nombre = document.getElementById("nc_nombre").value.trim();
+  if(!nombre){ showMsg("ncMsg","err","El nombre es obligatorio."); return; }
+  const btn = document.querySelector("#altaCaminoForm .btn-guardar");
+  btn.disabled = true; btn.textContent = "Guardando…";
+  try{
+    const r = await postData({
+      tipo:"alta_unificada", nombre,
+      sucursal: document.getElementById("nc_sucursal").value.trim(),
+      telefono: document.getElementById("nc_telefono").value.trim(),
+      iniciativas: [{ tipo:"CS", estado:"Activo", notas: document.getElementById("nc_notas").value.trim() }]
+    });
+    if(r.ok){
+      showMsg("ncMsg","ok","Agregado a Camino de Santiago.");
+      CAMINO = (await fetchSheetTab(TABS.camino)).filter(c => c.Nombre && c.Nombre.trim() !== "");
+      renderCamino();
+      renderMetricsGlobal();
+      toggleAltaCamino();
+      ["nc_nombre","nc_sucursal","nc_telefono","nc_notas"].forEach(id => { document.getElementById(id).value=""; });
+    } else {
+      showMsg("ncMsg","err","Error: " + (r.error || (r.omitidas&&r.omitidas.length ? "ya existía" : "desconocido")));
+    }
+  } catch(e){
+    showMsg("ncMsg","err","No se pudo conectar con el servidor.");
+  } finally {
+    btn.disabled = false; btn.textContent = "Guardar";
+  }
+}
+
+function renderCamino(){
+  const body = document.getElementById("caminoBody");
+  const activos = CAMINO.filter(c => (c.Estado||"").toLowerCase() !== "baja");
+
+  if(activos.length === 0){
+    body.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:20px; color:var(--text-soft);">Sin colaboradores registrados.</td></tr>`;
+    return;
+  }
+
+  body.innerHTML = activos.map(d => {
+    const col = findColaboradorByNombre(d.Nombre) || {};
+    const estado = (d.Estado||"").toLowerCase();
+    const estadoPill = estado === "completado"
+      ? '<span class="pill activo">Completado</span>'
+      : '<span class="pill seguimiento-tag">En proceso</span>';
+    return `<tr>
+      <td><div style="font-weight:600;">${d.Nombre}</div>${esPendienteRE(d)?'<span class="pill seguimiento-tag">pendiente</span>':''}</td>
+      <td>${d.Sucursal || col.Sucursal || "—"}</td>
+      <td>${estadoPill}</td>
+      <td>${d.Fecha_Camino ? new Date(d.Fecha_Camino).toLocaleDateString("es-MX") : "—"}</td>
+      <td style="display:flex; flex-wrap:wrap; gap:5px;">
+        ${esPendienteRE(d) ? `<button class="reg-btn" onclick="marcarAtendidoCamino('${encodeURIComponent(d.Nombre)}')">✓ atendido</button>` : ""}
+        ${estado !== "completado" ? `<button class="reg-btn" onclick="registrarFechaCamino('${encodeURIComponent(d.Nombre)}')">📅 registrar fecha</button>` : ""}
+        <button class="reg-btn" style="color:var(--red-text); background:var(--red-bg); border-color:#f0c7c7;" onclick="bajaCamino('${encodeURIComponent(d.Nombre)}')">✕ baja</button>
+      </td>
+    </tr>`;
+  }).join("");
+}
+
+async function marcarAtendidoCamino(nombreEnc){
+  const nombre = decodeURIComponent(nombreEnc);
+  try{
+    const r = await postData({ tipo:"cs_marcarAtendido", nombre });
+    if(r.ok){
+      const d = CAMINO.find(x => x.Nombre === nombre);
+      if(d) d.Requiere_Seguimiento = "";
+      renderCamino();
+    } else alert("Error: " + r.error);
+  } catch(e){ alert("No se pudo conectar con el servidor."); }
+}
+
+async function registrarFechaCamino(nombreEnc){
+  const nombre = decodeURIComponent(nombreEnc);
+  const fecha = prompt("Fecha del Camino de Santiago (AAAA-MM-DD):", new Date().toISOString().slice(0,10));
+  if(!fecha) return;
+  try{
+    const r = await postData({ tipo:"cs_registrarFecha", nombre, fecha });
+    if(r.ok){
+      CAMINO = (await fetchSheetTab(TABS.camino)).filter(c => c.Nombre && c.Nombre.trim() !== "");
+      renderCamino();
+      renderMetricsGlobal();
+    } else alert("Error: " + r.error);
+  } catch(e){ alert("No se pudo conectar con el servidor."); }
+}
+
+async function bajaCamino(nombreEnc){
+  const nombre = decodeURIComponent(nombreEnc);
+  if(!confirm(`¿Dar de baja a ${nombre} de Camino de Santiago?`)) return;
+  try{
+    const r = await postData({ tipo:"cs_baja", nombre });
+    if(r.ok){
+      CAMINO = CAMINO.filter(x => x.Nombre !== nombre);
+      renderCamino();
+    } else alert("Error: " + r.error);
+  } catch(e){ alert("No se pudo conectar con el servidor."); }
 }
 
 /* ============================================================
@@ -759,7 +1036,7 @@ function renderHabitaciones(){
 
   wrap.innerHTML = HAB_DRAFT.map((h, i) => {
     const disponibles = confirmados.filter(c => {
-      const col = findConcentradoByNombre(c.nombre);
+      const col = findColaboradorByNombre(c.nombre);
       return !h.genero || !col || (col.Genero||"").toLowerCase() === h.genero.toLowerCase();
     });
 
@@ -888,6 +1165,8 @@ function renderAll(){
   renderMensajesGrupales();
   renderHabitaciones();
   renderHistorial();
+  renderInteresados();
+  renderCamino();
 }
 
 /* ============================================================
@@ -895,21 +1174,25 @@ function renderAll(){
    ============================================================ */
 async function init(){
   try{
-    const [ediciones, asistencias, habitaciones, copys, concentrado] = await Promise.all([
+    const [ediciones, asistencias, habitaciones, copys, interesados, camino, colaboradores] = await Promise.all([
       fetchSheetTab(TABS.ediciones),
       fetchSheetTab(TABS.asistencias),
       fetchSheetTab(TABS.habitaciones),
       fetchSheetTab(TABS.copys),
-      fetchSheetTab(TABS.concentrado)
+      fetchSheetTab(TABS.interesados),
+      fetchSheetTab(TABS.camino),
+      fetchSheetTab(TABS.colaboradores)
     ]);
 
     EDICIONES = ediciones.filter(e => e.id_edicion && e.id_edicion.trim() !== "");
     ASISTENCIAS = asistencias.filter(a => a.nombre && a.nombre.trim() !== "");
     HABITACIONES = habitaciones.filter(h => h.id_edicion && h.id_edicion.trim() !== "");
     COPYS = copys.filter(c => c.Momento && c.Momento.trim() !== "");
-    CONCENTRADO = concentrado.filter(c => c.Nombre && c.Nombre.trim() !== "");
+    INTERESADOS = interesados.filter(i => i.Nombre && i.Nombre.trim() !== "");
+    CAMINO = camino.filter(c => c.Nombre && c.Nombre.trim() !== "");
+    COLABORADORES = colaboradores.filter(c => c.Nombre && c.Nombre.trim() !== "");
 
-    document.getElementById("listaColaboradores").innerHTML = CONCENTRADO.map(c => `<option value="${escAttr(c.Nombre)}">`).join("");
+    document.getElementById("listaColaboradores").innerHTML = COLABORADORES.map(c => `<option value="${escAttr(c.Nombre)}">`).join("");
 
     document.getElementById("loadingMsg").style.display = "none";
     document.getElementById("appContent").style.display = "block";
@@ -929,7 +1212,7 @@ async function init(){
     document.getElementById("loadingMsg").style.display = "none";
     const eb = document.getElementById("errorMsg");
     eb.style.display = "block";
-    eb.textContent = "No se pudieron cargar los datos desde Google Sheets. Verifica que existan las pestañas RE_Ediciones, RE_Asistencias, RE_Habitaciones y RE_Copys en el Sheet maestro.";
+    eb.textContent = "No se pudieron cargar los datos desde Google Sheets. Verifica que existan las pestañas RE_Ediciones, RE_Asistencias, RE_Habitaciones, RE_Copys, RE_Interesados y CS_Inscritos en el Sheet nuevo.";
   }
 }
 

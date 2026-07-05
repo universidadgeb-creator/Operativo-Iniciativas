@@ -387,8 +387,12 @@
 /* ============================================================
    CONFIGURACIÓN
    ============================================================ */
-const SHEET_ID = "1fS5qeoB1ViuCUP4HOQ1zTJgh4tfWUkObvb5LMr3to5A";
-const WEBAPP_URL = "https://script.google.com/macros/s/AKfycby8QmMkIKFlse1yIsIxJk6LjvBW8WYjNTf51f54KubtakiKkYhUOPZmYUN4S76JBF_YeQ/exec";
+// Biblioteca Comunitaria migrada al Sheet nuevo unificado (2026-07-05) — ver
+// apps-script.gs (migrarBibliotecaASheetNuevo). BIB_Prestamos/Donaciones/
+// Devoluciones/Copys tenían datos reales de producción; se copiaron tal cual,
+// no se perdió nada. El Sheet histórico queda como respaldo, sin usarse ya.
+const SHEET_ID = "1oaWADtW9SmqxuOoOM1bf65Ht_NkpE4l_o_DMutN_IbI";
+const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbypzabPFyTWszyc2-wIPjImOTIitz68R6_okV2yUgxSD6CpkEkfpFlXh8OzgaQWlZYe/exec";
 const TABS = {
   prestamos: "BIB_Prestamos",
   donaciones: "BIB_Donaciones",

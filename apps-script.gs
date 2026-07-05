@@ -2,215 +2,121 @@
 // GEB Iniciativas Humanas — Web App
 // Despliega como: Ejecutar como "Yo", Acceso "Cualquier persona"
 // ================================================================
+// Desconectado por completo del Sheet histórico (2026-07-05): el Sheet nuevo
+// es la única fuente de datos operativos para las 9 iniciativas. El Sheet
+// histórico (SHEET_HISTORICO_ID) ya no se lee ni se escribe en ningún flujo
+// normal — su única mención en este archivo es dentro de las funciones de
+// migración de una sola vez (ya usadas), que quedan como referencia histórica
+// y no corren automáticamente.
 
-const SS = SpreadsheetApp.openById("1fS5qeoB1ViuCUP4HOQ1zTJgh4tfWUkObvb5LMr3to5A");
+// Sheet nuevo unificado — única fuente de datos de las 9 iniciativas.
+const SHEET_NUEVO_ID = "1oaWADtW9SmqxuOoOM1bf65Ht_NkpE4l_o_DMutN_IbI";
+const SS = SpreadsheetApp.openById(SHEET_NUEVO_ID);
+
+// Sheet histórico — solo se usa como fuente de lectura dentro de las
+// funciones de migración de una sola vez (migrarXASheetNuevo). Nunca se
+// escribe ahí.
+const SHEET_HISTORICO_ID = "1fS5qeoB1ViuCUP4HOQ1zTJgh4tfWUkObvb5LMr3to5A";
 
 // Biblioteca Virtual externa (solo lectura/escritura de la pestaña "Fisicos")
 const SHEET_BIBLIOTECA_ID = "1FDZB3aR-YAyVMsiAjo92PuUdH0iTfBmreCWv5DvCpdM";
+
 const LOGO_BIBLIO_ID = "1NqoFmESlsTP4dpFscYglcs9o6THQP4TR";
 const LOGO_UGEB_ID = "1mBIHoKyngoa7cBiSvHCVY0x_pIkFyARJ";
 const COLOR_PRIMARIO = "#185FA5";
 
-// ── Menú de utilidades para evitar el desligue de filas en Concentrado ──
-// Causa típica: alguien selecciona solo algunas columnas (ej. A:I) al ordenar
-// o filtrar en Sheets, y las columnas J:S (Sí/No por iniciativa) no se mueven
-// con el resto de la fila, quedando la información de otra persona. Este
-// menú ordena SIEMPRE el rango completo de la fila, así nunca se desliga.
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu("GEB CRM")
-    .addItem("🔒 Reordenar Concentrado por Nombre (seguro)", "reordenarConcentradoPorNombre")
-    .addItem("🔧 Configurar sincronización AP (1 vez)", "configurarSincronizacionAP")
-    .addItem("🔧 Configurar sincronización Reto Ahorro (1 vez)", "configurarSincronizacionRA")
-    .addItem("🔧 Configurar sincronización Salvando Vidas (1 vez)", "configurarSincronizacionSV")
-    .addItem("🔧 Configurar sincronización Escuela GEB (1 vez)", "configurarSincronizacionEG")
     .addItem("🔧 Configurar alertas de atraso Reto Ahorro (1 vez)", "configurarAlertasAtrasoRA")
+    .addItem("🔧 Configurar AP en Sheet nuevo (1 vez)", "configurarAPSheetNuevo")
+    .addItem("🧪 Sembrar datos de prueba AP (Sheet nuevo)", "sembrarPruebasAP")
+    .addItem("🧪 Sembrar datos de prueba Escuela GEB (Sheet nuevo)", "sembrarPruebasEG")
+    .addItem("🔧 Configurar RE + Camino Santiago en Sheet nuevo (1 vez)", "configurarREyCSSheetNuevo")
+    .addItem("🧪 Sembrar datos de prueba Retiro Espiritual (Sheet nuevo)", "sembrarPruebasRE")
+    .addItem("🔧 Migrar Biblioteca al Sheet nuevo (1 vez, copia datos reales)", "migrarBibliotecaASheetNuevo")
+    .addItem("🔧 Configurar Impulso GEB en Sheet nuevo (1 vez)", "configurarIGSheetNuevo")
+    .addItem("🧪 Sembrar datos de prueba Impulso GEB (Sheet nuevo)", "sembrarPruebasIG")
+    .addItem("🔧 Configurar Beca Educativa en Sheet nuevo (1 vez)", "configurarBESheetNuevo")
+    .addItem("🧪 Sembrar datos de prueba Beca Educativa (Sheet nuevo)", "sembrarPruebasBE")
+    .addItem("🔧 Migrar Copys restantes (RA/SV/EG) al Sheet nuevo (1 vez)", "migrarCopysRestantesASheetNuevo")
+    .addItem("🔧 Migrar logs restantes (EG_Asistencias/Examenes, SV_Historial) (1 vez)", "migrarLogsRestantesASheetNuevo")
+    .addItem("🧹 Desactivar sincronización antigua de Concentrado (1 vez)", "desactivarSincronizacionAntigua")
+    .addItem("🗑️ Borrar TODOS los datos de prueba (PRUEBA...)", "borrarDatosPruebaTodos")
+    .addItem("🔧 Configurar Eco-Acción en Sheet nuevo (1 vez)", "configurarEASheetNuevo")
+    .addItem("🧪 Sembrar datos de prueba Eco-Acción (Sheet nuevo)", "sembrarPruebasEA")
     .addToUi();
 }
 
-// ── Atención Psicológica: Requiere_Seguimiento (col L de AP_Inscritos) ──
-// Flujo: vacío por default. Cuando alguien captura un registro nuevo a mano
-// (llena la col A=Nombre de una fila que antes estaba vacía), este trigger
-// simple lo marca "Sí" automáticamente para que el panel lo resalte como
-// pendiente. Se vuelve a vaciar desde las acciones del panel (asistencia,
-// cambio de modalidad, sesiones Impulso43) porque eso ya cuenta como
-// seguimiento dado. Se marca "No" solo cuando alguien se da de baja
-// (ver handleApBaja) para diferenciar "nunca se le dio seguimiento" de
-// "ya no aplica seguimiento".
-function onEdit(e) {
-  try {
-    var sheet = e.range.getSheet();
-    if (sheet.getName() !== "AP_Inscritos") return;
-    if (e.range.getColumn() !== 1) return; // solo cuando se llena Nombre (col A)
-    var row = e.range.getRow();
-    if (row === 1) return; // encabezado
-    if (!e.range.getValue()) return; // se borró el nombre, no es alta
-    if (e.oldValue) return; // ya tenía nombre antes: no es fila nueva
-    var seguimientoCell = sheet.getRange(row, 12); // Requiere_Seguimiento (col L)
-    if (!seguimientoCell.getValue()) seguimientoCell.setValue("Sí");
-  } catch (err) {
-    // onEdit no debe romper la hoja si algo falla
-  }
+// Elimina cualquier trigger instalado por versiones anteriores del script que
+// sincronizaba altas nuevas desde Concentrado hacia el Sheet histórico
+// (sincronizarNuevosAP/RA/SV/EG). Esa mecánica ya no existe — todas las altas
+// entran por altas.html → handleAltaUnificada, directo al Sheet nuevo. Correr
+// una sola vez como parte del corte total; es seguro correrlo aunque esos
+// triggers ya no existan (simplemente no encuentra nada que borrar).
+function desactivarSincronizacionAntigua() {
+  var eliminados = [];
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    var fn = t.getHandlerFunction();
+    if (fn.indexOf("sincronizarNuevos") === 0) {
+      ScriptApp.deleteTrigger(t);
+      eliminados.push(fn);
+    }
+  });
+  SpreadsheetApp.getUi().alert(eliminados.length
+    ? "Triggers eliminados: " + eliminados.join(", ")
+    : "No había triggers de sincronización antigua instalados.");
 }
 
-// ── Sincronización automática de altas (AP, Reto Ahorro, Salvando Vidas, Escuela GEB) ──
-// Las 4 pestañas comparten el mismo problema de fondo: Nombre/Sucursal/Teléfono
-// (siempre las primeras 3 columnas, A:C) se llenaban con una fórmula QUERY que
-// jala de Concentrado (derramada sobre varias filas), mientras que las columnas
-// siguientes (Estado, Urgencia, Semana_Actual, Requiere_Seguimiento, etc.) se
-// llenan a mano ancladas a un número de fila fijo. Cada vez que el orden de
-// Concentrado cambiaba, o la fórmula quedaba apuntando a columnas que ya no
-// existen (Concentrado se ha restructurado varias veces), A:C se desalineaba de
-// esas columnas manuales o de plano se rompía mostrando #VALUE!. Un recálculo de
-// fórmula tampoco dispara onEdit, así que Requiere_Seguimiento nunca se marcaba
-// "Sí" para altas nuevas. IMPORTANTE: las 4 pestañas resultaron tener datos
-// operativos reales en sus columnas manuales (incluso RA_Inscritos y
-// EG_Inscritos, que parecían vacías a simple vista) — nunca asumir que una
-// pestaña "no tiene nada que perder" sin confirmarlo primero con el equipo.
-//
-// Arreglo: en cada pestaña, el bloque de "identidad" que viene de Concentrado
-// (Nombre/Sucursal/Teléfono — y en Escuela GEB también Diagnóstico Educativo,
-// col D) se congela como texto fijo que nunca se mueve solo. La fórmula QUERY
-// (corregida, apuntando al flag vigente de Concentrado: Psic=J, Ahorro=P,
-// Donadores=O, EscuelaGEB=N) vive en una columna oculta (P en adelante), y una
-// función corre cada hora comparando esa columna contra los nombres que ya
-// existen en col A. Los nombres nuevos se agregan como fila nueva AL FINAL
-// (nunca en medio), con Requiere_Seguimiento = "Sí".
-var SYNC_AP = {
-  sheet: "AP_Inscritos", numCols: 13, identityCols: 3, reqCol: 11, helperCol: 16,
-  triggerFnName: "sincronizarNuevosAP",
-  formula: '=QUERY(Concentrado!A1:S989,"SELECT A,C,H WHERE J=\'Sí\'",1)',
-};
-// RA_Inscritos real solo tiene 6 columnas propias (Nombre,Sucursal,Telefono_WA,
-// Semana_Actual,Fecha_Inscripcion,Requiere_Seguimiento) — reqCol:6 apuntaba a una
-// 7ª columna que nunca existió (una "Estado" fantasma se había insertado a la
-// mitad en el SCHEMA del frontend, no aquí). Corregido a reqCol:5 (Requiere_
-// Seguimiento, índice real) y numCols:8 para reservar Estado/Fecha_Ultima_Semana,
-// agregadas al final — ver reto-ahorro.html.
-var SYNC_RA = {
-  sheet: "RA_Inscritos", numCols: 8, identityCols: 3, reqCol: 5, helperCol: 16,
-  triggerFnName: "sincronizarNuevosRA",
-  formula: '=QUERY(Concentrado!A1:S989,"SELECT A,C,H WHERE P=\'Sí\'",1)',
-};
-var SYNC_SV = {
-  sheet: "SV_Donadores", numCols: 7, identityCols: 3, reqCol: 6, helperCol: 16,
-  triggerFnName: "sincronizarNuevosSV",
-  formula: '=QUERY(Concentrado!A1:S989,"SELECT A,C,H WHERE O=\'Sí\'",1)',
-};
-var SYNC_EG = {
-  // EscuelaGEB (Sí/No/Historico) vive en la columna N de Concentrado. El
-  // encabezado de esa columna en el Sheet dice "" y el de M dice "ESCUELA GEB"
-  // por un rótulo mal puesto — verificado contra los DATOS reales (N trae
-  // Sí/No limpios, M trae diagnóstico educativo tipo "Licenciatura"/"Primaria").
-  // Diagnostico_Edu (col D de EG_Inscritos) también viene de Concentrado (col M),
-  // así que se incluye como 4ª columna de identidad a proteger y sincronizar.
-  sheet: "EG_Inscritos", numCols: 9, identityCols: 4, reqCol: 8, helperCol: 16,
-  triggerFnName: "sincronizarNuevosEG",
-  formula: '=QUERY(Concentrado!A1:S989,"SELECT A,C,H,M WHERE N=\'Sí\'",1)',
-};
+// ── Borrar datos de prueba (desarrollo) ──────────────────────────
+// Recorre las pestañas del Sheet nuevo que recibieron filas "PRUEBA ..." al
+// sembrar datos de prueba, y las borra. No toca datos reales (solo filas cuyo
+// Nombre empieza exactamente con "PRUEBA"). RE_Ediciones/Asistencias/
+// Habitaciones se limpian por id_edicion ("RE-PRUEBA-01"), ya que ahí el
+// Nombre no siempre es la primera columna.
+function borrarDatosPruebaTodos() {
+  var resultado = [];
+  var tabsPorNombre = ["Colaboradores", "AP_Inscritos", "AP_Sesiones", "EG_Inscritos",
+    "RE_Interesados", "CS_Inscritos", "IG_Inscritos", "BE_Inscritos", "EA_Lideres", "EA_Cilindros"];
 
-// El número de columnas de identidad varía por pestaña (config.identityCols):
-// 3 en AP/RA/SV (Nombre,Sucursal,Telefono), 4 en EG (+ Diagnostico_Edu).
-function _sincronizarAltas(config) {
-  var ws = SS.getSheetByName(config.sheet);
-  if (!ws) return;
+  tabsPorNombre.forEach(function (nombreHoja) {
+    var ws = SS.getSheetByName(nombreHoja);
+    if (!ws) { resultado.push(nombreHoja + ": pestaña no encontrada"); return; }
+    var data = ws.getDataRange().getValues();
+    var borrados = 0;
+    for (var i = data.length - 1; i >= 1; i--) {
+      if (String(data[i][0] || "").trim().indexOf("PRUEBA") === 0) { ws.deleteRow(i + 1); borrados++; }
+    }
+    resultado.push(nombreHoja + ": " + borrados + " fila(s) borrada(s)");
+  });
 
-  var lastRow = ws.getLastRow();
-  var nombresExistentes = {};
-  if (lastRow >= 2) {
-    var actuales = ws.getRange(2, 1, lastRow - 1, 1).getValues();
-    actuales.forEach(function (r) {
-      var n = String(r[0] || "").trim().toLowerCase();
-      if (n) nombresExistentes[n] = true;
+  var wsEd = SS.getSheetByName("RE_Ediciones");
+  if (wsEd) {
+    var dataEd = wsEd.getDataRange().getValues();
+    var idsPrueba = [];
+    var borradosEd = 0;
+    for (var i = dataEd.length - 1; i >= 1; i--) {
+      if (String(dataEd[i][0] || "").indexOf("RE-PRUEBA") === 0) {
+        idsPrueba.push(dataEd[i][0]);
+        wsEd.deleteRow(i + 1);
+        borradosEd++;
+      }
+    }
+    resultado.push("RE_Ediciones: " + borradosEd + " fila(s) borrada(s)");
+
+    ["RE_Asistencias", "RE_Habitaciones"].forEach(function (nombreHoja) {
+      var ws = SS.getSheetByName(nombreHoja);
+      if (!ws) return;
+      var data = ws.getDataRange().getValues();
+      var borrados = 0;
+      for (var i = data.length - 1; i >= 1; i--) {
+        if (idsPrueba.indexOf(data[i][0]) >= 0) { ws.deleteRow(i + 1); borrados++; }
+      }
+      resultado.push(nombreHoja + ": " + borrados + " fila(s) borrada(s)");
     });
   }
 
-  var filasFuente = Math.max(ws.getLastRow() - 1, 0);
-  if (filasFuente === 0) return;
-  var fuente = ws.getRange(2, config.helperCol, filasFuente, config.identityCols).getValues();
-
-  fuente.forEach(function (r) {
-    var nombre = String(r[0] || "").trim();
-    if (!nombre) return;
-    var key = nombre.toLowerCase();
-    if (nombresExistentes[key]) return;
-
-    var fila = new Array(config.numCols).fill("");
-    for (var i = 0; i < config.identityCols; i++) fila[i] = r[i] || "";
-    fila[config.reqCol] = "Sí"; // Requiere_Seguimiento: alta nueva
-    ws.appendRow(fila);
-    nombresExistentes[key] = true;
-  });
-}
-
-function _asegurarTrigger(fnName) {
-  var yaExiste = ScriptApp.getProjectTriggers().some(function (t) {
-    return t.getHandlerFunction() === fnName;
-  });
-  if (!yaExiste) ScriptApp.newTrigger(fnName).timeBased().everyHours(1).create();
-}
-
-function sincronizarNuevosAP() { _sincronizarAltas(SYNC_AP); }
-function sincronizarNuevosRA() { _sincronizarAltas(SYNC_RA); }
-function sincronizarNuevosSV() { _sincronizarAltas(SYNC_SV); }
-function sincronizarNuevosEG() { _sincronizarAltas(SYNC_EG); }
-
-// Configuración de una sola vez, igual para las 4 pestañas: SIEMPRE congela lo
-// que hoy se ve en el bloque de identidad (A:C, o A:D en Escuela GEB) —sea
-// resultado de fórmula o ya texto plano— antes de tocar nada, así nunca se
-// arriesga a perder datos reales por asumir que una pestaña estaba vacía. Se
-// captura y se vuelve a escribir el mismo bloque completo (incluyendo la fila
-// 1, por si el encabezado también era parte de una fórmula derramada) —
-// funciona sin importar si la fórmula estaba anclada en la fila 1 o en la fila 2.
-// Ejecutar desde el menú "GEB CRM → Configurar sincronización … (1 vez)".
-function _configurarSincronizacion(config, etiqueta) {
-  var ui = SpreadsheetApp.getUi();
-  var resp = ui.alert(
-    "Configurar sincronización " + etiqueta,
-    "Esto va a: 1) fijar los datos actuales de identidad (Nombre/Sucursal/Teléfono" +
-      (config.identityCols > 3 ? "/Diagnóstico Educativo" : "") + ") de " + etiqueta + " como texto fijo, " +
-      "2) mover la fórmula QUERY (corregida) a una columna oculta, y 3) activar la revisión automática " +
-      "cada hora, agregando SOLO los nombres nuevos al final. Ninguna otra columna (Estado, " +
-      "Requiere_Seguimiento, Semana_Actual, etc.) se toca. ¿Continuar?",
-    ui.ButtonSet.YES_NO
-  );
-  if (resp !== ui.Button.YES) return;
-
-  var ws = SS.getSheetByName(config.sheet);
-  if (!ws) { ui.alert("No se encontró la pestaña " + config.sheet + "."); return; }
-
-  var lastRow = ws.getLastRow();
-  if (lastRow >= 1) {
-    var rango = ws.getRange(1, 1, lastRow, config.identityCols); // incluye posible encabezado
-    var valoresActuales = rango.getValues();
-    rango.clearContent(); // quita cualquier fórmula derramada (ancle en fila 1 o 2)
-    rango.setValues(valoresActuales); // los vuelve a poner como texto fijo, igual a como estaban
-  }
-
-  ws.getRange(2, config.helperCol).setFormula(config.formula);
-  ws.hideColumns(config.helperCol, config.identityCols);
-  _asegurarTrigger(config.triggerFnName);
-
-  ui.alert("Listo. Revisa que los datos de identidad de " + etiqueta + " se sigan viendo bien. Si alguna " +
-    "alta reciente ya existía antes de este cambio, agrégale \"Sí\" a mano en Requiere_Seguimiento (la " +
-    "sincronización no la detecta porque su nombre ya existe).");
-}
-
-function configurarSincronizacionAP() { _configurarSincronizacion(SYNC_AP, "AP_Inscritos"); }
-function configurarSincronizacionRA() { _configurarSincronizacion(SYNC_RA, "RA_Inscritos"); }
-function configurarSincronizacionSV() { _configurarSincronizacion(SYNC_SV, "SV_Donadores"); }
-function configurarSincronizacionEG() { _configurarSincronizacion(SYNC_EG, "EG_Inscritos"); }
-
-function reordenarConcentradoPorNombre() {
-  const ws = SS.getSheetByName("Concentrado");
-  if (!ws) { SpreadsheetApp.getUi().alert("No se encontró la pestaña Concentrado."); return; }
-  const lastRow = ws.getLastRow();
-  const lastCol = ws.getLastColumn();
-  if (lastRow < 3) return;
-  // Ordena A2:<lastCol><lastRow> como un solo bloque por la columna A (Nombre),
-  // así todas las columnas Sí/No de cada persona viajan siempre con su fila.
-  ws.getRange(2, 1, lastRow - 1, lastCol).sort({ column: 1, ascending: true });
-  SpreadsheetApp.getUi().alert("Concentrado reordenado por Nombre sin perder las columnas Sí/No.");
+  SpreadsheetApp.getUi().alert("Datos de prueba borrados:\n\n" + resultado.join("\n"));
 }
 
 function doPost(e) {
@@ -221,26 +127,56 @@ function doPost(e) {
     if (tipo === "asistencia")         return handleAsistencia(payload);
     if (tipo === "examen")             return handleExamen(payload);
     if (tipo === "donacion")           return handleDonacion(payload);
-    if (tipo === "ap_asistencia")      return handleApAsistencia(payload);
+    if (tipo === "ap_asistencia_lote") return handleApAsistenciaLote(payload);
     if (tipo === "ap_cambioModalidad") return handleApCambioModalidad(payload);
     if (tipo === "ap_sesionesI43")     return handleApSesionesI43(payload);
     if (tipo === "ap_baja")           return handleApBaja(payload);
     if (tipo === "ap_diagnostico")    return handleApDiagnostico(payload);
+    if (tipo === "alta_unificada")    return handleAltaUnificada(payload);
     if (tipo === "sv_atendido")       return handleSvAtendido(payload);
     if (tipo === "sv_baja")           return handleSvBaja(payload);
+    if (tipo === "migrar_sv_historico") return handleMigrarSVHistorico(payload);
+    if (tipo === "retirar_sync_sv")     return handleRetirarSyncSV(payload);
+    if (tipo === "migrar_eg_historico") return handleMigrarEGHistorico(payload);
+    if (tipo === "retirar_sync_eg")     return handleRetirarSyncEG(payload);
+    if (tipo === "eg_marcarAtendido")   return handleEgMarcarAtendido(payload);
+    if (tipo === "eg_baja")             return handleEgBaja(payload);
+    if (tipo === "eg_diagnostico")      return handleEgDiagnostico(payload);
     if (tipo === "ra_actualizarSemana") return handleRaActualizarSemana(payload);
     if (tipo === "ra_marcarAtendido")   return handleRaMarcarAtendido(payload);
     if (tipo === "ra_baja")             return handleRaBaja(payload);
+    if (tipo === "migrar_ra_historico") return handleMigrarRAHistorico(payload);
+    if (tipo === "retirar_sync_ra")     return handleRetirarSyncRA(payload);
+    if (tipo === "migrar_ap_historico") return handleMigrarAPHistorico(payload);
+    if (tipo === "retirar_sync_ap")     return handleRetirarSyncAP(payload);
     if (tipo === "re_altaEdicion")           return handleReAltaEdicion(payload);
     if (tipo === "re_registro")             return handleReRegistro(payload);
     if (tipo === "re_asistenciaLote")        return handleReAsistenciaLote(payload);
     if (tipo === "re_guardarHabitaciones")   return handleReGuardarHabitaciones(payload);
+    if (tipo === "re_altaInteresado")            return handleReAltaInteresado(payload);
+    if (tipo === "re_marcarAtendidoInteresado")  return handleReMarcarAtendidoInteresado(payload);
+    if (tipo === "re_bajaInteresado")            return handleReBajaInteresado(payload);
+    if (tipo === "re_inscribirInteresado")       return handleReInscribirInteresado(payload);
+    if (tipo === "cs_marcarAtendido")            return handleCsMarcarAtendido(payload);
+    if (tipo === "cs_registrarFecha")            return handleCsRegistrarFecha(payload);
+    if (tipo === "cs_baja")                      return handleCsBaja(payload);
+    if (tipo === "ig_actualizarCampo")   return handleIgActualizarCampo(payload);
+    if (tipo === "ig_marcarAtendido")    return handleIgMarcarAtendido(payload);
+    if (tipo === "ig_baja")              return handleIgBaja(payload);
+    if (tipo === "ig_pasarGeneracion2")  return handleIgPasarGeneracion2(payload);
+    if (tipo === "be_marcarAtendido")    return handleBeMarcarAtendido(payload);
+    if (tipo === "be_baja")              return handleBeBaja(payload);
+    if (tipo === "be_revisarInscripcion") return handleBeRevisarInscripcion(payload);
+    if (tipo === "ea_registrarCilindro")  return handleEaRegistrarCilindro(payload);
+    if (tipo === "ea_marcarAtendido")     return handleEaMarcarAtendido(payload);
+    if (tipo === "ea_baja")               return handleEaBaja(payload);
     if (tipo === "bib_altaDonacion")        return handleBibAltaDonacion(payload);
     if (tipo === "bib_procesarDevolucion")  return handleBibProcesarDevolucion(payload);
     if (tipo === "bib_extenderPrestamo")    return handleBibExtenderPrestamo(payload);
     if (tipo === "bib_generarRecibo")       return handleBibGenerarRecibo(payload);
     if (tipo === "bib_generarEtiqueta")     return handleBibGenerarEtiqueta(payload);
     if (tipo === "bib_sincronizarFisicos")  return handleBibSincronizarFisicos(payload);
+    if (tipo === "admin_ejecutar")          return handleAdminEjecutar(payload);
 
     return resp({ ok: false, error: "Tipo desconocido: " + tipo });
   } catch(err) {
@@ -301,111 +237,362 @@ function handleDonacion(p) {
   return resp({ ok: true });
 }
 
-// ── Salvando Vidas: Requiere_Seguimiento (col G de SV_Donadores) ──
-// Mismo patrón que AP_Inscritos: "Sí" lo pone _sincronizarAltas cuando es
-// alta nueva. Se limpia (marcarAtendido) cuando ya se le dio seguimiento
-// desde el panel. "No" se pone solo al dar de baja (handleSvBaja).
+// ── Salvando Vidas (Sheet NUEVO desde 2026-07-04) ────────────────
+// Cols SV_Inscritos en SHEET_NUEVO_ID: A=Nombre, B=Sucursal, C=Telefono_WA,
+// D=Fecha_Alta, E=Estado, F=Requiere_Seguimiento, G=Notas, H=Tipo_Sangre,
+// I=Mes_Guardia. El Sheet histórico (SS) ya NO se toca para esta iniciativa.
+function svSheetNuevo_() {
+  return SpreadsheetApp.openById(SHEET_NUEVO_ID).getSheetByName("SV_Inscritos");
+}
+
+// "Sí" lo pone handleAltaUnificada en altas nuevas. Se limpia (marcarAtendido)
+// cuando ya se le dio seguimiento desde el panel. "No" se pone solo al dar de
+// baja (handleSvBaja).
 function handleSvAtendido(p) {
-  var ws = SS.getSheetByName("SV_Donadores");
-  if (!ws) return resp({ ok: false, error: "Pestaña SV_Donadores no encontrada" });
+  var ws = svSheetNuevo_();
+  if (!ws) return resp({ ok: false, error: "Pestaña SV_Inscritos no encontrada en el Sheet nuevo" });
 
   var nombre = (p.nombre || "").trim();
   var data   = ws.getDataRange().getValues();
 
   for (var i = 1; i < data.length; i++) {
     if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
-      ws.getRange(i + 1, 7).setValue(""); // Requiere_Seguimiento (col G)
+      ws.getRange(i + 1, 6).setValue(""); // Requiere_Seguimiento (col F)
       return resp({ ok: true });
     }
   }
 
-  return resp({ ok: false, error: "No se encontró a " + nombre + " en SV_Donadores" });
+  return resp({ ok: false, error: "No se encontró a " + nombre + " en SV_Inscritos" });
 }
 
 // ── Salvando Vidas: Marcar de baja ───────────────────────────────
 // El donador ya no participa pero se conserva su historial de donaciones
-// para indicadores. Estado (col F) pasa a "Inactivo" y Requiere_Seguimiento
-// (col G) se marca "No".
+// para indicadores. Estado (col E) pasa a "Baja" y Requiere_Seguimiento
+// (col F) se marca "No".
 function handleSvBaja(p) {
-  var ws = SS.getSheetByName("SV_Donadores");
-  if (!ws) return resp({ ok: false, error: "Pestaña SV_Donadores no encontrada" });
+  var ws = svSheetNuevo_();
+  if (!ws) return resp({ ok: false, error: "Pestaña SV_Inscritos no encontrada en el Sheet nuevo" });
 
   var nombre = (p.nombre || "").trim();
   var data   = ws.getDataRange().getValues();
 
   for (var i = 1; i < data.length; i++) {
     if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
-      ws.getRange(i + 1, 6).setValue("Inactivo"); // Estado (col F)
-      ws.getRange(i + 1, 7).setValue("No");        // Requiere_Seguimiento (col G)
+      ws.getRange(i + 1, 5).setValue("Baja"); // Estado (col E)
+      ws.getRange(i + 1, 6).setValue("No");   // Requiere_Seguimiento (col F)
       return resp({ ok: true });
     }
   }
 
-  return resp({ ok: false, error: "No se encontró a " + nombre + " en SV_Donadores" });
+  return resp({ ok: false, error: "No se encontró a " + nombre + " en SV_Inscritos" });
 }
 
-// ── Atención Psicológica: Registrar asistencia ──────────────────
-// Cols AP_Sesiones: A=Nombre, B=Num_Sesion, C=Fecha_Programada, D=Hora_Programada,
-//                   E=Modalidad, F=Asistio, G=Cambio_Modalidad, H=Notas_Sesion
-function handleApAsistencia(p) {
-  var ws = SS.getSheetByName("AP_Sesiones");
-  if (!ws) return resp({ ok: false, error: "Pestaña AP_Sesiones no encontrada" });
+// ── Migración única: SV_Donadores histórico → Sheet nuevo (SV_Inscritos) ──
+// Mismo patrón que handleMigrarRAHistorico. El histórico nunca tuvo
+// Fecha_Alta ni un Requiere_Seguimiento confiable (siempre vacío en la
+// práctica), así que Fecha_Alta migra vacía y Requiere_Seguimiento se deriva
+// solo del Estado viejo (Activo→vacío, Inactivo→"No").
+function handleMigrarSVHistorico(p) {
+  var wsViejo = SpreadsheetApp.openById(SHEET_HISTORICO_ID).getSheetByName("SV_Donadores");
+  var wsNuevo = svSheetNuevo_();
+  if (!wsViejo) return resp({ ok: false, error: "No se encontró SV_Donadores en el Sheet histórico" });
+  if (!wsNuevo) return resp({ ok: false, error: "No se encontró SV_Inscritos en el Sheet nuevo" });
 
-  var nombre    = (p.nombre || "").trim();
-  var numSesion = String(p.numSesion || "").trim();
-  var data      = ws.getDataRange().getValues();
-  var found     = false;
+  var datosViejos = wsViejo.getDataRange().getValues();
+  var datosNuevos = wsNuevo.getDataRange().getValues();
+  var yaExisten = {};
+  for (var j = 1; j < datosNuevos.length; j++) {
+    var n = String(datosNuevos[j][0] || "").trim().toLowerCase();
+    if (n) yaExisten[n] = true;
+  }
+
+  var migrados = 0, omitidos = 0;
+
+  for (var i = 1; i < datosViejos.length; i++) {
+    var nombre = String(datosViejos[i][0] || "").trim();
+    if (!nombre || nombre === "Nombre") continue;
+    var key = nombre.toLowerCase();
+    if (yaExisten[key]) { omitidos++; continue; }
+
+    var sucursal    = datosViejos[i][1] || "";
+    var telefono    = datosViejos[i][2] || "";
+    var tipoSangre  = datosViejos[i][3] || "";
+    var mesGuardia  = datosViejos[i][4] || "";
+    var estadoViejo = String(datosViejos[i][5] || "").trim().toLowerCase();
+
+    var esBaja = estadoViejo === "inactivo" || estadoViejo === "baja";
+    var estadoNuevo = esBaja ? "Baja" : "Activo";
+    var seguimientoNuevo = esBaja ? "No" : "";
+
+    wsNuevo.appendRow([nombre, sucursal, telefono, "", estadoNuevo, seguimientoNuevo, "", tipoSangre, mesGuardia]);
+    yaExisten[key] = true;
+    migrados++;
+  }
+
+  return resp({ ok: true, migrados: migrados, omitidos: omitidos });
+}
+
+function handleRetirarSyncSV(p) {
+  var triggers = ScriptApp.getProjectTriggers();
+  var eliminado = false;
+  triggers.forEach(function (t) {
+    if (t.getHandlerFunction() === "sincronizarNuevosSV") {
+      ScriptApp.deleteTrigger(t);
+      eliminado = true;
+    }
+  });
+  return resp({ ok: true, triggerEliminado: eliminado });
+}
+
+// ── Migración única: EG_Inscritos histórico → Sheet nuevo ────────
+// EG_Inscritos nunca tuvo handlers de escritura desde el portal (100% manual
+// hasta ahora) — solo hace falta migrar los datos y apuntar escuela-geb.html
+// al Sheet nuevo. "Nivel" (col F vieja, ej. "Preparatoria") SÍ se usa activamente
+// en escuela-geb.html (pills, filtro, {Nivel} en copys) — se agrega como 10ª
+// columna propia en el Sheet nuevo (no estaba en el diseño original del
+// esquema unificado). El Requiere_Seguimiento viejo (col I) no es confiable
+// (traía "No" para activos y "Si" para inactivos, al revés de la convención
+// unificada), así que se ignora y se deriva solo del Estado, igual que en RA/SV.
+function handleMigrarEGHistorico(p) {
+  var wsViejo = SpreadsheetApp.openById(SHEET_HISTORICO_ID).getSheetByName("EG_Inscritos");
+  var wsNuevo = SpreadsheetApp.openById(SHEET_NUEVO_ID).getSheetByName("EG_Inscritos");
+  if (!wsViejo) return resp({ ok: false, error: "No se encontró EG_Inscritos en el Sheet histórico" });
+  if (!wsNuevo) return resp({ ok: false, error: "No se encontró EG_Inscritos en el Sheet nuevo" });
+
+  if (!wsNuevo.getRange(1, 10).getValue()) wsNuevo.getRange(1, 10).setValue("Nivel");
+
+  var datosViejos = wsViejo.getDataRange().getValues();
+  var datosNuevos = wsNuevo.getDataRange().getValues();
+  var yaExisten = {};
+  for (var j = 1; j < datosNuevos.length; j++) {
+    var n = String(datosNuevos[j][0] || "").trim().toLowerCase();
+    if (n) yaExisten[n] = true;
+  }
+
+  var migrados = 0, omitidos = 0;
+
+  for (var i = 1; i < datosViejos.length; i++) {
+    var nombre = String(datosViejos[i][0] || "").trim();
+    if (!nombre || nombre === "Nombre") continue;
+    var key = nombre.toLowerCase();
+    if (yaExisten[key]) { omitidos++; continue; }
+
+    var sucursal      = datosViejos[i][1] || "";
+    var telefono      = datosViejos[i][2] || "";
+    var diagnosticoEdu = datosViejos[i][3] || "";
+    var modalidad     = datosViejos[i][4] || "";
+    var nivel         = datosViejos[i][5] || "";
+    var estadoViejo   = String(datosViejos[i][6] || "").trim().toLowerCase();
+    var fechaAlta     = datosViejos[i][7] || "";
+
+    var esBaja = estadoViejo === "inactivo" || estadoViejo === "baja";
+    var estadoNuevo = esBaja ? "Baja" : "Activo";
+    var seguimientoNuevo = esBaja ? "No" : "";
+
+    wsNuevo.appendRow([nombre, sucursal, telefono, fechaAlta, estadoNuevo, seguimientoNuevo, "", modalidad, diagnosticoEdu, nivel]);
+    yaExisten[key] = true;
+    migrados++;
+  }
+
+  return resp({ ok: true, migrados: migrados, omitidos: omitidos });
+}
+
+function handleRetirarSyncEG(p) {
+  var triggers = ScriptApp.getProjectTriggers();
+  var eliminado = false;
+  triggers.forEach(function (t) {
+    if (t.getHandlerFunction() === "sincronizarNuevosEG") {
+      ScriptApp.deleteTrigger(t);
+      eliminado = true;
+    }
+  });
+  return resp({ ok: true, triggerEliminado: eliminado });
+}
+
+// ── Escuela GEB: acciones del panel (Sheet nuevo) ────────────────
+// Cols EG_Inscritos en SHEET_NUEVO_ID: A=Nombre, B=Sucursal, C=Telefono_WA,
+// D=Fecha_Inscripcion, E=Estado, F=Requiere_Seguimiento, G=Notas, H=Modalidad,
+// I=Diagnostico_Edu, J=Nivel. Antes, "marcar atendido" era un alert() pidiendo
+// editar el Sheet a mano — reemplazado por un handler real, igual que RA/SV/AP.
+function egSheetNuevo_() {
+  return SpreadsheetApp.openById(SHEET_NUEVO_ID).getSheetByName("EG_Inscritos");
+}
+
+function handleEgMarcarAtendido(p) {
+  var ws = egSheetNuevo_();
+  if (!ws) return resp({ ok: false, error: "Pestaña EG_Inscritos no encontrada en el Sheet nuevo" });
+
+  var nombre = (p.nombre || "").trim();
+  var data   = ws.getDataRange().getValues();
 
   for (var i = 1; i < data.length; i++) {
-    if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()
-        && String(data[i][1]).trim() === numSesion) {
-      ws.getRange(i + 1, 6).setValue(p.asistio || "");
-      ws.getRange(i + 1, 8).setValue(p.notas || "");
-      found = true;
-      break;
+    if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
+      ws.getRange(i + 1, 6).setValue(""); // Requiere_Seguimiento (col F)
+      return resp({ ok: true });
     }
   }
 
-  if (!found) {
-    ws.appendRow([nombre, numSesion, "", "", "", p.asistio || "", "", p.notas || ""]);
+  return resp({ ok: false, error: "No se encontró a " + nombre + " en EG_Inscritos" });
+}
+
+function handleEgBaja(p) {
+  var ws = egSheetNuevo_();
+  if (!ws) return resp({ ok: false, error: "Pestaña EG_Inscritos no encontrada en el Sheet nuevo" });
+
+  var nombre = (p.nombre || "").trim();
+  var data   = ws.getDataRange().getValues();
+
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
+      ws.getRange(i + 1, 5).setValue("Baja"); // Estado (col E)
+      ws.getRange(i + 1, 6).setValue("No");   // Requiere_Seguimiento (col F)
+      return resp({ ok: true });
+    }
   }
 
-  // Actualizar Sesiones_Tomadas y Estado en AP_Inscritos
-  var wsIns = SS.getSheetByName("AP_Inscritos");
-  if (wsIns) {
-    var insData = wsIns.getDataRange().getValues();
-    for (var j = 1; j < insData.length; j++) {
-      if (String(insData[j][0]).trim().toLowerCase() === nombre.toLowerCase()) {
-        // Contar sesiones con Asistio = Sí
-        var sesData = ws.getDataRange().getValues();
-        var count = 0;
-        for (var k = 1; k < sesData.length; k++) {
-          if (String(sesData[k][0]).trim().toLowerCase() === nombre.toLowerCase()) {
-            var a = String(sesData[k][5]).trim().toLowerCase();
-            if (a === "sí" || a === "si") count++;
-          }
-        }
-        wsIns.getRange(j + 1, 11).setValue(count); // Sesiones_Tomadas (col K, índice 10)
+  return resp({ ok: false, error: "No se encontró a " + nombre + " en EG_Inscritos" });
+}
 
-        var totalSesiones = parseInt(insData[j][9]) || 5;
-        if (count >= totalSesiones) {
-          wsIns.getRange(j + 1, 8).setValue("Completó");
-        } else if (p.asistio === "No") {
-          wsIns.getRange(j + 1, 8).setValue("Sesión pendiente");
-        }
-        wsIns.getRange(j + 1, 12).setValue(""); // Requiere_Seguimiento: ya se dio seguimiento
+// Diagnóstico educativo (col I): se captura al alta (altas.html) pero también se
+// puede poner/corregir desde el panel — alimenta las estadísticas de escolaridad
+// y rezago, que ya no dependen de Concentrado.
+function handleEgDiagnostico(p) {
+  var ws = egSheetNuevo_();
+  if (!ws) return resp({ ok: false, error: "Pestaña EG_Inscritos no encontrada en el Sheet nuevo" });
+
+  var nombre = (p.nombre || "").trim();
+  var data   = ws.getDataRange().getValues();
+
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
+      ws.getRange(i + 1, 9).setValue(p.diagnosticoEdu || ""); // Diagnostico_Edu (col I)
+      return resp({ ok: true });
+    }
+  }
+
+  return resp({ ok: false, error: "No se encontró a " + nombre + " en EG_Inscritos" });
+}
+
+// ── Sembrar datos de prueba Escuela GEB (Sheet nuevo) — solo desarrollo ──
+// Agrega colaboradores ficticios (prefijo "PRUEBA") a Colaboradores (para
+// FechaNac, usado en el cálculo de rezago) y a EG_Inscritos, cubriendo INEA,
+// UVL, con y sin diagnóstico, activo/baja/pendiente de seguimiento.
+function sembrarPruebasEG() {
+  var ssNuevo = SpreadsheetApp.openById(SHEET_NUEVO_ID);
+  var wsColab = ssNuevo.getSheetByName("Colaboradores");
+  var ws = egSheetNuevo_();
+  if (!wsColab || !ws) { SpreadsheetApp.getUi().alert("No se encontraron Colaboradores o EG_Inscritos en el Sheet nuevo."); return; }
+
+  var colaboradores = [
+    ["PRUEBA Marisol Peña",   "Sucursal Centro", "", "", "1990-03-10", "Femenino", "3312345610", "", "", new Date()],
+    ["PRUEBA Jorge Salcido",  "Sucursal Norte",  "", "", "1985-07-22", "Masculino", "3312345611", "", "", new Date()],
+    ["PRUEBA Rosa Delgado",   "Sucursal Sur",    "", "", "2000-01-05", "Femenino", "3312345612", "", "", new Date()],
+    ["PRUEBA Iván Cortés",    "Sucursal Centro", "", "", "1978-11-30", "Masculino", "3312345613", "", "", new Date()]
+  ];
+  wsColab.getRange(wsColab.getLastRow() + 1, 1, colaboradores.length, 10).setValues(colaboradores);
+
+  var hoy = new Date();
+  var inscritos = [
+    ["PRUEBA Marisol Peña",  "Sucursal Centro", "3312345610", hoy, "Activo", "Sí", "", "INEA", "Secundaria", ""],
+    ["PRUEBA Jorge Salcido", "Sucursal Norte",  "3312345611", hoy, "Activo", "", "", "INEA", "Primaria", ""],
+    ["PRUEBA Rosa Delgado",  "Sucursal Sur",    "3312345612", hoy, "Activo", "", "", "UVL", "Preparatoria", ""],
+    ["PRUEBA Iván Cortés",   "Sucursal Centro", "3312345613", hoy, "Baja", "No", "", "INEA", "Secundaria", ""]
+  ];
+  ws.getRange(ws.getLastRow() + 1, 1, inscritos.length, 10).setValues(inscritos);
+
+  SpreadsheetApp.getUi().alert("4 colaboradores de prueba agregados a Colaboradores + EG_Inscritos (Sheet nuevo).");
+}
+
+// ── Atención Psicológica (Sheet NUEVO desde 2026-07-04) ──────────
+// Cols AP_Inscritos en SHEET_NUEVO_ID: A=Nombre, B=Sucursal, C=Telefono_WA,
+// D=Fecha_Alta, E=Estado, F=Requiere_Seguimiento, G=Notas, H=Modalidad_Servicio,
+// I=Modalidad_Sesion, J=Urgencia, K=Total_Sesiones, L=Sesiones_Tomadas,
+// M=Progreso_Sesiones, N=Diagnostico_Inicial, O=Diagnostico_Final.
+// Estado (col E) unifica lo que antes eran DOS columnas separadas
+// (Activo_Programa manual + Estado de progreso automático): ahora es un solo
+// campo con valores "Lista de espera" | "Activo" | "Sesión pendiente" (activo,
+// pero faltó a una sesión) | "Completó" | "Baja". El Sheet histórico (SS) ya NO
+// se toca para esta iniciativa — ver INSTRUCCIONES_CRM.md.
+function apSheetNuevo_() {
+  return SpreadsheetApp.openById(SHEET_NUEVO_ID).getSheetByName("AP_Inscritos");
+}
+function apSesionesSheetNuevo_() {
+  return SpreadsheetApp.openById(SHEET_NUEVO_ID).getSheetByName("AP_Sesiones");
+}
+
+// ── Atención Psicológica: Registrar asistencia en lote (pasar lista) ──
+// Cols AP_Sesiones (Sheet nuevo): A=Nombre, B=Num_Sesion, C=Fecha_Programada,
+//                   D=Hora_Programada, E=Modalidad, F=Asistio, G=Cambio_Modalidad, H=Notas_Sesion
+// p.registros = [{nombre, numSesion, asistio}, ...] — uno por cada persona marcada
+// en el pop-up "Pasar lista" (los que se dejan en "sin cambio" no llegan aquí).
+function handleApAsistenciaLote(p) {
+  var registros = p.registros || [];
+  if (!registros.length) return resp({ ok: true });
+
+  var ws = apSesionesSheetNuevo_();
+  var wsIns = apSheetNuevo_();
+  if (!ws || !wsIns) return resp({ ok: false, error: "Pestaña AP_Sesiones o AP_Inscritos no encontrada en el Sheet nuevo" });
+
+  var data = ws.getDataRange().getValues();
+
+  registros.forEach(function (r) {
+    var nombre    = (r.nombre || "").trim();
+    var numSesion = String(r.numSesion || "").trim();
+    var asistio   = r.asistio || "";
+    var found     = false;
+
+    for (var i = 1; i < data.length; i++) {
+      if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()
+          && String(data[i][1]).trim() === numSesion) {
+        ws.getRange(i + 1, 6).setValue(asistio);
+        data[i][5] = asistio;
+        found = true;
         break;
       }
     }
-  }
+
+    if (!found) {
+      ws.appendRow([nombre, numSesion, "", "", "", asistio, "", ""]);
+      data.push([nombre, numSesion, "", "", "", asistio, "", ""]);
+    }
+  });
+
+  // Recalcular Sesiones_Tomadas y Estado una sola vez por persona, con los datos ya actualizados
+  var insData = wsIns.getDataRange().getValues();
+  registros.forEach(function (r) {
+    var nombre = (r.nombre || "").trim();
+    for (var j = 1; j < insData.length; j++) {
+      if (String(insData[j][0]).trim().toLowerCase() === nombre.toLowerCase()) {
+        var count = 0;
+        for (var k = 1; k < data.length; k++) {
+          if (String(data[k][0]).trim().toLowerCase() === nombre.toLowerCase()) {
+            var a = String(data[k][5]).trim().toLowerCase();
+            if (a === "sí" || a === "si") count++;
+          }
+        }
+        wsIns.getRange(j + 1, 12).setValue(count); // Sesiones_Tomadas (col L)
+
+        var totalSesiones = parseInt(insData[j][10]) || 5; // Total_Sesiones (col K, índice 10)
+        if (count >= totalSesiones) {
+          wsIns.getRange(j + 1, 5).setValue("Completó"); // Estado (col E)
+        } else if (r.asistio === "No") {
+          wsIns.getRange(j + 1, 5).setValue("Sesión pendiente"); // Estado (col E)
+        } else {
+          wsIns.getRange(j + 1, 5).setValue("Activo"); // Estado (col E)
+        }
+        wsIns.getRange(j + 1, 6).setValue(""); // Requiere_Seguimiento (col F): ya se dio seguimiento
+        break;
+      }
+    }
+  });
 
   return resp({ ok: true });
 }
 
 // ── Atención Psicológica: Cambio de modalidad ───────────────────
 function handleApCambioModalidad(p) {
-  var ws = SS.getSheetByName("AP_Sesiones");
-  if (!ws) return resp({ ok: false, error: "Pestaña AP_Sesiones no encontrada" });
+  var ws = apSesionesSheetNuevo_();
+  if (!ws) return resp({ ok: false, error: "Pestaña AP_Sesiones no encontrada en el Sheet nuevo" });
 
   var nombre    = (p.nombre || "").trim();
   var numSesion = String(p.numSesion || "").trim();
@@ -427,12 +614,12 @@ function handleApCambioModalidad(p) {
   }
 
   // Ya se dio seguimiento a esta persona desde el panel
-  var wsIns2 = SS.getSheetByName("AP_Inscritos");
+  var wsIns2 = apSheetNuevo_();
   if (wsIns2) {
     var insData2 = wsIns2.getDataRange().getValues();
     for (var m = 1; m < insData2.length; m++) {
       if (String(insData2[m][0]).trim().toLowerCase() === nombre.toLowerCase()) {
-        wsIns2.getRange(m + 1, 12).setValue("");
+        wsIns2.getRange(m + 1, 6).setValue(""); // Requiere_Seguimiento (col F)
         break;
       }
     }
@@ -442,13 +629,13 @@ function handleApCambioModalidad(p) {
 }
 
 // ── Atención Psicológica: Sesiones Impulso43 ────────────────────
-// Estado (col H) es exclusivo del script: solo lo mueve a "Completó" al llegar
-// al total de sesiones, igual que handleApAsistencia hace para ELA. El resto del
-// tiempo se deja vacío — el portal decide "Contactado" vs "En seguimiento" a partir
-// de Sesiones_Tomadas, no hace falta que nadie lo escriba a mano.
+// Estado (col E) solo se mueve a "Completó" al llegar al total de sesiones,
+// igual que handleApAsistenciaLote hace para ELA. El resto del tiempo se deja
+// tal cual ("Activo", puesto al alta) — el portal decide "Contactado" vs "En
+// seguimiento" a partir de Sesiones_Tomadas, no hace falta que nadie lo escriba a mano.
 function handleApSesionesI43(p) {
-  var ws = SS.getSheetByName("AP_Inscritos");
-  if (!ws) return resp({ ok: false, error: "Pestaña AP_Inscritos no encontrada" });
+  var ws = apSheetNuevo_();
+  if (!ws) return resp({ ok: false, error: "Pestaña AP_Inscritos no encontrada en el Sheet nuevo" });
 
   var nombre = (p.nombre || "").trim();
   var data   = ws.getDataRange().getValues();
@@ -456,12 +643,12 @@ function handleApSesionesI43(p) {
 
   for (var i = 1; i < data.length; i++) {
     if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
-      ws.getRange(i + 1, 11).setValue(sesionesTomadas);
-      var totalSesiones = parseInt(data[i][9]) || 5;
+      ws.getRange(i + 1, 12).setValue(sesionesTomadas); // Sesiones_Tomadas (col L)
+      var totalSesiones = parseInt(data[i][10]) || 5; // Total_Sesiones (col K, índice 10)
       if (sesionesTomadas >= totalSesiones) {
-        ws.getRange(i + 1, 8).setValue("Completó");
+        ws.getRange(i + 1, 5).setValue("Completó"); // Estado (col E)
       }
-      ws.getRange(i + 1, 12).setValue(""); // Requiere_Seguimiento: ya se dio seguimiento
+      ws.getRange(i + 1, 6).setValue(""); // Requiere_Seguimiento (col F): ya se dio seguimiento
       break;
     }
   }
@@ -471,19 +658,19 @@ function handleApSesionesI43(p) {
 
 // ── Atención Psicológica: Marcar de baja ────────────────────────
 // La persona ya no está en la empresa pero se conserva su registro para
-// indicadores históricos. Activo_Programa (col D) pasa a "Inactivo" y
-// Requiere_Seguimiento (col L) se marca "No" (no aplica más seguimiento).
+// indicadores históricos. Estado (col E) pasa a "Baja" y Requiere_Seguimiento
+// (col F) se marca "No" (no aplica más seguimiento) — misma convención que RA/SV/EG.
 function handleApBaja(p) {
-  var ws = SS.getSheetByName("AP_Inscritos");
-  if (!ws) return resp({ ok: false, error: "Pestaña AP_Inscritos no encontrada" });
+  var ws = apSheetNuevo_();
+  if (!ws) return resp({ ok: false, error: "Pestaña AP_Inscritos no encontrada en el Sheet nuevo" });
 
   var nombre = (p.nombre || "").trim();
   var data   = ws.getDataRange().getValues();
 
   for (var i = 1; i < data.length; i++) {
     if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
-      ws.getRange(i + 1, 4).setValue("Inactivo");  // Activo_Programa (col D)
-      ws.getRange(i + 1, 12).setValue("No");        // Requiere_Seguimiento (col L)
+      ws.getRange(i + 1, 5).setValue("Baja"); // Estado (col E)
+      ws.getRange(i + 1, 6).setValue("No");   // Requiere_Seguimiento (col F)
       return resp({ ok: true });
     }
   }
@@ -492,12 +679,12 @@ function handleApBaja(p) {
 }
 
 // ── Atención Psicológica: Diagnóstico inicial/final ─────────────
-// Cols N/O de AP_Inscritos (agregadas al final para no correr el resto de
-// columnas). Escala numérica de severidad — el panel colorea en verde/
-// amarillo/rojo comparando ambos valores, esto solo los guarda tal cual.
+// Cols N/O de AP_Inscritos (Sheet nuevo). Escala numérica de severidad — el
+// panel colorea en verde/amarillo/rojo comparando ambos valores, esto solo los
+// guarda tal cual.
 function handleApDiagnostico(p) {
-  var ws = SS.getSheetByName("AP_Inscritos");
-  if (!ws) return resp({ ok: false, error: "Pestaña AP_Inscritos no encontrada" });
+  var ws = apSheetNuevo_();
+  if (!ws) return resp({ ok: false, error: "Pestaña AP_Inscritos no encontrada en el Sheet nuevo" });
 
   var nombre = (p.nombre || "").trim();
   var data   = ws.getDataRange().getValues();
@@ -513,23 +700,265 @@ function handleApDiagnostico(p) {
   return resp({ ok: false, error: "No se encontró a " + nombre + " en AP_Inscritos" });
 }
 
-// ── Reto Ahorro: Editar semana actual desde el panel ────────────
-// Cols RA_Inscritos: D=Semana_Actual, F=Requiere_Seguimiento, G=Estado,
-// H=Fecha_Ultima_Semana (las 2 últimas agregadas al final, ver reto-ahorro.html).
+// ── Configuración única: crear AP_Sesiones / AP_Copys en el Sheet nuevo ──
+// AP_Inscritos ya existe en el Sheet nuevo (lo crea handleAltaUnificada), pero
+// AP_Sesiones (detalle por sesión) y AP_Copys (plantillas de WhatsApp) todavía
+// no. Esta función crea ambas pestañas con encabezado si no existen, y copia
+// verbatim las filas de AP_Copys del Sheet histórico (son plantillas de
+// mensaje, no datos de personas — se pueden copiar tal cual). Idempotente: si
+// AP_Copys en el Sheet nuevo ya tiene filas de datos, no vuelve a copiar.
+function configurarAPSheetNuevo() {
+  var ssNuevo = SpreadsheetApp.openById(SHEET_NUEVO_ID);
+  var ui = SpreadsheetApp.getUi();
+
+  var wsSesiones = ssNuevo.getSheetByName("AP_Sesiones");
+  if (!wsSesiones) {
+    wsSesiones = ssNuevo.insertSheet("AP_Sesiones");
+    wsSesiones.appendRow(["Nombre", "Num_Sesion", "Fecha_Programada", "Hora_Programada", "Modalidad", "Asistio", "Cambio_Modalidad", "Notas_Sesion"]);
+  }
+
+  var wsCopys = ssNuevo.getSheetByName("AP_Copys");
+  if (!wsCopys) {
+    wsCopys = ssNuevo.insertSheet("AP_Copys");
+    wsCopys.appendRow(["Momento", "Servicio", "Copy_Texto", "Numero_WA", "Activo"]);
+  }
+
+  var copysCopiados = false;
+  if (wsCopys.getLastRow() < 2) {
+    var wsCopysViejo = SpreadsheetApp.openById(SHEET_HISTORICO_ID).getSheetByName("AP_Copys");
+    if (wsCopysViejo && wsCopysViejo.getLastRow() >= 2) {
+      var filas = wsCopysViejo.getRange(2, 1, wsCopysViejo.getLastRow() - 1, 5).getValues();
+      wsCopys.getRange(2, 1, filas.length, 5).setValues(filas);
+      copysCopiados = true;
+    }
+  }
+
+  ui.alert("Listo. AP_Sesiones y AP_Copys ya existen en el Sheet nuevo" +
+    (copysCopiados ? " (copys copiados del Sheet histórico)." : "."));
+}
+
+// ── Sembrar datos de prueba AP (Sheet nuevo) — solo para desarrollo ──
+// Agrega un puñado de colaboradores ficticios (prefijo "PRUEBA") cubriendo
+// cada estado del panel: Lista de espera, Activo ELA con sesión pendiente,
+// Activo Impulso43, Completó, y Baja. Pensado para probar el flujo end-to-end
+// sin tocar datos reales de nadie. Se puede borrar el bloque de filas "PRUEBA"
+// a mano en cualquier momento antes de ir a producción.
+function sembrarPruebasAP() {
+  var ws = apSheetNuevo_();
+  var wsSesiones = apSesionesSheetNuevo_();
+  if (!ws || !wsSesiones) { SpreadsheetApp.getUi().alert("Corre primero 'Configurar AP en Sheet nuevo (1 vez)'."); return; }
+
+  var hoy = new Date();
+  var filas = [
+    ["PRUEBA Ana Martínez",   "Sucursal Centro", "3312345601", hoy, "Lista de espera", "Sí", "", "ELA", "Virtual", "Alta", 5, 0, "", "", ""],
+    ["PRUEBA Luis Herrera",   "Sucursal Norte",  "3312345602", hoy, "Sesión pendiente", "", "", "ELA", "Presencial", "Media", 5, 2, "", "", ""],
+    ["PRUEBA Carla Jiménez",  "Sucursal Sur",    "3312345603", hoy, "Activo", "", "", "Impulso43", "Virtual", "Baja", 8, 3, "", "6", ""],
+    ["PRUEBA Diego Ramos",    "Sucursal Centro", "3312345604", hoy, "Completó", "", "", "ELA", "Híbrida", "Baja", 5, 5, "", "8", "3"],
+    ["PRUEBA Sofía Torres",   "Sucursal Norte",  "3312345605", hoy, "Baja", "No", "", "ELA", "Virtual", "Baja", 5, 1, "", "", ""]
+  ];
+  ws.getRange(ws.getLastRow() + 1, 1, filas.length, 15).setValues(filas);
+
+  var sesiones = [
+    ["PRUEBA Luis Herrera", 3, "", "", "Presencial", "", "", ""],
+    ["PRUEBA Carla Jiménez", 4, "", "", "Virtual", "", "", ""]
+  ];
+  wsSesiones.getRange(wsSesiones.getLastRow() + 1, 1, sesiones.length, 8).setValues(sesiones);
+
+  SpreadsheetApp.getUi().alert("5 colaboradores de prueba agregados a AP_Inscritos (Sheet nuevo).");
+}
+
+// ── Migración única: AP_Inscritos histórico → Sheet nuevo ────────
+// Igual patrón que handleMigrarRAHistorico: idempotente (omite a quien ya
+// existe en el Sheet nuevo por nombre). NO se ha ejecutado todavía — pendiente
+// de decisión con el equipo sobre qué registros reales del Sheet histórico
+// vale la pena migrar (ver auditoría: AP_Inscritos histórico tiene casi todo
+// vacío, parece un censo importado más que datos operativos).
+function handleMigrarAPHistorico(p) {
+  var wsViejo = SpreadsheetApp.openById(SHEET_HISTORICO_ID).getSheetByName("AP_Inscritos");
+  var wsNuevo = apSheetNuevo_();
+  if (!wsViejo) return resp({ ok: false, error: "No se encontró AP_Inscritos en el Sheet histórico" });
+  if (!wsNuevo) return resp({ ok: false, error: "No se encontró AP_Inscritos en el Sheet nuevo" });
+
+  var datosViejos = wsViejo.getDataRange().getValues();
+  var datosNuevos = wsNuevo.getDataRange().getValues();
+  var yaExisten = {};
+  for (var j = 1; j < datosNuevos.length; j++) {
+    var n = String(datosNuevos[j][0] || "").trim().toLowerCase();
+    if (n) yaExisten[n] = true;
+  }
+
+  var migrados = [], omitidos = [];
+
+  for (var i = 1; i < datosViejos.length; i++) {
+    var nombre = String(datosViejos[i][0] || "").trim();
+    if (!nombre || nombre === "Nombre") continue;
+    var key = nombre.toLowerCase();
+    if (yaExisten[key]) { omitidos.push(nombre); continue; }
+
+    var sucursal = datosViejos[i][1] || "";
+    var telefono = datosViejos[i][2] || "";
+    var activoProgramaViejo = String(datosViejos[i][3] || "").trim().toLowerCase();
+    var modalidadServicio = datosViejos[i][4] || "";
+    var modalidadSesion = datosViejos[i][5] || "";
+    var urgencia = datosViejos[i][6] || "";
+    var estadoViejo = String(datosViejos[i][7] || "").trim().toLowerCase();
+    var totalSesiones = datosViejos[i][9] || 5;
+    var sesionesTomadas = datosViejos[i][10] || 0;
+    var diagInicial = datosViejos[i][13] || "";
+    var diagFinal = datosViejos[i][14] || "";
+
+    var estadoNuevo = activoProgramaViejo === "inactivo" ? "Baja"
+      : activoProgramaViejo.indexOf("lista") === 0 ? "Lista de espera"
+      : (estadoViejo === "completó" || estadoViejo === "completo") ? "Completó"
+      : (estadoViejo === "sesión pendiente" || estadoViejo === "sesion pendiente") ? "Sesión pendiente"
+      : "Activo";
+    var seguimientoNuevo = activoProgramaViejo === "inactivo" ? "No" : "";
+
+    wsNuevo.appendRow([nombre, sucursal, telefono, new Date(), estadoNuevo, seguimientoNuevo, "",
+      modalidadServicio, modalidadSesion, urgencia, totalSesiones, sesionesTomadas, "", diagInicial, diagFinal]);
+    yaExisten[key] = true;
+    migrados.push(nombre);
+  }
+
+  return resp({ ok: true, migrados: migrados.length, omitidos: omitidos.length });
+}
+
+// ── Retirar la sincronización antigua de Atención Psicológica ───
+// Una vez migrado AP al Sheet nuevo (altas.html → handleAltaUnificada), el
+// trigger horario y el onEdit que vigilaban el Sheet histórico ya no deben
+// seguir corriendo. El onEdit (líneas ~44-58) solo afecta al Sheet histórico
+// y puede desactivarse borrando el trigger instalado, si lo hubiera; el propio
+// onEdit simple (no instalable) no se puede "eliminar" vía código, pero deja de
+// importar en cuanto el equipo deje de capturar altas en el Sheet histórico.
+function handleRetirarSyncAP(p) {
+  var triggers = ScriptApp.getProjectTriggers();
+  var eliminado = false;
+  triggers.forEach(function (t) {
+    if (t.getHandlerFunction() === "sincronizarNuevosAP") {
+      ScriptApp.deleteTrigger(t);
+      eliminado = true;
+    }
+  });
+  return resp({ ok: true, triggerEliminado: eliminado });
+}
+
+// ── Alta unificada (Sheet nuevo) ─────────────────────────────────
+// Escribe en SHEET_NUEVO_ID, NUNCA en SS (el Sheet histórico). Una sola alta
+// desde el portal crea la fila en Colaboradores (si no existía) + una fila por
+// cada iniciativa marcada, con las 7 columnas base estandarizadas
+// (Nombre, Sucursal, Telefono_WA, Fecha_Alta, Estado, Requiere_Seguimiento, Notas)
+// + las específicas de esa iniciativa. Requiere_Seguimiento siempre nace en "Sí".
+// Si la persona ya tenía fila en alguna iniciativa marcada, esa iniciativa se
+// omite (no se duplica) y se reporta en "omitidas" para que se revise a mano.
+const ALTA_INICIATIVAS = {
+  AP: {
+    sheet: "AP_Inscritos",
+    campos: function (d) {
+      return [d.modalidadServicio || "", d.modalidadSesion || "", d.urgencia || "",
+              d.totalSesiones || 5, 0, "", "", ""]; // Sesiones_Tomadas=0, Progreso/Diagnósticos vacíos
+    }
+  },
+  RA: {
+    sheet: "RA_Inscritos",
+    campos: function (d) { return ["", ""]; } // Semana_Actual, Fecha_Ultima_Semana
+  },
+  SV: {
+    sheet: "SV_Inscritos",
+    campos: function (d) { return [d.tipoSangre || "", d.mesGuardia || ""]; }
+  },
+  EG: {
+    sheet: "EG_Inscritos",
+    campos: function (d) { return [d.modalidad || "", d.diagnosticoEdu || "", ""]; } // Diagnostico_Educativo, Nivel
+  },
+  RE: {
+    sheet: "RE_Interesados",
+    campos: function (d) { return []; } // solo las 7 columnas base — sin campos propios
+  },
+  CS: {
+    sheet: "CS_Inscritos",
+    campos: function (d) { return [""]; } // Fecha_Camino vacía al alta
+  },
+  IG: {
+    sheet: "IG_Inscritos",
+    campos: function (d) { return ["", "", "", ""]; } // Plan_Vida, Presupuesto, Ahorro, Movilidad_Social — vacíos al alta
+  },
+  BE: {
+    sheet: "BE_Inscritos",
+    campos: function (d) { return [d.universidad || "", d.nivel || "", d.carrera || "", ""]; } // Universidad, Nivel, Carrera, Inscribio
+  },
+  EA: {
+    sheet: "EA_Lideres",
+    campos: function (d) { return [0]; } // Total_Cilindros=0 al alta
+  }
+};
+
+function handleAltaUnificada(p) {
+  var ssNuevo = SpreadsheetApp.openById(SHEET_NUEVO_ID);
+  var nombre = (p.nombre || "").trim();
+  if (!nombre) return resp({ ok: false, error: "Falta el nombre" });
+
+  var wsColab = ssNuevo.getSheetByName("Colaboradores");
+  if (!wsColab) return resp({ ok: false, error: "Pestaña Colaboradores no encontrada en el Sheet nuevo" });
+
+  var colabData = wsColab.getDataRange().getValues();
+  var yaExisteColab = false;
+  for (var c = 1; c < colabData.length; c++) {
+    if (String(colabData[c][0]).trim().toLowerCase() === nombre.toLowerCase()) { yaExisteColab = true; break; }
+  }
+  if (!yaExisteColab) {
+    wsColab.appendRow([
+      nombre, p.sucursal || "", p.unidad || "", p.correo || "", p.fechaNac || "",
+      p.genero || "", p.telefono || "", p.turno || "", p.rol || "", new Date()
+    ]);
+  }
+
+  var creadas = [];
+  var omitidas = [];
+
+  (p.iniciativas || []).forEach(function (ini) {
+    var cfg = ALTA_INICIATIVAS[ini.tipo];
+    if (!cfg) return;
+    var ws = ssNuevo.getSheetByName(cfg.sheet);
+    if (!ws) { omitidas.push(cfg.sheet + " (pestaña no encontrada)"); return; }
+
+    var data = ws.getDataRange().getValues();
+    var yaExiste = false;
+    for (var i = 1; i < data.length; i++) {
+      if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) { yaExiste = true; break; }
+    }
+    if (yaExiste) { omitidas.push(cfg.sheet); return; }
+
+    var base = [nombre, ini.sucursal || p.sucursal || "", p.telefono || "", new Date(), ini.estado || "Activo", "Sí", ini.notas || ""];
+    ws.appendRow(base.concat(cfg.campos(ini)));
+    creadas.push(cfg.sheet);
+  });
+
+  return resp({ ok: true, creadas: creadas, omitidas: omitidas });
+}
+
+// ── Reto Ahorro (Sheet NUEVO desde 2026-07-04) ───────────────────
+// Cols RA_Inscritos en SHEET_NUEVO_ID: A=Nombre, B=Sucursal, C=Telefono_WA,
+// D=Fecha_Alta, E=Estado, F=Requiere_Seguimiento, G=Notas, H=Semana_Actual,
+// I=Fecha_Ultima_Semana. El Sheet histórico (SS) ya NO se toca para esta
+// iniciativa — ver INSTRUCCIONES_CRM.md.
+function raSheetNuevo_() {
+  return SpreadsheetApp.openById(SHEET_NUEVO_ID).getSheetByName("RA_Inscritos");
+}
+
 // Actualizar la semana cuenta como seguimiento dado: limpia el flag y reinicia
 // el reloj de atraso que usa revisarAtrasosRA().
 function handleRaActualizarSemana(p) {
-  var ws = SS.getSheetByName("RA_Inscritos");
-  if (!ws) return resp({ ok: false, error: "Pestaña RA_Inscritos no encontrada" });
+  var ws = raSheetNuevo_();
+  if (!ws) return resp({ ok: false, error: "Pestaña RA_Inscritos no encontrada en el Sheet nuevo" });
 
   var nombre = (p.nombre || "").trim();
   var data   = ws.getDataRange().getValues();
 
   for (var i = 1; i < data.length; i++) {
     if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
-      ws.getRange(i + 1, 4).setValue(parseInt(p.semana, 10) || 0); // Semana_Actual (col D)
+      ws.getRange(i + 1, 8).setValue(parseInt(p.semana, 10) || 0); // Semana_Actual (col H)
       ws.getRange(i + 1, 6).setValue("");                          // Requiere_Seguimiento (col F)
-      ws.getRange(i + 1, 8).setValue(new Date());                  // Fecha_Ultima_Semana (col H)
+      ws.getRange(i + 1, 9).setValue(new Date());                  // Fecha_Ultima_Semana (col I)
       return resp({ ok: true });
     }
   }
@@ -539,8 +968,8 @@ function handleRaActualizarSemana(p) {
 
 // ── Reto Ahorro: Marcar atendido (limpia el flag sin cambiar semana) ──
 function handleRaMarcarAtendido(p) {
-  var ws = SS.getSheetByName("RA_Inscritos");
-  if (!ws) return resp({ ok: false, error: "Pestaña RA_Inscritos no encontrada" });
+  var ws = raSheetNuevo_();
+  if (!ws) return resp({ ok: false, error: "Pestaña RA_Inscritos no encontrada en el Sheet nuevo" });
 
   var nombre = (p.nombre || "").trim();
   var data   = ws.getDataRange().getValues();
@@ -556,17 +985,18 @@ function handleRaMarcarAtendido(p) {
 }
 
 // ── Reto Ahorro: Marcar de baja ──────────────────────────────────
-// Estado (col G) pasa a "Baja". Se conserva el registro para indicadores.
+// Estado (col E) pasa a "Baja". Se conserva el registro para indicadores.
 function handleRaBaja(p) {
-  var ws = SS.getSheetByName("RA_Inscritos");
-  if (!ws) return resp({ ok: false, error: "Pestaña RA_Inscritos no encontrada" });
+  var ws = raSheetNuevo_();
+  if (!ws) return resp({ ok: false, error: "Pestaña RA_Inscritos no encontrada en el Sheet nuevo" });
 
   var nombre = (p.nombre || "").trim();
   var data   = ws.getDataRange().getValues();
 
   for (var i = 1; i < data.length; i++) {
     if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
-      ws.getRange(i + 1, 7).setValue("Baja"); // Estado (col G)
+      ws.getRange(i + 1, 5).setValue("Baja"); // Estado (col E)
+      ws.getRange(i + 1, 6).setValue("No");   // Requiere_Seguimiento (col F): baja de esta iniciativa
       return resp({ ok: true });
     }
   }
@@ -576,22 +1006,22 @@ function handleRaBaja(p) {
 
 // ── Reto Ahorro: marcar atraso automático (>3 semanas sin actualizar) ──
 // Corre diario (ver configurarAlertasAtrasoRA). Si un inscrito no dado de baja
-// no ha tenido su Semana_Actual actualizada (Fecha_Ultima_Semana, col H) en más
-// de 21 días —usando Fecha_Inscripcion (col E) como respaldo si nunca se ha
+// no ha tenido su Semana_Actual actualizada (Fecha_Ultima_Semana, col I) en más
+// de 21 días —usando Fecha_Alta (col D) como respaldo si nunca se ha
 // actualizado— se marca Requiere_Seguimiento="Sí". Se limpia automáticamente en
 // cuanto alguien actualiza su semana desde el panel o se marca "atendido".
 function revisarAtrasosRA() {
-  var ws = SS.getSheetByName("RA_Inscritos");
+  var ws = raSheetNuevo_();
   if (!ws) return;
   var data = ws.getDataRange().getValues();
   var ahora = new Date();
   var LIMITE_MS = 21 * 24 * 60 * 60 * 1000;
 
   for (var i = 1; i < data.length; i++) {
-    var estado = String(data[i][6] || "").trim().toLowerCase(); // Estado (col G)
+    var estado = String(data[i][4] || "").trim().toLowerCase(); // Estado (col E)
     if (estado === "baja") continue;
 
-    var baseline = data[i][7] || data[i][4]; // Fecha_Ultima_Semana (H) o Fecha_Inscripcion (E)
+    var baseline = data[i][8] || data[i][3]; // Fecha_Ultima_Semana (I) o Fecha_Alta (D)
     if (!baseline) continue;
     var fechaBase = new Date(baseline);
     if (isNaN(fechaBase.getTime())) continue;
@@ -601,6 +1031,72 @@ function revisarAtrasosRA() {
       ws.getRange(i + 1, 6).setValue("Sí"); // Requiere_Seguimiento (col F)
     }
   }
+}
+
+// ── Migración única: RA_Inscritos histórico → Sheet nuevo ────────
+// Se ejecuta una sola vez (vía doPost, tipo "migrar_ra_historico") para llevar
+// los datos reales del Sheet histórico al esquema unificado. Idempotente: si
+// una persona ya existe en el Sheet nuevo, se omite (se puede correr de nuevo
+// sin duplicar). "Baja" en el Estado viejo se traduce a Requiere_Seguimiento="No"
+// (ya no aplica seguimiento) por la convención unificada; activos migran con
+// Requiere_Seguimiento vacío (ya se les venía dando seguimiento, no son altas
+// nuevas).
+function handleMigrarRAHistorico(p) {
+  var wsViejo = SpreadsheetApp.openById(SHEET_HISTORICO_ID).getSheetByName("RA_Inscritos");
+  var wsNuevo = raSheetNuevo_();
+  if (!wsViejo) return resp({ ok: false, error: "No se encontró RA_Inscritos en el Sheet histórico" });
+  if (!wsNuevo) return resp({ ok: false, error: "No se encontró RA_Inscritos en el Sheet nuevo" });
+
+  var datosViejos = wsViejo.getDataRange().getValues();
+  var datosNuevos = wsNuevo.getDataRange().getValues();
+  var yaExisten = {};
+  for (var j = 1; j < datosNuevos.length; j++) {
+    var n = String(datosNuevos[j][0] || "").trim().toLowerCase();
+    if (n) yaExisten[n] = true;
+  }
+
+  var migrados = [], omitidos = [];
+
+  for (var i = 1; i < datosViejos.length; i++) {
+    var nombre = String(datosViejos[i][0] || "").trim();
+    if (!nombre || nombre === "Nombre") continue; // vacío o fila artefacto
+    var key = nombre.toLowerCase();
+    if (yaExisten[key]) { omitidos.push(nombre); continue; }
+
+    var sucursal   = datosViejos[i][1] || "";
+    var telefono   = datosViejos[i][2] || "";
+    var semana     = datosViejos[i][3] || 0;
+    var fechaAlta  = datosViejos[i][4] || "";
+    var estadoViejo = String(datosViejos[i][6] || "").trim().toLowerCase();
+    var fechaUltimaSemana = datosViejos[i][7] || "";
+
+    var estadoNuevo = estadoViejo === "baja" ? "Baja" : "Activo";
+    var seguimientoNuevo = estadoViejo === "baja" ? "No" : "";
+
+    wsNuevo.appendRow([nombre, sucursal, telefono, fechaAlta, estadoNuevo, seguimientoNuevo, "", semana, fechaUltimaSemana]);
+    yaExisten[key] = true;
+    migrados.push(nombre);
+  }
+
+  return resp({ ok: true, migrados: migrados.length, omitidos: omitidos.length });
+}
+
+// ── Retirar la sincronización antigua de Reto Ahorro ─────────────
+// Una vez migrado RA al Sheet nuevo, el trigger horario que vigilaba Concentrado
+// sobre el Sheet histórico ya no debe seguir corriendo (las altas nuevas ahora
+// entran por altas.html → handleAltaUnificada, directo al Sheet nuevo). Dejarlo
+// activo no corrompe nada, pero seguiría agregando gente al Sheet histórico en
+// silencio, que ya nadie revisa.
+function handleRetirarSyncRA(p) {
+  var triggers = ScriptApp.getProjectTriggers();
+  var eliminado = false;
+  triggers.forEach(function (t) {
+    if (t.getHandlerFunction() === "sincronizarNuevosRA") {
+      ScriptApp.deleteTrigger(t);
+      eliminado = true;
+    }
+  });
+  return resp({ ok: true, triggerEliminado: eliminado });
 }
 
 function _asegurarTriggerDiario(fnName) {
@@ -615,12 +1111,22 @@ function configurarAlertasAtrasoRA() {
   SpreadsheetApp.getUi().alert("Listo. Cada día revisará si algún inscrito de Reto Ahorro (no dado de baja) lleva más de 3 semanas sin actualizar su semana, y marcará Requiere_Seguimiento en automático.");
 }
 
+// ── Retiro del Espíritu Santo (Sheet nuevo desde 2026-07-05) ─────
+// Migrado completo: RE_Ediciones/Asistencias/Habitaciones/Copys/Interesados
+// viven en SHEET_NUEVO_ID. Ya no depende de Concentrado (ni para nombres/
+// sucursal/género — eso ahora sale de Colaboradores — ni para el conteo
+// histórico de asistencia, que se calcula directo de RE_Asistencias).
+function reEdicionesSheetNuevo_()    { return SpreadsheetApp.openById(SHEET_NUEVO_ID).getSheetByName("RE_Ediciones"); }
+function reAsistenciasSheetNuevo_()  { return SpreadsheetApp.openById(SHEET_NUEVO_ID).getSheetByName("RE_Asistencias"); }
+function reHabitacionesSheetNuevo_() { return SpreadsheetApp.openById(SHEET_NUEVO_ID).getSheetByName("RE_Habitaciones"); }
+function reInteresadosSheetNuevo_()  { return SpreadsheetApp.openById(SHEET_NUEVO_ID).getSheetByName("RE_Interesados"); }
+
 // ── Retiro del Espíritu Santo: Alta de nueva edición ────────────
 // Cols RE_Ediciones: A=id_edicion, B=nombre_edicion, C=fechas_texto,
 //                    D=fecha_inicio, E=fecha_fin, F=lugar, G=estado, H=notas
 function handleReAltaEdicion(p) {
-  const ws = SS.getSheetByName("RE_Ediciones");
-  if (!ws) return resp({ ok: false, error: "Pestaña RE_Ediciones no encontrada" });
+  const ws = reEdicionesSheetNuevo_();
+  if (!ws) return resp({ ok: false, error: "Pestaña RE_Ediciones no encontrada en el Sheet nuevo" });
 
   const anio = p.fechaInicio ? new Date(p.fechaInicio).getFullYear() : new Date().getFullYear();
   const datos = ws.getDataRange().getValues();
@@ -649,8 +1155,8 @@ function handleReAltaEdicion(p) {
 // ── Retiro del Espíritu Santo: Alta manual de un participante ──
 // Cols RE_Asistencias: A=id_edicion, B=nombre, C=edicion_label, D=asistio, E=dio_testimonio, F=notas
 function handleReRegistro(p) {
-  const ws = SS.getSheetByName("RE_Asistencias");
-  if (!ws) return resp({ ok: false, error: "Pestaña RE_Asistencias no encontrada" });
+  const ws = reAsistenciasSheetNuevo_();
+  if (!ws) return resp({ ok: false, error: "Pestaña RE_Asistencias no encontrada en el Sheet nuevo" });
 
   const nombre = (p.nombre || "").trim();
   const idEdicion = (p.idEdicion || "").trim();
@@ -668,13 +1174,9 @@ function handleReRegistro(p) {
 }
 
 // ── Retiro del Espíritu Santo: Pase de lista en lote ────────────
-// Actualiza RE_Asistencias y, si asistio="Sí", también Concentrado (col K=Retiro).
-// Concentrado real (verificado 2026-07-03, 19 columnas): ...I=Turno, J=Psic, K=Retiro,
-// L=Impulso GEB, M=Diagnóstico educativo, N=Escuela GEB, O=Donadores, P=Ahorro,
-// Q=Biblioteca Donante, R=Biblioteca Receptor, S=Camino Santiago. Ya no existe RetiroFecha.
 function handleReAsistenciaLote(p) {
-  const ws = SS.getSheetByName("RE_Asistencias");
-  if (!ws) return resp({ ok: false, error: "Pestaña RE_Asistencias no encontrada" });
+  const ws = reAsistenciasSheetNuevo_();
+  if (!ws) return resp({ ok: false, error: "Pestaña RE_Asistencias no encontrada en el Sheet nuevo" });
 
   const idEdicion = (p.idEdicion || "").trim();
   const registros = p.registros || [];
@@ -696,22 +1198,6 @@ function handleReAsistenciaLote(p) {
     }
   });
 
-  // Sincroniza Concentrado para quienes asistieron (col 11=K=Retiro)
-  const wsConc = SS.getSheetByName("Concentrado");
-  if (wsConc) {
-    const concData = wsConc.getDataRange().getValues();
-    registros.forEach(function(reg) {
-      if (reg.asistio !== "Sí") return;
-      const nombre = (reg.nombre || "").trim().toLowerCase();
-      for (let j = 1; j < concData.length; j++) {
-        if (String(concData[j][0]).trim().toLowerCase() === nombre) {
-          wsConc.getRange(j + 1, 11).setValue("Sí");
-          break;
-        }
-      }
-    });
-  }
-
   return resp({ ok: true });
 }
 
@@ -719,8 +1205,8 @@ function handleReAsistenciaLote(p) {
 // Cols RE_Habitaciones: A=id_edicion, B=habitacion, C=genero, D-G=nombre_1..4, H=notas
 // Borra y reescribe todas las filas de la edición (el panel manda el estado completo).
 function handleReGuardarHabitaciones(p) {
-  const ws = SS.getSheetByName("RE_Habitaciones");
-  if (!ws) return resp({ ok: false, error: "Pestaña RE_Habitaciones no encontrada" });
+  const ws = reHabitacionesSheetNuevo_();
+  if (!ws) return resp({ ok: false, error: "Pestaña RE_Habitaciones no encontrada en el Sheet nuevo" });
 
   const idEdicion = (p.idEdicion || "").trim();
   const habitaciones = p.habitaciones || [];
@@ -738,9 +1224,322 @@ function handleReGuardarHabitaciones(p) {
   return resp({ ok: true });
 }
 
+// ── Retiro del Espíritu Santo: Interesados / lista de espera ────
+// Cols RE_Interesados: A=Nombre, B=Sucursal, C=Telefono_WA, D=Fecha_Alta, E=Estado
+// (Interesado | Inscrito | Descartado), F=Requiere_Seguimiento, G=Notas. Se llenan
+// desde altas.html (alta_unificada) o el "+ Agregar interesado" de este panel.
+function handleReAltaInteresado(p) {
+  const ws = reInteresadosSheetNuevo_();
+  if (!ws) return resp({ ok: false, error: "Pestaña RE_Interesados no encontrada en el Sheet nuevo" });
+  const nombre = (p.nombre || "").trim();
+  if (!nombre) return resp({ ok: false, error: "Falta el nombre" });
+
+  const data = ws.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
+      return resp({ ok: false, error: "Ya existe como interesado." });
+    }
+  }
+  ws.appendRow([nombre, p.sucursal || "", p.telefono || "", new Date(), "Interesado", "Sí", p.notas || ""]);
+  return resp({ ok: true });
+}
+
+function handleReMarcarAtendidoInteresado(p) {
+  const ws = reInteresadosSheetNuevo_();
+  if (!ws) return resp({ ok: false, error: "Pestaña RE_Interesados no encontrada en el Sheet nuevo" });
+  const nombre = (p.nombre || "").trim();
+  const data = ws.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
+      ws.getRange(i + 1, 6).setValue(""); // Requiere_Seguimiento (col F)
+      return resp({ ok: true });
+    }
+  }
+  return resp({ ok: false, error: "No se encontró a " + nombre + " en RE_Interesados" });
+}
+
+function handleReBajaInteresado(p) {
+  const ws = reInteresadosSheetNuevo_();
+  if (!ws) return resp({ ok: false, error: "Pestaña RE_Interesados no encontrada en el Sheet nuevo" });
+  const nombre = (p.nombre || "").trim();
+  const data = ws.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
+      ws.getRange(i + 1, 5).setValue("Descartado"); // Estado (col E)
+      ws.getRange(i + 1, 6).setValue("No");         // Requiere_Seguimiento (col F)
+      return resp({ ok: true });
+    }
+  }
+  return resp({ ok: false, error: "No se encontró a " + nombre + " en RE_Interesados" });
+}
+
+// Inscribir a un interesado en una edición: crea su fila en RE_Asistencias
+// (mismo efecto que handleReRegistro) y marca el interesado como "Inscrito".
+function handleReInscribirInteresado(p) {
+  const wsInt = reInteresadosSheetNuevo_();
+  const wsAsis = reAsistenciasSheetNuevo_();
+  if (!wsInt || !wsAsis) return resp({ ok: false, error: "Pestaña RE_Interesados o RE_Asistencias no encontrada en el Sheet nuevo" });
+
+  const nombre = (p.nombre || "").trim();
+  const idEdicion = (p.idEdicion || "").trim();
+  if (!nombre || !idEdicion) return resp({ ok: false, error: "Nombre y edición son obligatorios." });
+
+  const asisData = wsAsis.getDataRange().getValues();
+  const yaInscrito = asisData.some(function (r, i) {
+    return i > 0 && String(r[0]).trim() === idEdicion && String(r[1]).trim().toLowerCase() === nombre.toLowerCase();
+  });
+  if (!yaInscrito) wsAsis.appendRow([idEdicion, nombre, "", "Pendiente", "—", ""]);
+
+  const intData = wsInt.getDataRange().getValues();
+  for (let i = 1; i < intData.length; i++) {
+    if (String(intData[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
+      wsInt.getRange(i + 1, 5).setValue("Inscrito"); // Estado (col E)
+      wsInt.getRange(i + 1, 6).setValue("No");       // Requiere_Seguimiento (col F)
+      break;
+    }
+  }
+
+  return resp({ ok: true });
+}
+
+// ── Camino de Santiago (Sheet nuevo) ─────────────────────────────
+// Cols CS_Inscritos: A=Nombre, B=Sucursal, C=Telefono_WA, D=Fecha_Alta, E=Estado
+// (Activo | Completado | Baja), F=Requiere_Seguimiento, G=Notas, H=Fecha_Camino
+// (fecha real de la peregrinación, se llena al completar). Reemplaza a las
+// columnas sueltas "Camino"/"CaminoFecha" que vivían en Concentrado.
+function csSheetNuevo_() { return SpreadsheetApp.openById(SHEET_NUEVO_ID).getSheetByName("CS_Inscritos"); }
+
+function handleCsMarcarAtendido(p) {
+  const ws = csSheetNuevo_();
+  if (!ws) return resp({ ok: false, error: "Pestaña CS_Inscritos no encontrada en el Sheet nuevo" });
+  const nombre = (p.nombre || "").trim();
+  const data = ws.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
+      ws.getRange(i + 1, 6).setValue(""); // Requiere_Seguimiento (col F)
+      return resp({ ok: true });
+    }
+  }
+  return resp({ ok: false, error: "No se encontró a " + nombre + " en CS_Inscritos" });
+}
+
+function handleCsRegistrarFecha(p) {
+  const ws = csSheetNuevo_();
+  if (!ws) return resp({ ok: false, error: "Pestaña CS_Inscritos no encontrada en el Sheet nuevo" });
+  const nombre = (p.nombre || "").trim();
+  const data = ws.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
+      ws.getRange(i + 1, 8).setValue(p.fecha ? new Date(p.fecha) : ""); // Fecha_Camino (col H)
+      ws.getRange(i + 1, 5).setValue("Completado");                    // Estado (col E)
+      ws.getRange(i + 1, 6).setValue("");                              // Requiere_Seguimiento (col F)
+      return resp({ ok: true });
+    }
+  }
+  return resp({ ok: false, error: "No se encontró a " + nombre + " en CS_Inscritos" });
+}
+
+function handleCsBaja(p) {
+  const ws = csSheetNuevo_();
+  if (!ws) return resp({ ok: false, error: "Pestaña CS_Inscritos no encontrada en el Sheet nuevo" });
+  const nombre = (p.nombre || "").trim();
+  const data = ws.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
+      ws.getRange(i + 1, 5).setValue("Baja"); // Estado (col E)
+      ws.getRange(i + 1, 6).setValue("No");   // Requiere_Seguimiento (col F)
+      return resp({ ok: true });
+    }
+  }
+  return resp({ ok: false, error: "No se encontró a " + nombre + " en CS_Inscritos" });
+}
+
+// ── Migración única: RA_Copys / SV_Copys / EG_Copys → Sheet nuevo ────
+// Últimas 3 pestañas de plantillas de WhatsApp que quedaban en el Sheet
+// histórico. Igual que las demás migraciones de Copys: crea la pestaña en el
+// Sheet nuevo si no existe y copia las filas tal cual (son solo textos de
+// mensaje, no datos de personas). Idempotente: si el destino ya tiene datos,
+// no vuelve a copiar.
+function migrarCopysRestantesASheetNuevo() {
+  var ssNuevo = SpreadsheetApp.openById(SHEET_NUEVO_ID);
+  var ssHistorico = SpreadsheetApp.openById(SHEET_HISTORICO_ID);
+  var tabs = ["RA_Copys", "SV_Copys", "EG_Copys"];
+  var resultado = [];
+
+  tabs.forEach(function (nombre) {
+    var wsViejo = ssHistorico.getSheetByName(nombre);
+    if (!wsViejo) { resultado.push(nombre + ": no existe en el Sheet histórico"); return; }
+
+    var wsNuevo = ssNuevo.getSheetByName(nombre);
+    if (!wsNuevo) wsNuevo = ssNuevo.insertSheet(nombre);
+
+    if (wsNuevo.getLastRow() > 0) { resultado.push(nombre + ": ya tenía datos, no se tocó"); return; }
+
+    var filas = wsViejo.getDataRange().getValues();
+    if (filas.length === 0) { resultado.push(nombre + ": el histórico está vacío"); return; }
+    wsNuevo.getRange(1, 1, filas.length, filas[0].length).setValues(filas);
+    resultado.push(nombre + ": " + (filas.length - 1) + " plantilla(s) copiada(s)");
+  });
+
+  SpreadsheetApp.getUi().alert("Migración de Copys al Sheet nuevo:\n\n" + resultado.join("\n"));
+}
+
+// ── Migración única: últimos logs (EG_Asistencias/Examenes, SV_Historial) ──
+// Últimas 3 pestañas de datos reales que quedaban en el Sheet histórico
+// (bitácoras de asistencia/examen y de donaciones). Mismo patrón que
+// migrarBibliotecaASheetNuevo: copia encabezado + todas las filas reales tal
+// cual, solo si el destino está vacío (idempotente, no duplica). El Sheet
+// histórico no se borra ni se modifica.
+function migrarLogsRestantesASheetNuevo() {
+  var ssNuevo = SpreadsheetApp.openById(SHEET_NUEVO_ID);
+  var ssHistorico = SpreadsheetApp.openById(SHEET_HISTORICO_ID);
+  var tabs = ["EG_Asistencias", "EG_Examenes", "SV_Historial"];
+  var resultado = [];
+
+  tabs.forEach(function (nombre) {
+    var wsViejo = ssHistorico.getSheetByName(nombre);
+    if (!wsViejo) { resultado.push(nombre + ": no existe en el Sheet histórico"); return; }
+
+    var wsNuevo = ssNuevo.getSheetByName(nombre);
+    if (!wsNuevo) wsNuevo = ssNuevo.insertSheet(nombre);
+
+    if (wsNuevo.getLastRow() > 0) { resultado.push(nombre + ": ya tenía datos, no se tocó"); return; }
+
+    var filas = wsViejo.getDataRange().getValues();
+    if (filas.length === 0) { resultado.push(nombre + ": el histórico está vacío"); return; }
+    wsNuevo.getRange(1, 1, filas.length, filas[0].length).setValues(filas);
+    resultado.push(nombre + ": " + (filas.length - 1) + " fila(s) copiada(s)");
+  });
+
+  SpreadsheetApp.getUi().alert("Migración de logs restantes al Sheet nuevo:\n\n" + resultado.join("\n"));
+}
+
+// ── Configuración única: crear pestañas del Sheet nuevo para RE + CS ──
+// RE_Ediciones/Asistencias/Habitaciones/Copys/Interesados y CS_Inscritos no
+// existen todavía en el Sheet nuevo — esta función las crea con encabezado, y
+// copia verbatim las plantillas de RE_Copys del Sheet histórico (son solo
+// textos de mensaje, no datos de personas). Idempotente.
+function configurarREyCSSheetNuevo() {
+  var ssNuevo = SpreadsheetApp.openById(SHEET_NUEVO_ID);
+  var ui = SpreadsheetApp.getUi();
+
+  var specs = [
+    { nombre: "RE_Ediciones", headers: ["id_edicion","nombre_edicion","fechas_texto","fecha_inicio","fecha_fin","lugar","estado","notas"] },
+    { nombre: "RE_Asistencias", headers: ["id_edicion","nombre","edicion_label","asistio","dio_testimonio","notas"] },
+    { nombre: "RE_Habitaciones", headers: ["id_edicion","habitacion","genero","nombre_1","nombre_2","nombre_3","nombre_4","notas"] },
+    { nombre: "RE_Copys", headers: ["Momento","Copy_Texto","Numero_WA","Activo"] },
+    { nombre: "RE_Interesados", headers: ["Nombre","Sucursal","Telefono_WA","Fecha_Alta","Estado","Requiere_Seguimiento","Notas"] },
+    { nombre: "CS_Inscritos", headers: ["Nombre","Sucursal","Telefono_WA","Fecha_Alta","Estado","Requiere_Seguimiento","Notas","Fecha_Camino"] }
+  ];
+
+  specs.forEach(function (spec) {
+    var ws = ssNuevo.getSheetByName(spec.nombre);
+    if (!ws) {
+      ws = ssNuevo.insertSheet(spec.nombre);
+      ws.appendRow(spec.headers);
+    }
+  });
+
+  var wsCopysNuevo = ssNuevo.getSheetByName("RE_Copys");
+  var copysCopiados = false;
+  if (wsCopysNuevo.getLastRow() < 2) {
+    var wsCopysViejo = SpreadsheetApp.openById(SHEET_HISTORICO_ID).getSheetByName("RE_Copys");
+    if (wsCopysViejo && wsCopysViejo.getLastRow() >= 2) {
+      var filas = wsCopysViejo.getRange(2, 1, wsCopysViejo.getLastRow() - 1, 4).getValues();
+      wsCopysNuevo.getRange(2, 1, filas.length, 4).setValues(filas);
+      copysCopiados = true;
+    }
+  }
+
+  ui.alert("Listo. RE_Ediciones/Asistencias/Habitaciones/Copys/Interesados y CS_Inscritos ya existen en el Sheet nuevo" +
+    (copysCopiados ? " (copys de RE copiados del Sheet histórico)." : "."));
+}
+
+// ── Sembrar datos de prueba Retiro Espiritual + Camino Santiago ──
+// Solo desarrollo: una edición de prueba con participantes, una habitación,
+// interesados en distintos estados, y colaboradores de Camino de Santiago.
+function sembrarPruebasRE() {
+  var ssNuevo = SpreadsheetApp.openById(SHEET_NUEVO_ID);
+  var wsEd = reEdicionesSheetNuevo_();
+  var wsAsis = reAsistenciasSheetNuevo_();
+  var wsHab = reHabitacionesSheetNuevo_();
+  var wsInt = reInteresadosSheetNuevo_();
+  var wsCs = csSheetNuevo_();
+  if (!wsEd || !wsAsis || !wsHab || !wsInt || !wsCs) {
+    SpreadsheetApp.getUi().alert("Corre primero 'Configurar RE + Camino Santiago en Sheet nuevo (1 vez)'.");
+    return;
+  }
+
+  var idEdicion = "RE-PRUEBA-01";
+  wsEd.appendRow([idEdicion, "PRUEBA Retiro — Edición de prueba", "sábado y domingo de prueba", new Date(), new Date(), "Casa de retiros (prueba)", "Activa", ""]);
+
+  wsAsis.getRange(wsAsis.getLastRow() + 1, 1, 2, 6).setValues([
+    [idEdicion, "PRUEBA Nadia Ríos", "", "Pendiente", "—", ""],
+    [idEdicion, "PRUEBA Emilio Vega", "", "Sí", "Sí", ""]
+  ]);
+
+  wsHab.appendRow([idEdicion, "PRUEBA Habitación 1", "Mujer", "PRUEBA Nadia Ríos", "", "", "", ""]);
+
+  var hoy = new Date();
+  wsInt.getRange(wsInt.getLastRow() + 1, 1, 2, 7).setValues([
+    ["PRUEBA Karina Solís", "Sucursal Centro", "3312345620", hoy, "Interesado", "Sí", ""],
+    ["PRUEBA Uriel Paz", "Sucursal Norte", "3312345621", hoy, "Interesado", "Sí", ""]
+  ]);
+
+  wsCs.getRange(wsCs.getLastRow() + 1, 1, 2, 8).setValues([
+    ["PRUEBA Fernanda Ibarra", "Sucursal Sur", "3312345622", hoy, "Activo", "Sí", "", ""],
+    ["PRUEBA Gustavo Reyes", "Sucursal Centro", "3312345623", hoy, "Completado", "", "", hoy]
+  ]);
+
+  SpreadsheetApp.getUi().alert("Datos de prueba de Retiro Espiritual y Camino de Santiago agregados.");
+}
+
 // ================================================================
-// BIBLIOTECA COMUNITARIA
+// BIBLIOTECA COMUNITARIA (Sheet nuevo desde 2026-07-05)
 // ================================================================
+// Migrado desde el Sheet histórico: BIB_Prestamos/Donaciones/Devoluciones ya
+// tenían datos reales de producción (préstamos y donaciones reales, no solo
+// plantillas), así que la migración copia esas filas tal cual — ver
+// migrarBibliotecaASheetNuevo(). BIB_Copys (solo plantillas de WhatsApp) se
+// copia igual que en las demás iniciativas. El resto de la lógica (matching
+// de devoluciones, PDFs) no cambia: usa lookup de encabezados por nombre
+// (obtenerIndicesBib_), no posición fija, así que da igual en qué Sheet viva.
+function bibSheetNuevo_(nombre) {
+  return SpreadsheetApp.openById(SHEET_NUEVO_ID).getSheetByName(nombre);
+}
+
+// ── Migración única: BIB_* histórico → Sheet nuevo ───────────────
+// A diferencia de otras migraciones (que solo copiaban plantillas de copys),
+// BIB_Prestamos/Donaciones/Devoluciones YA tienen datos reales de producción
+// (préstamos y donaciones reales desde 2026-06-29). Esta función copia el
+// encabezado + TODAS las filas tal cual (no solo altas nuevas) a las pestañas
+// homónimas del Sheet nuevo. Solo corre si la pestaña destino está vacía
+// (idempotente: si ya se migró, no vuelve a copiar y no duplica nada). El
+// Sheet histórico NO se borra ni se modifica — queda como respaldo.
+function migrarBibliotecaASheetNuevo() {
+  var ssNuevo = SpreadsheetApp.openById(SHEET_NUEVO_ID);
+  var ssHistorico = SpreadsheetApp.openById(SHEET_HISTORICO_ID);
+  var ui = SpreadsheetApp.getUi();
+  var tabs = ["BIB_Prestamos", "BIB_Donaciones", "BIB_Devoluciones", "BIB_Copys"];
+  var resultado = [];
+
+  tabs.forEach(function (nombre) {
+    var wsViejo = ssHistorico.getSheetByName(nombre);
+    if (!wsViejo) { resultado.push(nombre + ": no existe en el Sheet histórico"); return; }
+
+    var wsNuevo = ssNuevo.getSheetByName(nombre);
+    if (!wsNuevo) wsNuevo = ssNuevo.insertSheet(nombre);
+
+    if (wsNuevo.getLastRow() > 0) { resultado.push(nombre + ": ya tenía datos, no se tocó"); return; }
+
+    var filas = wsViejo.getDataRange().getValues();
+    if (filas.length === 0) { resultado.push(nombre + ": el histórico está vacío"); return; }
+    wsNuevo.getRange(1, 1, filas.length, filas[0].length).setValues(filas);
+    resultado.push(nombre + ": " + (filas.length - 1) + " fila(s) copiada(s)");
+  });
+
+  ui.alert("Migración de Biblioteca al Sheet nuevo:\n\n" + resultado.join("\n"));
+}
 
 const COLS_BIB = {
   prestamos: {
@@ -898,8 +1697,8 @@ function matchearYProcesarDevolucionBib_(hojaDev, hojaPre, idxD, idxP, datosPre,
 
 // Barrido completo de devoluciones no procesadas (respaldo manual desde el editor de Apps Script).
 function procesarDevolucionesBib_() {
-  const hojaDev = SS.getSheetByName("BIB_Devoluciones");
-  const hojaPre = SS.getSheetByName("BIB_Prestamos");
+  const hojaDev = bibSheetNuevo_("BIB_Devoluciones");
+  const hojaPre = bibSheetNuevo_("BIB_Prestamos");
   if (!hojaDev || !hojaPre) return { procesados: 0, sinMatch: 0 };
 
   const datosDev = hojaDev.getDataRange().getValues();
@@ -922,7 +1721,7 @@ function procesarDevolucionesBib_() {
 }
 
 function generarReciboPorFilaBib_(fila) {
-  const hoja = SS.getSheetByName("BIB_Donaciones");
+  const hoja = bibSheetNuevo_("BIB_Donaciones");
   if (!hoja) throw new Error("Pestaña BIB_Donaciones no encontrada");
 
   const headers = hoja.getRange(1, 1, 1, hoja.getLastColumn()).getValues()[0];
@@ -1048,7 +1847,7 @@ function construirHtmlEtiquetasBib_(etiquetas) {
 }
 
 function generarEtiquetaPorFilasBib_(filas) {
-  const hoja = SS.getSheetByName("BIB_Donaciones");
+  const hoja = bibSheetNuevo_("BIB_Donaciones");
   if (!hoja) throw new Error("Pestaña BIB_Donaciones no encontrada");
 
   const headers = hoja.getRange(1, 1, 1, hoja.getLastColumn()).getValues()[0];
@@ -1103,7 +1902,7 @@ function sincronizarFisicosBib_() {
   let nextId = fisicosActuales.length;
   const nuevasFilas = [];
 
-  const hojaDonaciones = SS.getSheetByName("BIB_Donaciones");
+  const hojaDonaciones = bibSheetNuevo_("BIB_Donaciones");
   if (hojaDonaciones) {
     const donaciones = hojaDonaciones.getDataRange().getValues();
     if (donaciones.length > 1) {
@@ -1126,7 +1925,7 @@ function sincronizarFisicosBib_() {
     hojaFisicos.getRange(hojaFisicos.getLastRow() + 1, 1, nuevasFilas.length, nuevasFilas[0].length).setValues(nuevasFilas);
   }
 
-  const hojaPrestamos = SS.getSheetByName("BIB_Prestamos");
+  const hojaPrestamos = bibSheetNuevo_("BIB_Prestamos");
   if (hojaPrestamos) {
     const prestamos = hojaPrestamos.getDataRange().getValues();
     if (prestamos.length > 1) {
@@ -1167,7 +1966,7 @@ function sincronizarFisicosBib_() {
 // ── Biblioteca: Alta de donación ────────────────────────────────
 // Recibe: {tipo:"bib_altaDonacion", donante, correo, whatsapp, titulo, autor, modalidad}
 function handleBibAltaDonacion(p) {
-  const ws = SS.getSheetByName("BIB_Donaciones");
+  const ws = bibSheetNuevo_("BIB_Donaciones");
   if (!ws) return resp({ ok: false, error: "Pestaña BIB_Donaciones no encontrada" });
 
   const headers = ws.getRange(1, 1, 1, ws.getLastColumn()).getValues()[0];
@@ -1203,8 +2002,8 @@ function handleBibAltaDonacion(p) {
 // ── Biblioteca: Procesar una devolución específica ──────────────
 // Recibe: {tipo:"bib_procesarDevolucion", filaDevolucion}
 function handleBibProcesarDevolucion(p) {
-  const hojaDev = SS.getSheetByName("BIB_Devoluciones");
-  const hojaPre = SS.getSheetByName("BIB_Prestamos");
+  const hojaDev = bibSheetNuevo_("BIB_Devoluciones");
+  const hojaPre = bibSheetNuevo_("BIB_Prestamos");
   if (!hojaDev || !hojaPre) return resp({ ok: false, error: "Pestañas BIB_Devoluciones/BIB_Prestamos no encontradas" });
 
   const filaDevNum = parseInt(p.filaDevolucion, 10);
@@ -1229,7 +2028,7 @@ function handleBibProcesarDevolucion(p) {
 // ── Biblioteca: Extender préstamo +14 días ──────────────────────
 // Recibe: {tipo:"bib_extenderPrestamo", nombre, idLibro}
 function handleBibExtenderPrestamo(p) {
-  const ws = SS.getSheetByName("BIB_Prestamos");
+  const ws = bibSheetNuevo_("BIB_Prestamos");
   if (!ws) return resp({ ok: false, error: "Pestaña BIB_Prestamos no encontrada" });
 
   const datos = ws.getDataRange().getValues();
@@ -1285,6 +2084,357 @@ function handleBibSincronizarFisicos(p) {
   } catch (err) {
     return resp({ ok: false, error: err.message });
   }
+}
+
+// ================================================================
+// IMPULSO GEB (Generación 1) — Sheet nuevo
+// ================================================================
+// Cols IG_Inscritos: A=Nombre, B=Sucursal, C=Telefono_WA, D=Fecha_Alta,
+// E=Estado (Activo | Generación 2 | Baja), F=Requiere_Seguimiento, G=Notas,
+// H=Plan_Vida, I=Presupuesto, J=Ahorro, K=Movilidad_Social (todas Sí/No).
+// Generación 1 es solo histórico de evidencias entregadas — cuando lance
+// Generación 2 (con momentos de WhatsApp, asistencia, etc.) se construye
+// aparte; por ahora "Generación 2" es solo un estado de "pasó de generación",
+// para no perder a esas personas cuando se arme el nuevo módulo.
+const IG_CAMPOS_EVIDENCIA = { Plan_Vida: 8, Presupuesto: 9, Ahorro: 10, Movilidad_Social: 11 };
+
+function igSheetNuevo_() { return SpreadsheetApp.openById(SHEET_NUEVO_ID).getSheetByName("IG_Inscritos"); }
+
+function handleIgActualizarCampo(p) {
+  const ws = igSheetNuevo_();
+  if (!ws) return resp({ ok: false, error: "Pestaña IG_Inscritos no encontrada en el Sheet nuevo" });
+  const col = IG_CAMPOS_EVIDENCIA[p.campo];
+  if (!col) return resp({ ok: false, error: "Campo no reconocido: " + p.campo });
+
+  const nombre = (p.nombre || "").trim();
+  const data = ws.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
+      ws.getRange(i + 1, col).setValue(p.valor || "");
+      ws.getRange(i + 1, 6).setValue(""); // Requiere_Seguimiento: ya se dio seguimiento
+      return resp({ ok: true });
+    }
+  }
+  return resp({ ok: false, error: "No se encontró a " + nombre + " en IG_Inscritos" });
+}
+
+function handleIgMarcarAtendido(p) {
+  const ws = igSheetNuevo_();
+  if (!ws) return resp({ ok: false, error: "Pestaña IG_Inscritos no encontrada en el Sheet nuevo" });
+  const nombre = (p.nombre || "").trim();
+  const data = ws.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
+      ws.getRange(i + 1, 6).setValue("");
+      return resp({ ok: true });
+    }
+  }
+  return resp({ ok: false, error: "No se encontró a " + nombre + " en IG_Inscritos" });
+}
+
+function handleIgBaja(p) {
+  const ws = igSheetNuevo_();
+  if (!ws) return resp({ ok: false, error: "Pestaña IG_Inscritos no encontrada en el Sheet nuevo" });
+  const nombre = (p.nombre || "").trim();
+  const data = ws.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
+      ws.getRange(i + 1, 5).setValue("Baja");
+      ws.getRange(i + 1, 6).setValue("No");
+      return resp({ ok: true });
+    }
+  }
+  return resp({ ok: false, error: "No se encontró a " + nombre + " en IG_Inscritos" });
+}
+
+// Marca que la persona termina Generación 1 y continúa en Generación 2 (aún
+// sin módulo propio) — distinto de "Baja", que es salir de la iniciativa.
+function handleIgPasarGeneracion2(p) {
+  const ws = igSheetNuevo_();
+  if (!ws) return resp({ ok: false, error: "Pestaña IG_Inscritos no encontrada en el Sheet nuevo" });
+  const nombre = (p.nombre || "").trim();
+  const data = ws.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
+      ws.getRange(i + 1, 5).setValue("Generación 2");
+      ws.getRange(i + 1, 6).setValue("No");
+      return resp({ ok: true });
+    }
+  }
+  return resp({ ok: false, error: "No se encontró a " + nombre + " en IG_Inscritos" });
+}
+
+function configurarIGSheetNuevo() {
+  var ws = SpreadsheetApp.openById(SHEET_NUEVO_ID).getSheetByName("IG_Inscritos");
+  if (!ws) {
+    ws = SpreadsheetApp.openById(SHEET_NUEVO_ID).insertSheet("IG_Inscritos");
+    ws.appendRow(["Nombre","Sucursal","Telefono_WA","Fecha_Alta","Estado","Requiere_Seguimiento","Notas","Plan_Vida","Presupuesto","Ahorro","Movilidad_Social"]);
+  }
+  SpreadsheetApp.getUi().alert("Listo. IG_Inscritos ya existe en el Sheet nuevo.");
+}
+
+function sembrarPruebasIG() {
+  var ws = igSheetNuevo_();
+  if (!ws) { SpreadsheetApp.getUi().alert("Corre primero 'Configurar Impulso GEB en Sheet nuevo (1 vez)'."); return; }
+  var hoy = new Date();
+  var filas = [
+    ["PRUEBA Renata Cabrera", "Sucursal Centro", "3312345630", hoy, "Activo", "Sí", "", "", "", "", ""],
+    ["PRUEBA Braulio Nájera", "Sucursal Norte",  "3312345631", hoy, "Activo", "",   "", "Sí", "Sí", "", ""],
+    ["PRUEBA Ximena Corona",  "Sucursal Sur",    "3312345632", hoy, "Activo", "",   "", "Sí", "Sí", "Sí", "Sí"],
+    ["PRUEBA Saúl Montoya",   "Sucursal Centro", "3312345633", hoy, "Baja",   "No", "", "Sí", "", "", ""]
+  ];
+  ws.getRange(ws.getLastRow() + 1, 1, filas.length, 11).setValues(filas);
+  SpreadsheetApp.getUi().alert("4 colaboradores de prueba agregados a IG_Inscritos.");
+}
+
+// ================================================================
+// BECA EDUCATIVA GEB — Sheet nuevo
+// ================================================================
+// Cols BE_Inscritos: A=Nombre, B=Sucursal, C=Telefono_WA, D=Fecha_Alta,
+// E=Estado (Interesado | Inscrito | Baja), F=Requiere_Seguimiento, G=Notas,
+// H=Universidad, I=Nivel (Licenciatura|Posgrado), J=Carrera, K=Inscribio
+// (""=pendiente de revisar | Sí | No) — se revisa ~1 mes después del alta.
+function beSheetNuevo_() { return SpreadsheetApp.openById(SHEET_NUEVO_ID).getSheetByName("BE_Inscritos"); }
+
+function handleBeMarcarAtendido(p) {
+  const ws = beSheetNuevo_();
+  if (!ws) return resp({ ok: false, error: "Pestaña BE_Inscritos no encontrada en el Sheet nuevo" });
+  const nombre = (p.nombre || "").trim();
+  const data = ws.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
+      ws.getRange(i + 1, 6).setValue("");
+      return resp({ ok: true });
+    }
+  }
+  return resp({ ok: false, error: "No se encontró a " + nombre + " en BE_Inscritos" });
+}
+
+function handleBeBaja(p) {
+  const ws = beSheetNuevo_();
+  if (!ws) return resp({ ok: false, error: "Pestaña BE_Inscritos no encontrada en el Sheet nuevo" });
+  const nombre = (p.nombre || "").trim();
+  const data = ws.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
+      ws.getRange(i + 1, 5).setValue("Baja");
+      ws.getRange(i + 1, 6).setValue("No");
+      return resp({ ok: true });
+    }
+  }
+  return resp({ ok: false, error: "No se encontró a " + nombre + " en BE_Inscritos" });
+}
+
+// p.inscribio: "Sí" | "No". Si "Sí", Estado pasa a "Inscrito" (ya no es solo
+// un interesado). Si "No", se queda "Interesado" pero con Inscribio="No"
+// registrado, para reportar cuántos no se inscribieron.
+function handleBeRevisarInscripcion(p) {
+  const ws = beSheetNuevo_();
+  if (!ws) return resp({ ok: false, error: "Pestaña BE_Inscritos no encontrada en el Sheet nuevo" });
+  const nombre = (p.nombre || "").trim();
+  const inscribio = p.inscribio === "Sí" ? "Sí" : "No";
+  const data = ws.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
+      ws.getRange(i + 1, 11).setValue(inscribio);
+      if (inscribio === "Sí") ws.getRange(i + 1, 5).setValue("Inscrito");
+      ws.getRange(i + 1, 6).setValue("");
+      return resp({ ok: true });
+    }
+  }
+  return resp({ ok: false, error: "No se encontró a " + nombre + " en BE_Inscritos" });
+}
+
+function configurarBESheetNuevo() {
+  var ssNuevo = SpreadsheetApp.openById(SHEET_NUEVO_ID);
+  var ws = ssNuevo.getSheetByName("BE_Inscritos");
+  if (!ws) {
+    ws = ssNuevo.insertSheet("BE_Inscritos");
+    ws.appendRow(["Nombre","Sucursal","Telefono_WA","Fecha_Alta","Estado","Requiere_Seguimiento","Notas","Universidad","Nivel","Carrera","Inscribio"]);
+  }
+
+  var wsCopys = ssNuevo.getSheetByName("BE_Copys");
+  if (!wsCopys) {
+    wsCopys = ssNuevo.insertSheet("BE_Copys");
+    wsCopys.appendRow(["Momento","Copy_Texto","Numero_WA","Activo"]);
+    wsCopys.appendRow([
+      "contacto_universidad",
+      "Hola {Nombre} 🎓\n\nVimos tu interés en estudiar en {Universidad}" +
+        " ({Nivel}: {Carrera}). GEB University tiene convenio de becas con ellos" +
+        " — con gusto te compartimos los detalles y te ayudamos con el proceso" +
+        " de inscripción. ¿Tienes unos minutos para platicarlo?",
+      "",
+      "Sí"
+    ]);
+  }
+
+  SpreadsheetApp.getUi().alert("Listo. BE_Inscritos y BE_Copys ya existen en el Sheet nuevo (con una plantilla inicial de contacto).");
+}
+
+function sembrarPruebasBE() {
+  var ws = beSheetNuevo_();
+  if (!ws) { SpreadsheetApp.getUi().alert("Corre primero 'Configurar Beca Educativa en Sheet nuevo (1 vez)'."); return; }
+  var hoy = new Date();
+  var filas = [
+    ["PRUEBA Yolanda Espino",  "Sucursal Centro", "3312345640", hoy, "Interesado", "Sí", "", "UTEL", "Licenciatura", "Administración", ""],
+    ["PRUEBA Ricardo Uranga",  "Sucursal Norte",  "3312345641", hoy, "Interesado", "",   "", "Universidad Cuauhtémoc", "Posgrado", "Maestría en Educación", ""],
+    ["PRUEBA Daniela Vidales", "Sucursal Sur",    "3312345642", hoy, "Inscrito",   "",   "", "Universidad Virtual de Liverpool", "Licenciatura", "Psicología", "Sí"]
+  ];
+  ws.getRange(ws.getLastRow() + 1, 1, filas.length, 11).setValues(filas);
+  SpreadsheetApp.getUi().alert("3 interesados de prueba agregados a BE_Inscritos.");
+}
+
+// ================================================================
+// ECO-ACCIÓN — Sheet nuevo
+// ================================================================
+// Cols EA_Lideres: A=Nombre, B=Sucursal (una de las 8 ubicaciones), C=Telefono_WA,
+// D=Fecha_Alta, E=Estado (Activo | Baja), F=Requiere_Seguimiento, G=Notas,
+// H=Total_Cilindros (contador, se actualiza solo al registrar un cilindro nuevo).
+// Cols EA_Cilindros (historial): A=Nombre, B=Num_Cilindro, C=Fecha_Recepcion, D=Notas.
+function eaSheetNuevo_() { return SpreadsheetApp.openById(SHEET_NUEVO_ID).getSheetByName("EA_Lideres"); }
+function eaCilindrosSheetNuevo_() { return SpreadsheetApp.openById(SHEET_NUEVO_ID).getSheetByName("EA_Cilindros"); }
+
+// Registra un cilindro nuevo para un líder: calcula el siguiente número
+// (cuenta cuántos ya tiene en EA_Cilindros + 1), lo agrega al historial con la
+// fecha que capture el panel, y actualiza el contador Total_Cilindros en
+// EA_Lideres. También limpia Requiere_Seguimiento (contarlo como seguimiento dado).
+function handleEaRegistrarCilindro(p) {
+  const wsCil = eaCilindrosSheetNuevo_();
+  const wsLid = eaSheetNuevo_();
+  if (!wsCil || !wsLid) return resp({ ok: false, error: "Pestaña EA_Cilindros o EA_Lideres no encontrada en el Sheet nuevo" });
+
+  const nombre = (p.nombre || "").trim();
+  if (!nombre) return resp({ ok: false, error: "Falta el nombre" });
+
+  const datosCil = wsCil.getDataRange().getValues();
+  let siguiente = 1;
+  for (let i = 1; i < datosCil.length; i++) {
+    if (String(datosCil[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
+      const n = parseInt(datosCil[i][1], 10) || 0;
+      if (n >= siguiente) siguiente = n + 1;
+    }
+  }
+
+  wsCil.appendRow([nombre, siguiente, p.fecha ? new Date(p.fecha) : new Date(), p.notas || ""]);
+
+  const datosLid = wsLid.getDataRange().getValues();
+  for (let i = 1; i < datosLid.length; i++) {
+    if (String(datosLid[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
+      wsLid.getRange(i + 1, 8).setValue(siguiente); // Total_Cilindros (col H)
+      wsLid.getRange(i + 1, 6).setValue("");         // Requiere_Seguimiento (col F)
+      break;
+    }
+  }
+
+  return resp({ ok: true, numCilindro: siguiente });
+}
+
+function handleEaMarcarAtendido(p) {
+  const ws = eaSheetNuevo_();
+  if (!ws) return resp({ ok: false, error: "Pestaña EA_Lideres no encontrada en el Sheet nuevo" });
+  const nombre = (p.nombre || "").trim();
+  const data = ws.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
+      ws.getRange(i + 1, 6).setValue("");
+      return resp({ ok: true });
+    }
+  }
+  return resp({ ok: false, error: "No se encontró a " + nombre + " en EA_Lideres" });
+}
+
+function handleEaBaja(p) {
+  const ws = eaSheetNuevo_();
+  if (!ws) return resp({ ok: false, error: "Pestaña EA_Lideres no encontrada en el Sheet nuevo" });
+  const nombre = (p.nombre || "").trim();
+  const data = ws.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
+      ws.getRange(i + 1, 5).setValue("Baja");
+      ws.getRange(i + 1, 6).setValue("No");
+      return resp({ ok: true });
+    }
+  }
+  return resp({ ok: false, error: "No se encontró a " + nombre + " en EA_Lideres" });
+}
+
+function configurarEASheetNuevo() {
+  var ssNuevo = SpreadsheetApp.openById(SHEET_NUEVO_ID);
+  var ws = ssNuevo.getSheetByName("EA_Lideres");
+  if (!ws) {
+    ws = ssNuevo.insertSheet("EA_Lideres");
+    ws.appendRow(["Nombre","Sucursal","Telefono_WA","Fecha_Alta","Estado","Requiere_Seguimiento","Notas","Total_Cilindros"]);
+  }
+  var wsCil = ssNuevo.getSheetByName("EA_Cilindros");
+  if (!wsCil) {
+    wsCil = ssNuevo.insertSheet("EA_Cilindros");
+    wsCil.appendRow(["Nombre","Num_Cilindro","Fecha_Recepcion","Notas"]);
+  }
+  SpreadsheetApp.getUi().alert("Listo. EA_Lideres y EA_Cilindros ya existen en el Sheet nuevo.");
+}
+
+function sembrarPruebasEA() {
+  var ws = eaSheetNuevo_();
+  var wsCil = eaCilindrosSheetNuevo_();
+  if (!ws || !wsCil) { SpreadsheetApp.getUi().alert("Corre primero 'Configurar Eco-Acción en Sheet nuevo (1 vez)'."); return; }
+  var hoy = new Date();
+  var filas = [
+    ["PRUEBA Rocío Damián",  "Naciones Unidas", "3312345650", hoy, "Activo", "Sí", "", 0],
+    ["PRUEBA Tomás Zepeda",  "Valle Real",       "3312345651", hoy, "Activo", "",   "", 2],
+    ["PRUEBA Lucía Barajas", "Iteso",            "3312345652", hoy, "Baja",   "No", "", 1]
+  ];
+  ws.getRange(ws.getLastRow() + 1, 1, filas.length, 8).setValues(filas);
+
+  var cilindros = [
+    ["PRUEBA Tomás Zepeda", 1, hoy, ""],
+    ["PRUEBA Tomás Zepeda", 2, hoy, ""],
+    ["PRUEBA Lucía Barajas", 1, hoy, ""]
+  ];
+  wsCil.getRange(wsCil.getLastRow() + 1, 1, cilindros.length, 4).setValues(cilindros);
+
+  SpreadsheetApp.getUi().alert("3 líderes de prueba agregados a EA_Lideres.");
+}
+
+// ── Ejecutar funciones de configuración/siembra vía el Web App ──
+// Las funciones de menú (configurarXSheetNuevo, sembrarPruebasX, etc.) llaman
+// a SpreadsheetApp.getUi().alert(...) al final, que no existe en el contexto
+// de un Web App — se captura ese error puntual (esperado) porque el trabajo
+// real (crear pestañas, insertar filas) ya se hizo antes de esa línea. Esto
+// permite correr la configuración inicial sin depender del menú de Sheets ni
+// de "Ejecutar" en el editor, por si la organización restringe la
+// autorización interactiva de apps nuevas (ver conversación 2026-07-05).
+// Lista blanca por seguridad: solo funciones de configuración/siembra, nunca
+// funciones que reciban datos arbitrarios del payload.
+const ADMIN_FUNCIONES_PERMITIDAS = {
+  configurarAPSheetNuevo: configurarAPSheetNuevo,
+  sembrarPruebasAP: sembrarPruebasAP,
+  sembrarPruebasEG: sembrarPruebasEG,
+  configurarREyCSSheetNuevo: configurarREyCSSheetNuevo,
+  sembrarPruebasRE: sembrarPruebasRE,
+  migrarBibliotecaASheetNuevo: migrarBibliotecaASheetNuevo,
+  configurarIGSheetNuevo: configurarIGSheetNuevo,
+  sembrarPruebasIG: sembrarPruebasIG,
+  configurarBESheetNuevo: configurarBESheetNuevo,
+  sembrarPruebasBE: sembrarPruebasBE,
+  migrarCopysRestantesASheetNuevo: migrarCopysRestantesASheetNuevo,
+  migrarLogsRestantesASheetNuevo: migrarLogsRestantesASheetNuevo,
+  desactivarSincronizacionAntigua: desactivarSincronizacionAntigua,
+  borrarDatosPruebaTodos: borrarDatosPruebaTodos,
+  configurarEASheetNuevo: configurarEASheetNuevo,
+  sembrarPruebasEA: sembrarPruebasEA,
+  configurarAlertasAtrasoRA: configurarAlertasAtrasoRA
+};
+
+function handleAdminEjecutar(p) {
+  const fn = ADMIN_FUNCIONES_PERMITIDAS[p.funcion];
+  if (!fn) return resp({ ok: false, error: "Función no permitida: " + p.funcion });
+  try {
+    fn();
+  } catch (uiErr) {
+    // Esperado: getUi()/alert() no existe fuera del editor de Sheets. El
+    // trabajo real de la función ya se ejecutó antes de esa línea.
+  }
+  return resp({ ok: true, mensaje: "Ejecutado: " + p.funcion });
 }
 
 // ── Respuesta CORS ───────────────────────────────────────────────

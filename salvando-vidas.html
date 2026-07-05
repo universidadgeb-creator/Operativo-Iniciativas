@@ -318,7 +318,7 @@
         <select id="fEstado">
           <option value="">activos y dados de baja</option>
           <option value="Activo">solo activos</option>
-          <option value="Inactivo">solo dados de baja</option>
+          <option value="Baja">solo dados de baja</option>
         </select>
         <select id="fSeguimiento">
           <option value="">todos</option>
@@ -383,13 +383,18 @@
 /* ============================================================
    CONFIGURACIÓN
    ============================================================ */
-const SHEET_ID = "1fS5qeoB1ViuCUP4HOQ1zTJgh4tfWUkObvb5LMr3to5A";
-const WEBAPP_URL = "https://script.google.com/macros/s/AKfycby8QmMkIKFlse1yIsIxJk6LjvBW8WYjNTf51f54KubtakiKkYhUOPZmYUN4S76JBF_YeQ/exec";
+// Salvando Vidas totalmente desconectado del Sheet histórico (2026-07-05) —
+// ver INSTRUCCIONES_CRM.md y apps-script.gs (ALTA_INICIATIVAS/
+// handleAltaUnificada, migrarLogsRestantesASheetNuevo). Las 3 pestañas viven
+// en el Sheet nuevo.
+const SHEET_ID = "1oaWADtW9SmqxuOoOM1bf65Ht_NkpE4l_o_DMutN_IbI";
+const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbypzabPFyTWszyc2-wIPjImOTIitz68R6_okV2yUgxSD6CpkEkfpFlXh8OzgaQWlZYe/exec";
 const TABS = {
-  donadores: "SV_Donadores",
+  donadores: "SV_Inscritos",
   historial: "SV_Historial",
   copys: "SV_Copys"
 };
+const TAB_SHEET = { SV_Inscritos: SHEET_ID, SV_Historial: SHEET_ID, SV_Copys: SHEET_ID };
 const MESES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
 const MES_ACTUAL = MESES[new Date().getMonth()];
 
@@ -397,12 +402,14 @@ const MES_ACTUAL = MESES[new Date().getMonth()];
    LECTURA DE GOOGLE SHEETS (endpoint público gviz, sin API key)
    ============================================================ */
 function gvizUrl(tabName){
-  return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(tabName)}`;
+  return `https://docs.google.com/spreadsheets/d/${TAB_SHEET[tabName]}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(tabName)}`;
 }
 
-// Nombres de columna fijos por pestaña — independiente de cómo gviz los etiquete
+// Nombres de columna fijos por pestaña — independiente de cómo gviz los etiquete.
+// Esquema unificado: 7 columnas base (Nombre..Notas) iguales en las 4
+// iniciativas de "inscritos", luego las específicas de Donadores.
 const SCHEMA = {
-  SV_Donadores: ["Nombre","Sucursal","Telefono_WA","Tipo_Sangre","Mes_Guardia","Estado","Requiere_Seguimiento"],
+  SV_Inscritos: ["Nombre","Sucursal","Telefono_WA","Fecha_Alta","Estado","Requiere_Seguimiento","Notas","Tipo_Sangre","Mes_Guardia"],
   SV_Historial: ["Nombre","Mes","Año","Dono","Fecha_Donacion","Talon_Recibido","Notas"],
   SV_Copys:     ["Momento","Copy_Texto","Numero_WA","Activo"],
 };
@@ -502,7 +509,7 @@ function esPendienteSeguimiento(d){
 }
 
 function esBaja(d){
-  return (d.Estado || "").trim().toLowerCase() === "inactivo";
+  return (d.Estado || "").trim().toLowerCase() === "baja";
 }
 
 function getMomentosDisponibles(d, historial){
@@ -898,7 +905,7 @@ async function marcarBaja(nombreEnc, btnEl){
     const r = await postData({ tipo: "sv_baja", nombre });
     if(r.ok){
       const d = DONADORES.find(x => x.Nombre === nombre);
-      if(d){ d.Estado = "Inactivo"; d.Requiere_Seguimiento = "No"; }
+      if(d){ d.Estado = "Baja"; d.Requiere_Seguimiento = "No"; }
       renderMetrics(); renderGuardias(); applyFilters();
     } else {
       alert("Error: " + r.error);
@@ -1011,7 +1018,7 @@ async function init(){
     document.getElementById("loadingMsg").style.display = "none";
     const eb = document.getElementById("errorMsg");
     eb.style.display = "block";
-    eb.textContent = "No se pudieron cargar los datos desde Google Sheets. Verifica que el Sheet esté compartido como 'Cualquier persona con el enlace puede ver' y que los nombres de las pestañas coincidan (SV_Donadores, SV_Historial, SV_Copys).";
+    eb.textContent = "No se pudieron cargar los datos desde Google Sheets. Verifica que el Sheet esté compartido como 'Cualquier persona con el enlace puede ver' y que los nombres de las pestañas coincidan (SV_Inscritos, SV_Historial, SV_Copys).";
   }
 }
 

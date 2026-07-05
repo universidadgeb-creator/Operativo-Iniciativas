@@ -199,7 +199,10 @@
 
     <!-- En atención activa ELA -->
     <div class="section">
-      <div class="section-title">En atención activa</div>
+      <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+        <span>En atención activa</span>
+        <button class="action-btn reg" onclick="abrirModalAsistLote()">📋 Pasar lista</button>
+      </div>
       <div class="guardia-grid" id="elaActivosGrid"></div>
     </div>
 
@@ -247,14 +250,12 @@
 </div>
 
 <!-- MODALES -->
-<div class="modal-overlay" id="modalAsist">
-  <div class="modal-box">
-    <div class="modal-title" id="modalAsistTitle">Registrar asistencia</div>
-    <div class="modal-row"><label>¿Asistió?</label><select id="mAsistio"><option value="">— selecciona —</option><option value="Sí">Sí</option><option value="No">No</option></select></div>
-    <div class="modal-row"><label>Notas (opcional)</label><textarea id="mAsistNotas" placeholder="Observaciones"></textarea></div>
-    <input type="hidden" id="mAsistNombre"><input type="hidden" id="mAsistSesion">
-    <div class="modal-actions"><button class="btn-primary" id="mAsistSave" onclick="guardarAsistencia()">Guardar</button><button class="btn-cancel" onclick="cerrarModal('modalAsist')">Cancelar</button></div>
-    <div class="modal-msg" id="mAsistMsg"></div>
+<div class="modal-overlay" id="modalAsistLote">
+  <div class="modal-box" style="max-width:560px;">
+    <div class="modal-title">Pasar lista — En atención activa (ELA)</div>
+    <div id="mLoteLista" style="max-height:360px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;margin:12px 0;"></div>
+    <div class="modal-actions"><button class="btn-primary" id="mLoteSave" onclick="guardarAsistenciaLote()">Guardar todo</button><button class="btn-cancel" onclick="cerrarModal('modalAsistLote')">Cancelar</button></div>
+    <div class="modal-msg" id="mLoteMsg"></div>
   </div>
 </div>
 
@@ -290,16 +291,15 @@
 </div>
 
 <script>
-var SHEET_ID = "1fS5qeoB1ViuCUP4HOQ1zTJgh4tfWUkObvb5LMr3to5A";
-var WEBAPP_URL = "https://script.google.com/macros/s/AKfycby8QmMkIKFlse1yIsIxJk6LjvBW8WYjNTf51f54KubtakiKkYhUOPZmYUN4S76JBF_YeQ/exec";
+var SHEET_ID = "1oaWADtW9SmqxuOoOM1bf65Ht_NkpE4l_o_DMutN_IbI";
+var WEBAPP_URL = "https://script.google.com/macros/s/AKfycbypzabPFyTWszyc2-wIPjImOTIitz68R6_okV2yUgxSD6CpkEkfpFlXh8OzgaQWlZYe/exec";
 var TABS = { inscritos:"AP_Inscritos", sesiones:"AP_Sesiones", copys:"AP_Copys" };
 var SCHEMA = {
-  // Activo_Programa (col D, 100% manual): Activo / Inactivo / Lista de espera.
-  // Decide si alguien cuenta en las vistas/métricas operativas. Estado (col H) queda
-  // exclusivo del script: solo puede quedar vacío, "Sesión pendiente" o "Completó" —
-  // nadie debe escribir Estado a mano. Reemplaza a Fecha_Registro (col D), que nunca
-  // se usaba en el código ni tenía datos llenos.
-  AP_Inscritos:["Nombre","Sucursal","Telefono_WA","Activo_Programa","Modalidad_Servicio","Modalidad_Sesion","Urgencia","Estado","Fecha_Inicio","Total_Sesiones","Sesiones_Tomadas","Requiere_Seguimiento","Notas","Diagnostico_Inicial","Diagnostico_Final"],
+  // Estado (col E) unifica lo que antes eran dos columnas separadas (Activo_Programa
+  // manual + Estado de progreso automático): un solo campo con valores "Lista de
+  // espera" | "Activo" | "Sesión pendiente" | "Completó" | "Baja", todo puesto por
+  // el script (altas.html al crear, o las acciones del panel después).
+  AP_Inscritos:["Nombre","Sucursal","Telefono_WA","Fecha_Alta","Estado","Requiere_Seguimiento","Notas","Modalidad_Servicio","Modalidad_Sesion","Urgencia","Total_Sesiones","Sesiones_Tomadas","Progreso_Sesiones","Diagnostico_Inicial","Diagnostico_Final"],
   AP_Sesiones:["Nombre","Num_Sesion","Fecha_Programada","Hora_Programada","Modalidad","Asistio","Cambio_Modalidad","Notas_Sesion"],
   AP_Copys:["Momento","Servicio","Copy_Texto","Numero_WA","Activo"]
 };
@@ -331,14 +331,14 @@ function fetchTab(tabName){
 
 function initials(n){if(!n)return"?";var p=n.trim().split(/\s+/);return((p[0]?p[0][0]:"")+(p[1]?p[1][0]:"")).toUpperCase();}
 function esSi(v){var s=(v||"").trim().toLowerCase();return s==="sí"||s==="si";}
-// Requiere_Seguimiento (col L, la llena el Apps Script): "Sí" en registros nuevos
-// recién capturados en el Sheet, vacía cuando ya se le dio seguimiento desde el
-// panel (asistencia, cambio de modalidad, sesiones I43), "No" cuando se marca Baja.
+// Requiere_Seguimiento (col F, la llena el Apps Script): "Sí" en altas nuevas
+// (altas.html), vacía cuando ya se le dio seguimiento desde el panel (asistencia,
+// cambio de modalidad, sesiones I43), "No" cuando se marca Baja.
 function esPendienteSeguimiento(d){return esSi(d.Requiere_Seguimiento);}
-// Activo_Programa (col D, 100% manual): Activo / Inactivo / Lista de espera.
-// Estado (col H) queda exclusivo del script: "", "Sesión pendiente" o "Completó".
-function esActivoOcupado(d){return(d.Activo_Programa||"").trim().toLowerCase()==="activo";}
-function esEnEsperaPrograma(d){return(d.Activo_Programa||"").trim().toLowerCase().startsWith("lista");}
+// Estado (col E, la llena el script) unifica lifecycle + progreso:
+// "Lista de espera" | "Activo" | "Sesión pendiente" | "Completó" | "Baja".
+function esActivoOcupado(d){var e=(d.Estado||"").trim().toLowerCase();return e==="activo"||e==="sesión pendiente"||e==="sesion pendiente";}
+function esEnEsperaPrograma(d){return(d.Estado||"").trim().toLowerCase().startsWith("lista");}
 function esCompletoEstado(d){var e=(d.Estado||"").trim().toLowerCase();return e==="completó"||e==="completo";}
 function waLink(tel,txt){var p=(tel||"").replace(/[^\d+]/g,"");return"https://wa.me/"+p.replace("+","")+"?text="+encodeURIComponent(txt);}
 
@@ -373,27 +373,22 @@ function urgPill(u){
   if(v==="media")return'<span class="pill urg-media">Media</span>';
   return'<span class="pill urg-baja">'+(u||"Baja")+'</span>';
 }
-// Estado ya solo lo mueve el script: vacío ("en curso"), Sesión pendiente o Completó.
+// Estado (col E) unifica lifecycle + progreso, lo llena solo el script (altas.html
+// o las acciones del panel): Lista de espera / Activo / Sesión pendiente / Completó / Baja.
+function esHistorico(d){return(d.Estado||"").trim().toLowerCase()==="baja";}
 function estadoPill(e){
   var v=(e||"").trim().toLowerCase();
+  if(v==="activo")return'<span class="pill activo">Activo</span>';
   if(v==="sesión pendiente"||v==="sesion pendiente")return'<span class="pill pendiente">Sesión pendiente</span>';
   if(v==="completó"||v==="completo")return'<span class="pill completo">Completó</span>';
-  if(!v)return"";
-  return'<span class="pill historico">'+e+'</span>';
-}
-// Activo_Programa: lo llena el equipo a mano (Activo/Inactivo/Lista de espera).
-function esHistorico(d){return(d.Activo_Programa||"").trim().toLowerCase()==="inactivo";}
-function programaPill(v){
-  var s=(v||"").trim().toLowerCase();
-  if(s==="activo")return'<span class="pill activo">Activo</span>';
-  if(s==="inactivo")return'<span class="pill historico">Histórico</span>';
-  if(s.startsWith("lista"))return'<span class="pill espera">Lista de espera</span>';
+  if(v==="baja")return'<span class="pill historico">Histórico</span>';
+  if(v.startsWith("lista"))return'<span class="pill espera">Lista de espera</span>';
   return'<span class="pill historico">Sin definir</span>';
 }
-function estadoCompleto(d){return programaPill(d.Activo_Programa)+estadoPill(d.Estado);}
+function estadoCompleto(d){return estadoPill(d.Estado);}
 
 function getMomentosELA(d){
-  // Histórico (Activo_Programa = Inactivo): sin acciones, solo se conserva el registro.
+  // Histórico (Estado = Baja): sin acciones, solo se conserva el registro.
   if(esHistorico(d))return[];
   // Pendiente de seguimiento (registro nuevo o recién movido a Activo sin atender):
   // el copy accionable es Aceptación + Agenda, no solo una etiqueta visual.
@@ -488,7 +483,6 @@ function renderElaActivos(){
       +estadoCompleto(d)
       +progressBar(d.Sesiones_Tomadas,d.Total_Sesiones)
       +'<div class="gactions">'+btns+'</div>'
-      +'<button class="action-btn reg" onclick="abrirModalAsist(\''+encodeURIComponent(d.Nombre)+'\','+proxNum+')">✓ Registrar asistencia</button>'
       +'<button class="action-btn cambio" onclick="abrirModalCambio(\''+encodeURIComponent(d.Nombre)+'\','+proxNum+')">↔ Cambio modalidad</button>'
       +'</div>';
   }).join("");
@@ -594,7 +588,7 @@ function diagnosticoInfo(d){
 }
 
 // Orden fijo de la tabla general, sin importar el filtro: ELA primero,
-// luego Impulso43, y al final los históricos (Activo_Programa=Inactivo).
+// luego Impulso43, y al final los históricos (Estado=Baja).
 function grupoOrdenGeneral(d){
   if(esHistorico(d))return 2;
   var mod=(d.Modalidad_Servicio||"").toUpperCase();
@@ -644,15 +638,28 @@ function toggleSeccion(sId,tId){var s=document.getElementById(sId),t=document.ge
 function cerrarModal(id){document.getElementById(id).classList.remove("open");}
 function showModalMsg(id,tipo,txt){var el=document.getElementById(id);el.className="modal-msg "+tipo;el.textContent=txt;if(tipo==="ok")setTimeout(function(){el.className="modal-msg";el.textContent="";},3000);}
 
-function abrirModalAsist(nombreEnc,numSesion){
-  var nombre=decodeURIComponent(nombreEnc);
-  document.getElementById("modalAsistTitle").textContent="Registrar asistencia — "+nombre.split(" ")[0]+" · Sesión "+numSesion;
-  document.getElementById("mAsistNombre").value=nombre;
-  document.getElementById("mAsistSesion").value=numSesion;
-  document.getElementById("mAsistio").value="";
-  document.getElementById("mAsistNotas").value="";
-  document.getElementById("mAsistMsg").className="modal-msg";
-  document.getElementById("modalAsist").classList.add("open");
+function abrirModalAsistLote(){
+  var activos=INSCRITOS.filter(function(d){
+    return(d.Modalidad_Servicio||"").toUpperCase()==="ELA"&&esActivoOcupado(d)&&!esCompletoEstado(d);
+  });
+  var cont=document.getElementById("mLoteLista");
+  if(!activos.length){
+    cont.innerHTML='<div class="footnote">No hay colaboradores en atención activa.</div>';
+  }else{
+    cont.innerHTML=activos.map(function(d){
+      var prox=getProximaSesion(SESIONES,d.Nombre);
+      var proxNum=prox?prox.Num_Sesion:(parseInt(d.Sesiones_Tomadas)||0)+1;
+      return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid var(--border);padding-bottom:8px;">'
+        +'<div style="font-size:13px;"><strong>'+d.Nombre+'</strong><div style="color:var(--text-soft);font-size:11px;">Sesión '+proxNum+'</div></div>'
+        +'<select data-nombre="'+encodeURIComponent(d.Nombre)+'" data-sesion="'+proxNum+'" class="lote-select">'
+        +'<option value="">— sin cambio —</option>'
+        +'<option value="Sí">Sí asistió</option>'
+        +'<option value="No">No asistió</option>'
+        +'</select></div>';
+    }).join("");
+  }
+  document.getElementById("mLoteMsg").className="modal-msg";
+  document.getElementById("modalAsistLote").classList.add("open");
 }
 
 function abrirModalCambio(nombreEnc,numSesion){
@@ -674,20 +681,23 @@ function abrirModalI43(nombreEnc,sesionesActuales){
   document.getElementById("modalI43").classList.add("open");
 }
 
-async function guardarAsistencia(){
-  var nombre=document.getElementById("mAsistNombre").value;
-  var numSesion=document.getElementById("mAsistSesion").value;
-  var asistio=document.getElementById("mAsistio").value;
-  var notas=document.getElementById("mAsistNotas").value;
-  if(!asistio){showModalMsg("mAsistMsg","err","Selecciona si asistió.");return;}
-  var btn=document.getElementById("mAsistSave");
+async function guardarAsistenciaLote(){
+  var selects=document.querySelectorAll("#mLoteLista .lote-select");
+  var registros=[];
+  selects.forEach(function(s){
+    if(s.value){
+      registros.push({nombre:decodeURIComponent(s.getAttribute("data-nombre")),numSesion:s.getAttribute("data-sesion"),asistio:s.value});
+    }
+  });
+  if(!registros.length){showModalMsg("mLoteMsg","err","Marca al menos a una persona.");return;}
+  var btn=document.getElementById("mLoteSave");
   btn.disabled=true;btn.textContent="Guardando…";
   try{
-    var r=await fetch(WEBAPP_URL,{method:"POST",body:JSON.stringify({tipo:"ap_asistencia",nombre:nombre,numSesion:numSesion,asistio:asistio,notas:notas})}).then(function(r){return r.json();});
-    if(r.ok||r.success){showModalMsg("mAsistMsg","ok","Registrado.");setTimeout(function(){cerrarModal("modalAsist");location.reload();},1500);}
-    else showModalMsg("mAsistMsg","err","Error: "+(r.error||"desconocido"));
-  }catch(e){showModalMsg("mAsistMsg","err","No se pudo conectar.");}
-  finally{btn.disabled=false;btn.textContent="Guardar";}
+    var r=await fetch(WEBAPP_URL,{method:"POST",body:JSON.stringify({tipo:"ap_asistencia_lote",registros:registros})}).then(function(r){return r.json();});
+    if(r.ok||r.success){showModalMsg("mLoteMsg","ok","Asistencia registrada.");setTimeout(function(){cerrarModal("modalAsistLote");location.reload();},1200);}
+    else showModalMsg("mLoteMsg","err","Error: "+(r.error||"desconocido"));
+  }catch(e){showModalMsg("mLoteMsg","err","No se pudo conectar.");}
+  finally{btn.disabled=false;btn.textContent="Guardar todo";}
 }
 
 async function guardarCambioModalidad(){

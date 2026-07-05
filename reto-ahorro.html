@@ -258,31 +258,28 @@
 </div>
 
 <script>
-var SHEET_ID = "1fS5qeoB1ViuCUP4HOQ1zTJgh4tfWUkObvb5LMr3to5A";
+// Reto Ahorro migrado al Sheet nuevo unificado (2026-07-04) — ver
+// INSTRUCCIONES_CRM.md y apps-script.gs (ALTA_INICIATIVAS/handleAltaUnificada).
+// RA_Copys también se movió al Sheet nuevo (2026-07-05, migrarCopysRestantesASheetNuevo)
+// — ahora las 2 pestañas de esta iniciativa viven en el mismo Sheet.
+var SHEET_ID = "1oaWADtW9SmqxuOoOM1bf65Ht_NkpE4l_o_DMutN_IbI";
 var TABS = {
   inscritos: "RA_Inscritos",
   copys:     "RA_Copys"
 };
+var TAB_SHEET = { RA_Inscritos: SHEET_ID, RA_Copys: SHEET_ID };
 
 var SCHEMA = {
-  // El Sheet real de RA_Inscritos solo tenía 6 columnas (verificado vía gviz en
-  // vivo 2026-07-04): Nombre,Sucursal,Telefono_WA,Semana_Actual,Fecha_Inscripcion,
-  // Requiere_Seguimiento — "Estado" NO existía como columna real; el SCHEMA
-  // anterior la insertaba a la mitad, corriendo todo lo demás una posición
-  // (Semana_Actual leía la fecha de inscripción, Estado siempre vacío). Se agrega
-  // "Estado" como columna nueva al final (col G) en vez de a la mitad, junto con
-  // "Fecha_Ultima_Semana" (col H): se actualiza cada vez que se edita Semana_Actual
-  // desde el panel, y un script diario (revisarAtrasosRA en apps-script.gs) la usa
-  // para marcar Requiere_Seguimiento="Sí" automáticamente cuando alguien lleva más
-  // de 3 semanas sin actualizar (Fecha_Inscripcion como respaldo si nunca se ha
-  // actualizado). Como nadie ha usado "Estado" todavía, vacío se trata igual que
-  // "Activo" (nadie ha sido dado de baja aún) — solo "Baja" excluye a alguien.
-  RA_Inscritos: ["Nombre","Sucursal","Telefono_WA","Semana_Actual","Fecha_Inscripcion","Requiere_Seguimiento","Estado","Fecha_Ultima_Semana"],
+  // Esquema unificado: 7 columnas base (Nombre..Notas) iguales en las 4
+  // iniciativas de "inscritos", luego las específicas de Reto Ahorro
+  // (Semana_Actual, Fecha_Ultima_Semana). Fecha_Alta reemplaza a la vieja
+  // Fecha_Inscripcion (mismo significado, nombre unificado).
+  RA_Inscritos: ["Nombre","Sucursal","Telefono_WA","Fecha_Alta","Estado","Requiere_Seguimiento","Notas","Semana_Actual","Fecha_Ultima_Semana"],
   RA_Copys:     ["Momento","Copy_Texto","Activo"]
 };
 
 function gvizUrl(tabName){
-  return "https://docs.google.com/spreadsheets/d/"+SHEET_ID+"/gviz/tq?tqx=out:json&sheet="+encodeURIComponent(tabName);
+  return "https://docs.google.com/spreadsheets/d/"+TAB_SHEET[tabName]+"/gviz/tq?tqx=out:json&sheet="+encodeURIComponent(tabName);
 }
 
 function formatTel(val){
@@ -454,7 +451,7 @@ function toggleSemanaForm(formId){
   if(el) el.classList.toggle("open");
 }
 
-var WEBAPP_URL = "https://script.google.com/macros/s/AKfycby8QmMkIKFlse1yIsIxJk6LjvBW8WYjNTf51f54KubtakiKkYhUOPZmYUN4S76JBF_YeQ/exec";
+var WEBAPP_URL = "https://script.google.com/macros/s/AKfycbypzabPFyTWszyc2-wIPjImOTIitz68R6_okV2yUgxSD6CpkEkfpFlXh8OzgaQWlZYe/exec";
 
 async function guardarSemana(nombreEnc, formId){
   var nombre = decodeURIComponent(nombreEnc);

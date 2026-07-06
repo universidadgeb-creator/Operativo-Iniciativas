@@ -473,6 +473,46 @@ function handleEgDiagnostico(p) {
   return resp({ ok: false, error: "No se encontró a " + nombre + " en EG_Inscritos" });
 }
 
+// ── Carga real única: 10 inscritos Escuela GEB (2026-07-05) ──────
+// Datos reales dados por Cecilia. appendRow directo (no vía alta_unificada)
+// porque ese endpoint hoy siempre deja Nivel vacío y Requiere_Seguimiento="Sí"
+// al crear, y aquí el Excel trae Estado/Requiere_Seguimiento/Nivel reales.
+function cargarEGLote_2026_07_05() {
+  var ws = egSheetNuevo_();
+  if (!ws) return;
+
+  var filas = [
+    ["America Polette Perea Carrillo",   "NAC",           "3315197578", "01/03/2026", "Activo", "No", "", "UVL",  "Secundaria", "Preparatoria"],
+    ["ANDREA ACUÑA ROBLEDO",             "ÁVILA CAMACHO", "3345938028", "01/04/2026", "Activo", "No", "", "INEA", "Secundaria", "Preparatoria"],
+    ["Araceli Abigail Caro Villalobos",  "GMT",           "",           "",           "Baja",   "Sí", "", "UVL",  "Primaria",   "Secundaria"],
+    ["Catalina Hurtado Olivares",        "NAC",           "3331421871", "01/03/2026", "Activo", "No", "", "UVL",  "Secundaria", "Preparatoria"],
+    ["Erick Salvador Salamanca Abarca",  "GMT",           "3339451753", "",           "Baja",   "Sí", "", "UVL",  "Secundaria", "Preparatoria"],
+    ["Fátima Lizette Hernández Jiménez", "NAC",           "3332478861", "01/12/2025", "Activo", "No", "", "INEA", "Secundaria", "Preparatoria"],
+    ["Perla del Carmen Luna Gutierrez",  "NAC",           "3333240945", "01/12/2025", "Activo", "No", "", "INEA", "Secundaria", "Preparatoria"],
+    ["Rosalba Jimenez Rivera",           "VR",            "3331598123", "01/04/2026", "Activo", "No", "", "INEA", "Primaria",   "Secundaria"],
+    ["VERONICA TORRES CAMPOS",           "ITESO",         "",           "01/12/2025", "Activo", "No", "", "INEA", "Secundaria", "Preparatoria"],
+    ["VITALINA BARRIOS ARTEAGA",         "ITESO",         "3339822326", "",           "Baja",   "Sí", "", "UVL",  "Primaria",   "Secundaria"]
+  ];
+
+  var data = ws.getDataRange().getValues();
+  var yaExisten = {};
+  for (var j = 1; j < data.length; j++) {
+    var n = String(data[j][0] || "").trim().toLowerCase();
+    if (n) yaExisten[n] = true;
+  }
+
+  var agregadas = 0, omitidas = 0;
+  filas.forEach(function (f) {
+    var key = String(f[0]).trim().toLowerCase();
+    if (yaExisten[key]) { omitidas++; return; }
+    ws.appendRow(f);
+    yaExisten[key] = true;
+    agregadas++;
+  });
+
+  Logger.log("EG lote 2026-07-05: agregadas=" + agregadas + " omitidas=" + omitidas);
+}
+
 // ── Sembrar datos de prueba Escuela GEB (Sheet nuevo) — solo desarrollo ──
 // Agrega colaboradores ficticios (prefijo "PRUEBA") a Colaboradores (para
 // FechaNac, usado en el cálculo de rezago) y a EG_Inscritos, cubriendo INEA,
@@ -518,6 +558,132 @@ function apSheetNuevo_() {
 }
 function apSesionesSheetNuevo_() {
   return SpreadsheetApp.openById(SHEET_NUEVO_ID).getSheetByName("AP_Sesiones");
+}
+
+// ── Carga real única: 40 históricos Atención Psicológica (2026-07-05) ──
+// (Oscar Eduardo Ibarra Hernández se quitó de aquí: pasó a la lista de
+// "actuales" en cargarAPActualesLote_2026_07_05 porque sigue activo, no
+// completado.)
+// Datos reales dados por Cecilia — solo se tiene la fecha en que recibieron
+// atención psicológica (o "En espera"), sin modalidad/sesiones/urgencia aún
+// (eso llega después como "los actuales"). appendRow directo porque
+// alta_unificada siempre pone Fecha_Alta=hoy, Requiere_Seguimiento="Sí" y
+// Total_Sesiones=5 al crear, y aquí ya se sabe que estos 39 están "Completó"
+// (sin seguimiento) y los 2 restantes en "Lista de espera".
+function cargarAPHistoricoLote_2026_07_05() {
+  var ws = apSheetNuevo_();
+  if (!ws) return;
+
+  var filas = [
+    ["Jerónimo de Jesús Aldrete Diaz", "VR", "3315297027", "01/09/2025", "Completó", "", "", "", "", "", "", 0, "", "", ""],
+    ["Carolina López Reyes Celis", "GMT", "3313575983", "02/10/2025", "Completó", "", "", "", "", "", "", 0, "", "", ""],
+    ["ALEJANDRA MELENDEZ MENDOZA", "CAÑADAS", "3333993503", "03/06/2025", "Completó", "", "", "", "", "", "", 0, "", "", ""],
+    ["Jennifer Vanessa Murguia Campos", "VR", "", "03/12/2025", "Completó", "", "", "", "", "", "", 0, "", "", ""],
+    ["Jesús Alberto Vázquez Hernández", "NAC", "3326372938", "04/02/2026", "Completó", "", "", "", "", "", "", 0, "", "", ""],
+    ["ALFONSO DE LA TORRE QUIÑONES", "ESTANCIA", "3322440118", "04/11/2025", "Completó", "", "", "", "", "", "", 0, "", "", ""],
+    ["Yuliana Gabriela Romero Guzmán", "GMT", "3321753547", "05/02/2026", "Completó", "", "", "", "", "", "", 0, "", "", ""],
+    ["Esmeralda Jacquelin Guillen Carrillo", "GMT", "", "05/05/2025", "Completó", "", "", "", "", "", "", 0, "", "", ""],
+    ["Brayan Enrique Navarro Ruiz", "NAC", "", "06/02/2025", "Completó", "", "", "", "", "", "", 0, "", "", ""],
+    ["Gustavo Noé Esqueda González", "VR", "3323510891", "07/05/2026", "Completó", "", "", "", "", "", "", 0, "", "", ""],
+    ["JORGE ALBERTO REAL ROMERO", "CAÑADAS", "3317973782", "08/06/2025", "Completó", "", "", "", "", "", "", 0, "", "", ""],
+    ["Cesar Abraham Medina Hernández", "NAC", "3312878685", "10/01/2025", "Completó", "", "", "", "", "", "", 0, "", "", ""],
+    ["Zhesly Dayyan Santiago Santiago", "NAC", "", "12/11/2025", "Completó", "", "", "", "", "", "", 0, "", "", ""],
+    ["Sarahi Ornelas Araiza", "NAC", "3320980143", "13/01/2025", "Completó", "", "", "", "", "", "", 0, "", "", ""],
+    ["BRENDA MARCELA CASTRO GUTIERREZ", "ESTANCIA", "3314989366", "13/01/2025", "Completó", "", "", "", "", "", "", 0, "", "", ""],
+    ["Darwin Ariel Zapata Garcia", "GMT", "3333928136", "13/01/2025", "Completó", "", "", "", "", "", "", 0, "", "", ""],
+    ["Gloria Yadhira Lio Gonzalez", "NAC", "", "13/01/2025", "Completó", "", "", "", "", "", "", 0, "", "", ""],
+    ["Jorge Isaac Padilla Hernandez", "NAC", "", "13/01/2025", "Completó", "", "", "", "", "", "", 0, "", "", ""],
+    ["LIZBETH ANAHI MORALES DE LIRA", "ÁVILA CAMACHO", "3313947712", "13/01/2025", "Completó", "", "", "", "", "", "", 0, "", "", ""],
+    ["Oscar Sinuhe Rodriguez Avalos", "NAC", "", "13/01/2025", "Completó", "", "", "", "", "", "", 0, "", "", ""],
+    ["Abril Reséndiz González", "VR", "7442271895", "14/01/2025", "Completó", "", "", "", "", "", "", 0, "", "", ""],
+    ["María Cristina De Rosas Márquez", "OFC", "3324977328", "14/01/2025", "Completó", "", "", "", "", "", "", 0, "", "", ""],
+    ["VERONICA TORRES CAMPOS", "ITESO", "", "14/08/2025", "Completó", "", "", "", "", "", "", 0, "", "", ""],
+    ["ANTONIO DE JESUS LOPEZ VELASCO", "ESTANCIA", "", "15/01/2025", "Completó", "", "", "", "", "", "", 0, "", "", ""],
+    ["Ángel Salcedo Castañeda", "VR", "3316004427", "16/09/2025", "Completó", "", "", "", "", "", "", 0, "", "", ""],
+    ["Gustavo Damian Zarate Aceves", "VR", "8145717836", "18/08/2025", "Completó", "", "", "", "", "", "", 0, "", "", ""],
+    ["Hector Alonso Martínez Infante", "NAC", "3331031501", "18/08/2025", "Completó", "", "", "", "", "", "", 0, "", "", ""],
+    ["EDUARDO CALDERON LOMELI", "ITESO", "3317389619", "20/10/2025", "Completó", "", "", "", "", "", "", 0, "", "", ""],
+    ["José Miguel Felix Lopez", "NAC", "", "21/11/2025", "Completó", "", "", "", "", "", "", 0, "", "", ""],
+    ["SALVADOR VIDAL ROSAS GONZALEZ", "ITESO", "", "22/01/2025", "Completó", "", "", "", "", "", "", 0, "", "", ""],
+    ["Blanca Lizette Michel López", "NAC", "3312203087", "22/09/2025", "Completó", "", "", "", "", "", "", 0, "", "", ""],
+    ["Maria Dolores Lopez Gonzalez", "NAC", "", "23/09/2025", "Completó", "", "", "", "", "", "", 0, "", "", ""],
+    ["America Polette Perea Carrillo", "NAC", "3315197578", "26/08/2025", "Completó", "", "", "", "", "", "", 0, "", "", ""],
+    ["KARLA BEATRIZ FLORES DUARTE", "ALEIRA", "", "26/08/2025", "Completó", "", "", "", "", "", "", 0, "", "", ""],
+    ["TATIANA GUADALUPE LOZA PINEDA", "OFC EASY", "", "26/08/2025", "Completó", "", "", "", "", "", "", 0, "", "", ""],
+    ["MONICA CRUZ MONTAÑO", "CAÑADAS", "", "28/10/2025", "Completó", "", "", "", "", "", "", 0, "", "", ""],
+    ["Jessica Leonella Toro Gil", "OFC", "3335047988", "05/06/2026", "Completó", "", "", "", "", "", "", 0, "", "", ""],
+    ["Claudia Guadalupe López Huerta", "NAC", "3317423476", "12/09/2025", "Completó", "", "", "", "", "", "", 0, "", "", ""],
+    ["Andrea Lizeth Orozco Mateo", "NAC", "3322491772", "", "Lista de espera", "Sí", "", "", "", "", "", 0, "", "", ""],
+    ["Nelly Rodriguez Hernandez", "NAC", "", "", "Lista de espera", "Sí", "", "", "", "", "", 0, "", "", ""]
+  ];
+
+  var data = ws.getDataRange().getValues();
+  var yaExisten = {};
+  for (var j = 1; j < data.length; j++) {
+    var n = String(data[j][0] || "").trim().toLowerCase();
+    if (n) yaExisten[n] = true;
+  }
+
+  var agregadas = 0, omitidas = 0;
+  filas.forEach(function (f) {
+    var key = String(f[0]).trim().toLowerCase();
+    if (yaExisten[key]) { omitidas++; return; }
+    var fila = f.slice();
+    if (fila[3]) {
+      var partes = String(fila[3]).split("/"); // dd/mm/yyyy
+      fila[3] = new Date(Number(partes[2]), Number(partes[1]) - 1, Number(partes[0]));
+    }
+    ws.appendRow(fila);
+    yaExisten[key] = true;
+    agregadas++;
+  });
+
+  Logger.log("AP histórico 2026-07-05: agregadas=" + agregadas + " omitidas=" + omitidas);
+}
+
+// ── Carga real única: 8 activos actuales Atención Psicológica (2026-07-05) ──
+// Datos reales dados por Cecilia. Todos Estado="Activo" (Urgencia="Baja" es el
+// nivel de urgencia clínica, no un estado de baja del programa). Fecha_Alta
+// usa la "Psic. Fecha" de cada quien (Cecilia confirmó, no la Fecha_Inicio
+// 16/06/2026 que era igual para todos). El diagnóstico corto (Ansiedad, Duelo,
+// etc.) va en Notas, no en Diagnostico_Inicial (también confirmado).
+function cargarAPActualesLote_2026_07_05() {
+  var ws = apSheetNuevo_();
+  if (!ws) return;
+
+  var filas = [
+    ["Diana Marcela Carrillo Reyes",       "NAC",      "3330382538", "22/04/2026", "Activo", "", "Ansiedad",          "ELA", "Presencial", "Baja", 5, 0, "", "", ""],
+    ["LETICIA DEL ROSARIO LOPE AYALA",     "ALEIRA",   "",           "27/03/2026", "Activo", "", "Problemas familiares", "ELA", "Virtual", "Baja", 5, 3, "", "", ""],
+    ["Ileana Nereida Sánchez Salazar",     "VR",       "3332341833", "31/03/2026", "Activo", "", "Duelo",             "ELA", "Virtual", "Baja", 5, 3, "", "", ""],
+    ["Luz Kerena López Valdes",            "NAC",      "3323848846", "31/07/2025", "Activo", "", "Duelo",             "ELA", "Virtual", "Baja", 5, 3, "", "", ""],
+    ["Jennifer Valeria Maldonado Calderón","NAC",      "3328286538", "05/06/2025", "Activo", "", "Duelo",             "ELA", "Virtual", "Baja", 5, 3, "", "", ""],
+    ["José Emmanuel Hernandez Muñoz",      "VR",       "3331075031", "16/06/2026", "Activo", "", "Estrés laboral",    "ELA", "Virtual", "Baja", 5, 3, "", "", ""],
+    ["PALOMA BERENICE FLORES PALOS",       "CAÑADAS",  "3317140825", "16/06/2026", "Activo", "", "Ansiedad",          "ELA", "Virtual", "Baja", 5, 3, "", "", ""],
+    ["Oscar Eduardo Ibarra Hernández",     "NAC",      "3315879326", "16/06/2026", "Activo", "", "Duelo",             "ELA", "Presencial", "Baja", 5, 0, "", "", ""]
+  ];
+
+  var data = ws.getDataRange().getValues();
+  var yaExisten = {};
+  for (var j = 1; j < data.length; j++) {
+    var n = String(data[j][0] || "").trim().toLowerCase();
+    if (n) yaExisten[n] = true;
+  }
+
+  var agregadas = 0, omitidas = 0;
+  filas.forEach(function (f) {
+    var key = String(f[0]).trim().toLowerCase();
+    if (yaExisten[key]) { omitidas++; return; }
+    var fila = f.slice();
+    if (fila[3]) {
+      var partes = String(fila[3]).split("/"); // dd/mm/yyyy
+      fila[3] = new Date(Number(partes[2]), Number(partes[1]) - 1, Number(partes[0]));
+    }
+    ws.appendRow(fila);
+    yaExisten[key] = true;
+    agregadas++;
+  });
+
+  Logger.log("AP actuales 2026-07-05: agregadas=" + agregadas + " omitidas=" + omitidas);
 }
 
 // ── Atención Psicológica: Registrar asistencia en lote (pasar lista) ──
@@ -1121,6 +1287,177 @@ function reAsistenciasSheetNuevo_()  { return SpreadsheetApp.openById(SHEET_NUEV
 function reHabitacionesSheetNuevo_() { return SpreadsheetApp.openById(SHEET_NUEVO_ID).getSheetByName("RE_Habitaciones"); }
 function reInteresadosSheetNuevo_()  { return SpreadsheetApp.openById(SHEET_NUEVO_ID).getSheetByName("RE_Interesados"); }
 
+// ── Carga real única: histórico Retiro Espiritual 2022-2026 (2026-07-05) ──
+// Datos reales dados por Cecilia: 13 ediciones (RE_Ediciones) y 106 registros
+// de asistencia (RE_Asistencias, incluye colaboradores actuales, ex-colabora-
+// dores y familiares/invitados marcados en Notas). id_edicion sigue el mismo
+// formato "RE-<año>-<NN>" que usa handleReAltaEdicion. Testimonios: se
+// colapsó a un solo Sí/No (Sí si asistió a cualquiera de las 2 fechas de
+// sesión de testimonios); el detalle textual original (Confirmado/Invitó/
+// Baja/N/A) se conserva en Notas para no perder información.
+function cargarREHistoricoLote_2026_07_05() {
+  var wsEd = reEdicionesSheetNuevo_();
+  var wsAs = reAsistenciasSheetNuevo_();
+  if (!wsEd || !wsAs) return;
+
+  var ediciones = [
+    ["RE-2022-01", "Retiro jul-22", "jul-22", "", "", "", "Completada", ""],
+    ["RE-2022-02", "Retiro oct-22", "oct-22", "", "", "", "Completada", ""],
+    ["RE-2023-01", "Retiro oct-23", "oct-23", "", "", "", "Completada", ""],
+    ["RE-2023-02", "Retiro oct-23", "oct-23", "", "", "", "Completada", ""],
+    ["RE-2024-01", "Retiro abr-24", "abr-24", "", "", "", "Completada", ""],
+    ["RE-2024-02", "Retiro oct-24", "oct-24", "", "", "", "Completada", ""],
+    ["RE-2025-01", "Retiro feb-25", "feb-25", "", "", "", "Completada", ""],
+    ["RE-2025-02", "Retiro jun-25", "jun-25", "", "", "", "Completada", ""],
+    ["RE-2025-03", "Retiro jul-25", "jul-25", "", "", "", "Completada", ""],
+    ["RE-2025-04", "Retiro oct-25", "oct-25", "", "", "", "Completada", ""],
+    ["RE-2025-05", "Retiro nov-25", "nov-25", "", "", "", "Completada", ""],
+    ["RE-2026-01", "Retiro ene-26", "ene-26", "", "", "", "Completada", ""],
+    ["RE-2026-02", "Retiro may-26", "may-26", "", "", "", "Pendiente de registro", ""]
+  ];
+
+  var asistencias = [
+    ["RE-2022-01", "Oliver Adan De la Torre Jauregui", "jul-22", "Sí", "No", ""],
+    ["RE-2022-01", "Gerardo Roberto Villarreal Treviño", "jul-22", "Sí", "Sí", ""],
+    ["RE-2022-02", "Elisa Nuñez", "oct-22", "Sí", "No", "(no es colaborador actualmente); baja de liderazgo; testimonios: 22/08/2025=Baja"],
+    ["RE-2022-02", "Julia Elizabeth Rodríguez Arroyo", "oct-22", "Sí", "Sí", ""],
+    ["RE-2023-01", "Marco Antonio Peregrina Sierra", "oct-23", "Sí", "Sí", ""],
+    ["RE-2023-01", "Raúl Eduardo Mantecón Siordia", "oct-23", "Sí", "No", ""],
+    ["RE-2023-01", "Javier Eduardo Muñoz Gaeta", "oct-23", "Sí", "Sí", ""],
+    ["RE-2023-01", "Judith Manzano", "oct-23", "No", "No", "(invitado/familiar, no colaborador); testimonios: 22/08/2025=N/A"],
+    ["RE-2023-01", "Dana María Schmid", "oct-23", "", "No", "(invitado/familiar, no colaborador); testimonios: 22/08/2025=N/A"],
+    ["RE-2023-01", "Jordi Vargas Garibay", "oct-23", "Sí", "No", "(invitado/familiar, no colaborador); testimonios: 22/08/2025=N/A"],
+    ["RE-2023-01", "Juan Pablo Monraz", "oct-23", "Sí", "No", "(invitado/familiar, no colaborador)"],
+    ["RE-2023-01", "Linda Zoraida Padilla Alvarez", "oct-23", "Sí", "No", ""],
+    ["RE-2023-01", "Daniel Garcia Lomeli", "oct-23", "", "No", ""],
+    ["RE-2023-01", "Ernesto Aviña", "oct-23", "Sí", "No", "(no es colaborador actualmente); baja de liderazgo; testimonios: 22/08/2025=Baja"],
+    ["RE-2023-01", "Jose Hiram Gonzalez Palazuelos", "oct-23", "Sí", "No", ""],
+    ["RE-2023-01", "Karen Anaid Armas Gutierrez", "oct-23", "No", "Sí", ""],
+    ["RE-2023-01", "Thalia Veronica Rangel Sotelo", "oct-23", "Sí", "Sí", ""],
+    ["RE-2023-01", "Alexia Gándara", "oct-23", "Sí", "No", "(no es colaborador actualmente)"],
+    ["RE-2023-02", "Mamá de Fer Benitez", "oct-23", "Sí", "No", "(invitado/familiar, no colaborador); testimonios: 22/08/2025=N/A"],
+    ["RE-2023-02", "Julia Elizabeth Rodríguez Arroyo", "oct-23", "Sí", "Sí", ""],
+    ["RE-2023-02", "Michelle Mejía Romero", "oct-23", "Sí", "Sí", ""],
+    ["RE-2024-01", "Fabricio Blanco", "abr-24", "Sí", "No", "(invitado/familiar, no colaborador); testimonios: 22/08/2025=N/A"],
+    ["RE-2024-01", "Blanca Angélica Muñiz Horta", "abr-24", "Sí", "No", "(invitado/familiar, no colaborador); testimonios: 22/08/2025=N/A"],
+    ["RE-2024-01", "Carolina Izunza", "abr-24", "Sí", "No", "(invitado/familiar, no colaborador); testimonios: 22/08/2025=N/A"],
+    ["RE-2024-01", "Angélica", "abr-24", "Sí", "No", "(invitado/familiar, no colaborador); testimonios: 22/08/2025=N/A"],
+    ["RE-2024-01", "Myrna", "abr-24", "Sí", "No", "(invitado/familiar, no colaborador); testimonios: 22/08/2025=N/A"],
+    ["RE-2024-01", "Martín Amaury Mejía Ruiz", "abr-24", "Sí", "No", "(invitado/familiar, no colaborador); testimonios: 22/08/2025=N/A"],
+    ["RE-2024-01", "David Santiago Morales", "abr-24", "Sí", "No", "(invitado/familiar, no colaborador); testimonios: 22/08/2025=N/A"],
+    ["RE-2024-01", "Ernesto Sánchez", "abr-24", "Sí", "No", "(no es colaborador actualmente); baja de liderazgo; testimonios: 22/08/2025=Baja"],
+    ["RE-2024-01", "Karen Anaid Armas Gutierrez", "abr-24", "Sí", "Sí", ""],
+    ["RE-2024-01", "Antonio Aceves Carvajal", "abr-24", "Sí", "No", "testimonios: 22/08/2025=N/A"],
+    ["RE-2024-01", "David Piñón", "abr-24", "Sí", "No", "(no es colaborador actualmente)"],
+    ["RE-2024-01", "Fernanda Benitez Barragan", "abr-24", "Sí", "No", "(no es colaborador actualmente); testimonios: 22/08/2025=Baja"],
+    ["RE-2024-01", "Amada Hernández Martínez", "abr-24", "Sí", "No", "(no es colaborador actualmente); baja de liderazgo; testimonios: 22/08/2025=Baja"],
+    ["RE-2024-01", "Rosa María Campos Torres", "abr-24", "Sí", "No", "(socio, no colaborador); testimonios: 22/08/2025=N/A"],
+    ["RE-2024-01", "Magally Basurto", "abr-24", "Sí", "No", "(no es colaborador actualmente)"],
+    ["RE-2024-01", "Karen Salas Peregrina", "abr-24", "Sí", "Sí", ""],
+    ["RE-2024-02", "Jessica Leonella Toro Gil", "oct-24", "Sí", "Sí", "testimonios: 22/08/2025=Invitada"],
+    ["RE-2024-02", "Katia Alejandra Villalobos Villela", "oct-24", "Sí", "No", ""],
+    ["RE-2024-02", "Ingrid Itzel Tellez Villalba", "oct-24", "Sí", "No", ""],
+    ["RE-2024-02", "Luis Ernesto Barba Durán", "oct-24", "Sí", "Sí", ""],
+    ["RE-2024-02", "Cristina Chavoya Ríos", "oct-24", "Sí", "No", "(no es colaborador actualmente); baja de liderazgo; testimonios: 22/08/2025=Baja"],
+    ["RE-2024-02", "Hector Alonso Martínez Infante", "oct-24", "Sí", "No", ""],
+    ["RE-2024-02", "Pablo Iván Solís Arizaga", "oct-24", "Sí", "No", ""],
+    ["RE-2024-02", "Edgar Lomelí Sánchez", "oct-24", "Sí", "No", "(no es colaborador actualmente)"],
+    ["RE-2024-02", "María Cristina de Rosas Márquez", "oct-24", "Sí", "Sí", ""],
+    ["RE-2025-01", "VITALINA BARRIOS ARTEAGA", "feb-25", "Sí", "No", ""],
+    ["RE-2025-01", "Cesar Abraham Medina Hernández", "feb-25", "Sí", "No", ""],
+    ["RE-2025-01", "Imelda Elizabeth Olvera Gonzalez", "feb-25", "Sí", "Sí", ""],
+    ["RE-2025-01", "Maritza Jacqueline Sánchez Pérez", "feb-25", "Sí", "No", "(no es colaborador actualmente); baja de liderazgo; testimonios: 22/08/2025=Baja"],
+    ["RE-2025-01", "TATIANA GUADALUPE LOZA PINEDA", "feb-25", "Sí", "Sí", ""],
+    ["RE-2025-01", "María Vanessa Velásquez Ramírez", "feb-25", "Sí", "No", "(no es colaborador actualmente); baja de liderazgo; testimonios: 22/08/2025=Baja"],
+    ["RE-2025-01", "Damaris Ibarra Rivas", "feb-25", "Sí", "Sí", "(no es colaborador actualmente)"],
+    ["RE-2025-02", "Valeria Esposa (Isaac)", "jun-25", "Sí", "No", "(invitado/familiar, no colaborador); testimonios: 22/08/2025=N/A"],
+    ["RE-2025-02", "Ilse Alejandra Cameros Bobadilla", "jun-25", "Sí", "Sí", ""],
+    ["RE-2025-02", "Andrés Isaac Franco Jiménez", "jun-25", "Sí", "Sí", ""],
+    ["RE-2025-02", "Cristina Geraldine Gritti Medina", "jun-25", "Sí", "No", ""],
+    ["RE-2025-02", "Daniel Gutierrez Buendia", "jun-25", "Sí", "Sí", ""],
+    ["RE-2025-02", "Griselda Luquin", "jun-25", "Sí", "Sí", "(colaboradora, datos pendientes de completar en Colaboradores)"],
+    ["RE-2025-02", "Álvaro José Bayardo Coronado", "jun-25", "Sí", "No", ""],
+    ["RE-2025-02", "Jenny", "jun-25", "Sí", "Sí", "(no es colaborador actualmente)"],
+    ["RE-2025-02", "Andrea Sandoval Velázquez", "jun-25", "Sí", "Sí", ""],
+    ["RE-2025-02", "Jóse Alejandro Caram Salinas", "jun-25", "Sí", "Sí", ""],
+    ["RE-2025-02", "Emma Medina", "jun-25", "Sí", "Sí", "(no es colaborador actualmente)"],
+    ["RE-2025-02", "Karla Neri", "jun-25", "Sí", "Sí", "(no es colaborador actualmente)"],
+    ["RE-2025-02", "JOSE ORTIZ SALAZAR", "jun-25", "Sí", "Sí", ""],
+    ["RE-2025-02", "BERENICE MARTINEZ MARTINEZ", "jun-25", "Sí", "Sí", ""],
+    ["RE-2025-03", "Abraham Amezcua Esparza", "jul-25", "Sí", "No", ""],
+    ["RE-2025-03", "Delia Catalina González Barrera", "jul-25", "Sí", "Sí", ""],
+    ["RE-2025-03", "Samuel Rodriguez Aguirre", "jul-25", "Sí", "No", "(no es colaborador actualmente); testimonios: 18/07/2025=Baja, 22/08/2025=Baja"],
+    ["RE-2025-03", "Carlos Enrique Aceituno Pinzón", "jul-25", "Sí", "No", ""],
+    ["RE-2025-03", "Joel Alfonso Quezada Pedroza", "jul-25", "Sí", "Sí", ""],
+    ["RE-2025-03", "Blanca Lizette Michel Lopez", "jul-25", "Sí", "Sí", ""],
+    ["RE-2025-03", "Oliver Adan De la Torre Jauregui", "jul-25", "No", "No", ""],
+    ["RE-2025-03", "Reyna Cecilia Villanueva Aguilar", "jul-25", "Sí", "No", ""],
+    ["RE-2025-03", "Ivan Padilla Cárdenas", "jul-25", "Sí", "No", ""],
+    ["RE-2025-03", "Jesus Alicia Dinero Garcia", "jul-25", "Sí", "No", ""],
+    ["RE-2025-03", "Francisco Joel Santana Hernández", "jul-25", "Sí", "No", ""],
+    ["RE-2025-03", "Sergio Peñaloza Vázquez", "jul-25", "Sí", "Sí", ""],
+    ["RE-2025-04", "Tania Verónica Rojas Espinoza", "oct-25", "Sí", "No", "testimonios: 22/08/2025=Confirmado"],
+    ["RE-2025-04", "Elmer Omar Derek Palma Gonzalez", "oct-25", "Sí", "", ""],
+    ["RE-2025-04", "Andrea Sanchez Lujano", "oct-25", "Sí", "No", "testimonios: 22/08/2025=Invitó"],
+    ["RE-2025-04", "ANDREA ACUÑA ROBLEDO", "oct-25", "Sí", "", ""],
+    ["RE-2025-04", "America Polette Perea Carrillo", "oct-25", "Sí", "Sí", ""],
+    ["RE-2025-04", "Jennifer Valeria Maldonado Calderón", "oct-25", "Sí", "Sí", ""],
+    ["RE-2025-04", "Esposa Luis Barba", "oct-25", "Sí", "", "(invitado/familiar, no colaborador)"],
+    ["RE-2025-04", "Diego Segovia", "oct-25", "Sí", "Sí", "(no es colaborador actualmente)"],
+    ["RE-2025-05", "Alfredo Jose Alfredo Salvador León", "nov-25", "Sí", "No", "(no es colaborador actualmente); testimonios: 22/08/2025=BAJA"],
+    ["RE-2025-05", "Darwin Ariel Zapata Garcia", "nov-25", "Sí", "No", "testimonios: 22/08/2025=Confirmado"],
+    ["RE-2025-05", "Edith Guadalupe Silva Aguiñaga", "nov-25", "Sí", "No", "testimonios: 22/08/2025=Invitó"],
+    ["RE-2025-05", "Mirella Avalos Juarez", "nov-25", "Sí", "No", "(no es colaborador actualmente); testimonios: 22/08/2025=Confirmado"],
+    ["RE-2026-01", "Penelope Estefanía Silva", "ene-26", "Sí", "", "(invitado/familiar, no colaborador)"],
+    ["RE-2026-01", "Virginia Florencia Mejia Ruiz", "ene-26", "Sí", "No", "testimonios: 22/08/2025=Confirmado"],
+    ["RE-2026-01", "Veronica Torres Campos", "ene-26", "Sí", "No", "testimonios: 22/08/2025=Confirmado"],
+    ["RE-2026-02", "Josefina Teresita Jauregui Jiménez", "may-26", "", "", "(invitado/familiar, no colaborador)"],
+    ["RE-2026-02", "Adan de la Torre Salmeron", "may-26", "", "", "(invitado/familiar, no colaborador)"],
+    ["RE-2026-02", "Diana Marcela Carrillo Reyes", "may-26", "", "", ""],
+    ["RE-2026-02", "Gabino Nicolas Gomez Aceves", "may-26", "", "", ""],
+    ["RE-2026-02", "Olivia Carrillo Burciaga", "may-26", "", "", ""],
+    ["RE-2026-02", "Rosalba Jimenez Rivera", "may-26", "", "", ""],
+    ["RE-2026-02", "Fátima Lizette Hernández Jiménez", "may-26", "", "", ""],
+    ["RE-2026-02", "Xander Elias Zepeda Alcaraz", "may-26", "", "", ""],
+    ["RE-2026-02", "Karla Beatriz Flores Duarte", "may-26", "", "", ""],
+    ["RE-2026-02", "Jennifer Montserrat Esparza Hernandez", "may-26", "", "", ""],
+    ["RE-2026-02", "David Alejandro Diaz Garcia", "may-26", "", "", ""],
+    ["RE-2026-02", "Michelle Mejía Romero", "may-26", "", "", ""]
+  ];
+
+  var datosEd = wsEd.getDataRange().getValues();
+  var yaExistenEd = {};
+  for (var i = 1; i < datosEd.length; i++) {
+    var idEd = String(datosEd[i][0] || "").trim();
+    if (idEd) yaExistenEd[idEd] = true;
+  }
+  var edAgregadas = 0, edOmitidas = 0;
+  ediciones.forEach(function (f) {
+    if (yaExistenEd[f[0]]) { edOmitidas++; return; }
+    wsEd.appendRow(f);
+    yaExistenEd[f[0]] = true;
+    edAgregadas++;
+  });
+
+  var datosAs = wsAs.getDataRange().getValues();
+  var yaExistenAs = {};
+  for (var j = 1; j < datosAs.length; j++) {
+    var key = String(datosAs[j][0] || "").trim() + "|" + String(datosAs[j][1] || "").trim().toLowerCase();
+    if (key !== "|") yaExistenAs[key] = true;
+  }
+  var asAgregadas = 0, asOmitidas = 0;
+  asistencias.forEach(function (f) {
+    var key = f[0] + "|" + f[1].toLowerCase();
+    if (yaExistenAs[key]) { asOmitidas++; return; }
+    wsAs.appendRow(f);
+    yaExistenAs[key] = true;
+    asAgregadas++;
+  });
+
+  Logger.log("RE histórico 2026-07-05: ediciones agregadas=" + edAgregadas + " omitidas=" + edOmitidas +
+             " | asistencias agregadas=" + asAgregadas + " omitidas=" + asOmitidas);
+}
+
 // ── Retiro del Espíritu Santo: Alta de nueva edición ────────────
 // Cols RE_Ediciones: A=id_edicion, B=nombre_edicion, C=fechas_texto,
 //                    D=fecha_inicio, E=fecha_fin, F=lugar, G=estado, H=notas
@@ -1352,6 +1689,54 @@ function handleCsBaja(p) {
     }
   }
   return resp({ ok: false, error: "No se encontró a " + nombre + " en CS_Inscritos" });
+}
+
+// ── Carga real única: 16 asistentes históricos Camino de Santiago (2026-07-05) ──
+// Datos reales dados por Cecilia (todos ya "Asistió"). appendRow directo
+// porque alta_unificada siempre deja Fecha_Camino vacía y Estado/Requiere_
+// Seguimiento fijos al crear — aquí ya se sabe que todos están "Completado".
+// Karen Salas Peregrina y Pablo Iván Solís Arizaga no existían en Colaboradores
+// y ya se dieron de alta ahí aparte (fila 10 y 13 de esta lista).
+function cargarCSLote_2026_07_05() {
+  var ws = csSheetNuevo_();
+  if (!ws) return;
+
+  var filas = [
+    ["Gerardo Roberto Villarreal Treviño",   "OFC",      "3314174439", "", "Completado", "", "Líder", ""],
+    ["Jose Hiram Gonzalez Palazuelos",       "OFC",      "3321542114", "", "Completado", "", "Líder", "01/10/2024"],
+    ["Raúl Eduardo Mantecón Siordia",        "OFC",      "3310705203", "", "Completado", "", "Líder", "01/10/2024"],
+    ["Marco Antonio Peregrina Sierra",       "OFC",      "",           "", "Completado", "", "Líder", "01/10/2024"],
+    ["Linda Zoraida Padilla Alvarez",        "OFC",      "3338067531", "", "Completado", "", "Líder", "01/10/2024"],
+    ["Julia Elizabeth Rodríguez Arroyo",     "OFC",      "3315454700", "", "Completado", "", "Líder", "01/10/2024"],
+    ["Karen Anaid Armas Gutierrez",          "GMT",      "3311637021", "", "Completado", "", "Líder", "01/10/2024"],
+    ["Antonio Aceves Carvajal",              "NAC",      "3328319060", "", "Completado", "", "Líder", "01/05/2025"],
+    ["ISMAEL CASTILLO GONZALEZ",             "OFC EASY", "3314141714", "", "Completado", "", "Líder", "01/05/2025"],
+    ["Karen Salas Peregrina",                "OFC",      "",           "", "Completado", "", "Líder", "01/10/2025"],
+    ["Reyna Cecilia Villanueva Aguilar",     "OFC",      "",           "", "Completado", "", "Líder", "01/10/2025"],
+    ["Andrea Viridiana Bedoy Ruiz",          "GMT",      "3334678410", "", "Completado", "", "Líder", "01/10/2025"],
+    ["Pablo Iván Solís Arizaga",             "OFC",      "",           "", "Completado", "", "Líder", "01/05/2026"],
+    ["Luis Ernesto Barba Durán",             "OFC",      "3314966829", "", "Completado", "", "Líder", "01/05/2026"],
+    ["Elmer Omar Derek Palma Gonzalez",      "OFC",      "",           "", "Completado", "", "Líder", "01/05/2026"],
+    ["Miguel Angel Garcia Arana",            "NAC",      "3312281209", "", "Completado", "", "",      "01/05/2026"]
+  ];
+
+  var data = ws.getDataRange().getValues();
+  var yaExisten = {};
+  for (var j = 1; j < data.length; j++) {
+    var n = String(data[j][0] || "").trim().toLowerCase();
+    if (n) yaExisten[n] = true;
+  }
+
+  var agregadas = 0, omitidas = 0;
+  filas.forEach(function (f) {
+    var key = String(f[0]).trim().toLowerCase();
+    if (yaExisten[key]) { omitidas++; return; }
+    ws.appendRow(f);
+    yaExisten[key] = true;
+    agregadas++;
+  });
+
+  Logger.log("CS lote 2026-07-05: agregadas=" + agregadas + " omitidas=" + omitidas);
 }
 
 // ── Migración única: RA_Copys / SV_Copys / EG_Copys → Sheet nuevo ────
@@ -2100,6 +2485,58 @@ const IG_CAMPOS_EVIDENCIA = { Plan_Vida: 8, Presupuesto: 9, Ahorro: 10, Movilida
 
 function igSheetNuevo_() { return SpreadsheetApp.openById(SHEET_NUEVO_ID).getSheetByName("IG_Inscritos"); }
 
+// ── Carga real única: 11 inscritos Impulso GEB Gen.1 (2026-07-05) ──
+// Datos reales dados por Cecilia. appendRow directo (no vía alta_unificada)
+// porque ese endpoint hoy siempre deja Plan_Vida/Presupuesto/Ahorro/
+// Movilidad_Social vacíos al crear, y aquí ya vienen con diagnóstico real.
+function cargarIGLote_2026_07_05() {
+  var ws = igSheetNuevo_();
+  if (!ws) return;
+
+  var filas = [
+    ["David Alejandro Sánchez Alamos",   "NAC",      "3313021077", "", "Activo", "", "Caja y Reto", "Sí", "No", "Sí", ""],
+    ["ALEJANDRA MELENDEZ MENDOZA",       "CAÑADAS",  "3333993503", "", "Activo", "", "Reto", "Sí", "Sí", "Sí", ""],
+    ["Cesar Abraham Medina Hernández",   "NAC",      "3312878685", "", "Activo", "", "Caja ahorro", "Sí", "Sí", "Sí", "Promoción"],
+    ["David Ortiz Perez",                "NAC",      "3318769613", "", "Activo", "", "Reto", "No", "No", "Sí", ""],
+    ["Fátima Lizette Hernández Jiménez", "NAC",      "3332478861", "", "Activo", "", "Fondo ahorro", "No", "No", "Sí", ""],
+    ["Gael Isaac Madrigal Rodriguez",    "NAC",      "3314708840", "", "Activo", "", "Fondo ahorro", "Sí", "Sí", "Sí", "Promoción"],
+    ["Ingrid Itzel Tellez Villalba",     "VR",       "3329991459", "", "Activo", "", "Caja ahorro", "No", "No", "Sí", ""],
+    ["Jerónimo de Jesús Aldrete Diaz",   "VR",       "3315297027", "", "Activo", "", "Caja ahorro", "Sí", "Sí", "Sí", ""],
+    ["Mahel Marc Altiery",               "NAC",      "3317645854", "", "Activo", "", "Caja ahorro", "Sí", "Sí", "Sí", ""],
+    ["ANTONIO DE JESUS LOPEZ VELASCO",   "ESTANCIA", "",           "", "Activo", "", "", "No", "No", "No", ""]
+  ];
+
+  // Gen.2 recién detectados (2026-07-05): sin diagnóstico Gen.1 (evidencias
+  // aparte, módulo Gen.2 aún no existe) — entran directo con Estado="Generación 2".
+  // America Polette Perea Carrillo apareció primero en la lista de Gen.1 pero
+  // Cecilia confirmó que se queda solo en Gen.2 (no se crea su fila de Gen.1).
+  var filasGen2 = [
+    ["America Polette Perea Carrillo",   "NAC",           "3315197578", "", "Generación 2", "No", "", "", "", "", ""],
+    ["ANDREA ACUÑA ROBLEDO",             "ÁVILA CAMACHO", "3345938028", "", "Generación 2", "No", "", "", "", "", ""],
+    ["CINTHIA AIDE RAMIREZ HUERTA",      "ESTANCIA",      "3314476122", "", "Generación 2", "No", "", "", "", "", ""],
+    ["NIDIA LIZZETTE RAMOS CARDENAS",    "ÁVILA CAMACHO", "3320511300", "", "Generación 2", "No", "", "", "", "", ""]
+  ];
+  filas = filas.concat(filasGen2);
+
+  var data = ws.getDataRange().getValues();
+  var yaExisten = {};
+  for (var j = 1; j < data.length; j++) {
+    var n = String(data[j][0] || "").trim().toLowerCase();
+    if (n) yaExisten[n] = true;
+  }
+
+  var agregadas = 0, omitidas = 0;
+  filas.forEach(function (f) {
+    var key = String(f[0]).trim().toLowerCase();
+    if (yaExisten[key]) { omitidas++; return; }
+    ws.appendRow(f);
+    yaExisten[key] = true;
+    agregadas++;
+  });
+
+  Logger.log("IG lote 2026-07-05: agregadas=" + agregadas + " omitidas=" + omitidas);
+}
+
 function handleIgActualizarCampo(p) {
   const ws = igSheetNuevo_();
   if (!ws) return resp({ ok: false, error: "Pestaña IG_Inscritos no encontrada en el Sheet nuevo" });
@@ -2422,7 +2859,13 @@ const ADMIN_FUNCIONES_PERMITIDAS = {
   borrarDatosPruebaTodos: borrarDatosPruebaTodos,
   configurarEASheetNuevo: configurarEASheetNuevo,
   sembrarPruebasEA: sembrarPruebasEA,
-  configurarAlertasAtrasoRA: configurarAlertasAtrasoRA
+  configurarAlertasAtrasoRA: configurarAlertasAtrasoRA,
+  cargarEGLote_2026_07_05: cargarEGLote_2026_07_05,
+  cargarIGLote_2026_07_05: cargarIGLote_2026_07_05,
+  cargarCSLote_2026_07_05: cargarCSLote_2026_07_05,
+  cargarAPHistoricoLote_2026_07_05: cargarAPHistoricoLote_2026_07_05,
+  cargarAPActualesLote_2026_07_05: cargarAPActualesLote_2026_07_05,
+  cargarREHistoricoLote_2026_07_05: cargarREHistoricoLote_2026_07_05
 };
 
 function handleAdminEjecutar(p) {

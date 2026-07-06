@@ -109,10 +109,10 @@
 
   <!-- MÉTRICAS -->
   <div class="metric-grid">
-    <div class="metric"><div class="val" id="mTotal">—</div><div class="lbl">colaboradores totales</div></div>
-    <div class="metric"><div class="val" id="mDonadores">—</div><div class="lbl">donadores registrados</div></div>
-    <div class="metric"><div class="val">10</div><div class="lbl">iniciativas activas</div></div>
-    <div class="metric"><div class="val">10</div><div class="lbl">con CRM operativo</div></div>
+    <div class="metric"><div class="val" id="mTotal">—</div><div class="lbl">total colaboradores</div></div>
+    <div class="metric"><div class="val" id="mTotalVivo">—</div><div class="lbl">total VIVO 47</div></div>
+    <div class="metric"><div class="val" id="mTotalEasy">—</div><div class="lbl">total EasyFit</div></div>
+    <div class="metric"><div class="val" id="mTotalGeb">—</div><div class="lbl">total GEB</div></div>
   </div>
 
   <!-- BUSCADOR -->
@@ -353,8 +353,6 @@ function updateCardStats(){
   stat("statBeca", INICIATIVA_SETS.beca, "interesados");
   stat("statDonadores", INICIATIVA_SETS.donadores, "donadores registrados");
   stat("statEco", INICIATIVA_SETS.eco, "líderes");
-  const mDon = document.getElementById("mDonadores");
-  if(mDon) mDon.textContent = INICIATIVA_SETS.donadores.size;
 
   const elBib = document.getElementById("statBiblioteca");
   if(elBib) elBib.innerHTML = `<strong>${INICIATIVA_SETS.bibDonante.size}</strong> donadores · <strong>${INICIATIVA_SETS.bibReceptor.size}</strong> receptores`;
@@ -408,7 +406,11 @@ async function init(){
     const [colaboradores, sets] = await Promise.all([fetchColaboradores(), cargarIniciativaSets()]);
     COLABORADORES = colaboradores;
     INICIATIVA_SETS = sets;
+    const porUnidad = countBy(COLABORADORES, "Unidad");
     document.getElementById("mTotal").textContent = COLABORADORES.length;
+    document.getElementById("mTotalVivo").textContent = porUnidad["VIVO 47"] || 0;
+    document.getElementById("mTotalEasy").textContent = porUnidad["EasyFit"] || 0;
+    document.getElementById("mTotalGeb").textContent = porUnidad["GEB"] || 0;
     document.getElementById("headerSub").textContent = `${COLABORADORES.length} colaboradores · 10 iniciativas · 4 enfoques`;
     updateCardStats();
     renderBreakdown(COLABORADORES);

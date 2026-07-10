@@ -49,7 +49,7 @@
   header.page-header h1{ font-family:'Cormorant Garamond', serif; font-size:34px; font-weight:600; color:var(--blue); }
   header.page-header .sub{ color:var(--text-soft); font-size:13px; }
 
-  .metric-grid{ display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:28px; }
+  .metric-grid{ display:grid; grid-template-columns:repeat(6,1fr); gap:12px; margin-bottom:28px; }
   .metric{ background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px 16px; }
   .metric.alert{ background:var(--red-bg); border-color:#f0c7c7; }
   .metric .val{ font-size:26px; font-weight:700; color:var(--blue); line-height:1.1; }
@@ -287,7 +287,13 @@
     <div class="panel-row" style="margin-bottom:8px;">
       <span style="font-size:12.5px; color:var(--text-soft);">Donaciones pendientes de confirmar</span>
     </div>
-    <div class="gcard-grid" id="donPendientesGrid"></div>
+    <div class="gcard-grid" id="donPendientesGrid" style="margin-bottom:20px;"></div>
+
+    <div class="panel-row" style="margin-bottom:8px;">
+      <span style="font-size:12.5px; color:var(--text-soft);">Devoluciones pendientes de confirmar (check físico)</span>
+    </div>
+    <div class="gcard-grid" id="devPendientesGrid"></div>
+    <div id="devSinMatchWrap" style="margin-top:10px;"></div>
   </div>
 
   <!-- TABLA DE PRÉSTAMOS ACTIVOS -->
@@ -609,10 +615,18 @@ const ordenarTabla = crearOrdenador("tablaHead", sortStateTabla, applyFilters);
 const ordenarHistPrest = crearOrdenador("historialPrestHead", sortStateHistPrest, applyHistorialPrestamosFilters);
 const ordenarHistDon = crearOrdenador("historialDonHead", sortStateHistDon, applyHistorialFilters);
 
+function devolucionesPendientes(){
+  return DEVOLUCIONES.filter(d => !d.procesado);
+}
+function devolucionesSinMatch(){
+  return DEVOLUCIONES.filter(d => (d.procesado||"").indexOf("Revisar manualmente") >= 0);
+}
+
 function renderMetrics(){
   const activos = prestamosActivos();
   const atrasados = activos.filter(p => calcularEstadoPrestamo(p).estado === "atrasado");
   const porVencer = activos.filter(p => calcularEstadoPrestamo(p).estado === "porvencer");
+  const devPendientes = devolucionesPendientes();
 
   const donantesUnicos = new Set(DONACIONES.map(d => (d.donante||"").trim().toLowerCase()).filter(Boolean));
   const receptoresUnicos = new Set(PRESTAMOS.map(p => (p.nombre||"").trim().toLowerCase()).filter(Boolean));
@@ -621,6 +635,7 @@ function renderMetrics(){
     { val: activos.length, lbl: "préstamos activos" },
     { val: atrasados.length, lbl: "atrasados", alert: atrasados.length > 0 },
     { val: porVencer.length, lbl: "por vencer (3 días)" },
+    { val: devPendientes.length, lbl: "devoluciones sin check físico", alert: devPendientes.length > 0 },
     { val: donantesUnicos.size, lbl: "donadores (histórico)" },
     { val: receptoresUnicos.size, lbl: "receptores (histórico)" },
   ];
@@ -685,6 +700,23 @@ function renderAtencion(){
         `;
       }).join("")
     : `<div class="footnote">No hay donaciones pendientes de confirmar.</div>`;
+
+  const devPendientes = devolucionesPendientes();
+  document.getElementById("devPendientesGrid").innerHTML = devPendientes.length
+    ? devPendientes.map(d => `
+        <div class="gcard">
+          <div class="gcard-head"><div><div class="gname">${d.nombre}</div><div class="glibro">"${d.titulo || d.id_libro || "sin título"}"</div></div></div>
+          <span class="pill pendiente">reportada ${formatFechaCorta(parseFecha(d.timestamp))}</span>
+          ${d.condicion ? `<span class="pill" style="background:var(--gray-bg);color:var(--text-soft);">condición: ${d.condicion}</span>` : ""}
+          <button class="ext-btn" onclick="confirmarDevolucionFisica(${d._fila}, this)">✓ Confirmar recepción física</button>
+        </div>
+      `).join("")
+    : `<div class="footnote">No hay devoluciones pendientes de confirmar.</div>`;
+
+  const devSinMatch = devolucionesSinMatch();
+  document.getElementById("devSinMatchWrap").innerHTML = devSinMatch.length
+    ? `<div class="footnote" style="color:var(--red-text);">⚠️ ${devSinMatch.length} devolución(es) confirmada(s) físicamente pero sin préstamo activo que coincida (nombre/libro) — revisar a mano en BIB_Prestamos: ${devSinMatch.map(d => d.nombre).join(", ")}</div>`
+    : "";
 }
 
 function renderTabla(filtered){
@@ -863,6 +895,33 @@ async function extenderPrestamo(nombreEnc, idLibroEnc, btnEl){
     }
   } catch(e){
     btnEl.disabled = false; btnEl.textContent = "+2 semanas";
+    alert("No se pudo conectar con el servidor.");
+  }
+}
+
+// Confirma que el libro se recibió físicamente de vuelta: llama al backend
+// (handleBibProcesarDevolucion), que busca el préstamo activo que coincide
+// por nombre + libro y lo marca devuelto, y marca esta fila de BIB_Devoluciones
+// como procesada. Si no encuentra préstamo coincidente, igual queda marcada
+// (ya se confirmó físicamente) pero aparece en el aviso "revisar a mano".
+async function confirmarDevolucionFisica(fila, btnEl){
+  btnEl.disabled = true; btnEl.textContent = "Confirmando…";
+  try{
+    const r = await postData({ tipo:"bib_procesarDevolucion", filaDevolucion: fila });
+    if(r.ok){
+      const [devoluciones, prestamos] = await Promise.all([
+        fetchSheetTab(TABS.devoluciones),
+        fetchSheetTab(TABS.prestamos)
+      ]);
+      DEVOLUCIONES = devoluciones.filter(d => d.nombre && d.nombre.trim() !== "");
+      PRESTAMOS = prestamos.filter(p => p.nombre && p.nombre.trim() !== "");
+      renderMetrics(); renderAtencion(); applyFilters(); applyHistorialPrestamosFilters();
+    } else {
+      btnEl.disabled = false; btnEl.textContent = "✓ Confirmar recepción física";
+      alert("Error: " + r.error);
+    }
+  } catch(e){
+    btnEl.disabled = false; btnEl.textContent = "✓ Confirmar recepción física";
     alert("No se pudo conectar con el servidor.");
   }
 }

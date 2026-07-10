@@ -233,10 +233,12 @@
         <span id="edicionBadge"></span>
         <span class="origen-tag" id="edicionFechas"></span>
         <span style="flex:1;"></span>
+        <button class="reg-btn" onclick="abrirEditarEdicion()">✎ Editar esta edición</button>
         <button class="reg-btn" onclick="toggleAltaEdicion()">+ Nueva edición</button>
       </div>
       <div class="inline-form" id="altaEdicionForm">
-        <div class="inline-form-title">Nueva edición del retiro</div>
+        <div class="inline-form-title" id="altaEdicionFormTitle">Nueva edición del retiro</div>
+        <input type="hidden" id="ae_idEdicion">
         <div class="form-row"><label>Nombre de la edición *</label><input type="text" id="ae_nombre" placeholder="Ej. Retiro Espíritu Santo — Febrero 2026"></div>
         <div class="form-row"><label>Fechas (texto libre) *</label><input type="text" id="ae_fechasTexto" placeholder="viernes 14 al domingo 16 de febrero"></div>
         <div class="form-row"><label>Fecha inicio</label><input type="date" id="ae_fechaInicio"></div>
@@ -245,13 +247,15 @@
         <div class="form-row"><label>Estado *</label>
           <select id="ae_estado">
             <option value="Próxima">Próxima</option>
+            <option value="Pendiente de registro">Pendiente de registro</option>
             <option value="Activa">Activa</option>
+            <option value="Completada">Completada</option>
             <option value="Cerrada">Cerrada</option>
           </select>
         </div>
         <div class="form-row"><label>Notas</label><textarea id="ae_notas"></textarea></div>
         <div class="form-actions">
-          <button class="btn-guardar" onclick="guardarEdicion()">Guardar</button>
+          <button class="btn-guardar" id="aeGuardarBtn" onclick="guardarEdicion()">Guardar</button>
           <button class="btn-cancelar" onclick="toggleAltaEdicion()">Cancelar</button>
         </div>
         <div class="form-msg" id="aeMsg"></div>
@@ -645,18 +649,56 @@ function renderBadgeEdicion(){
   fechas.textContent = ed.fechas_texto || "";
 }
 
-function toggleAltaEdicion(){ document.getElementById("altaEdicionForm").classList.toggle("open"); }
+function limpiarFormEdicion(){
+  document.getElementById("ae_idEdicion").value = "";
+  document.getElementById("altaEdicionFormTitle").textContent = "Nueva edición del retiro";
+  document.getElementById("aeGuardarBtn").textContent = "Guardar";
+  ["ae_nombre","ae_fechasTexto","ae_fechaInicio","ae_fechaFin","ae_lugar","ae_notas"].forEach(id => { document.getElementById(id).value=""; });
+  document.getElementById("ae_estado").value = "Próxima";
+}
+
+function toggleAltaEdicion(){
+  const form = document.getElementById("altaEdicionForm");
+  const abrir = !form.classList.contains("open");
+  if(abrir) limpiarFormEdicion();
+  form.classList.toggle("open");
+}
+
+function fechaInputValue(d){
+  if(!d) return "";
+  const dt = new Date(d);
+  if(isNaN(dt.getTime())) return "";
+  return dt.getFullYear() + "-" + String(dt.getMonth()+1).padStart(2,"0") + "-" + String(dt.getDate()).padStart(2,"0");
+}
+
+function abrirEditarEdicion(){
+  const ed = EDICIONES.find(e => e.id_edicion === currentEdicionId);
+  if(!ed){ alert("Selecciona una edición primero."); return; }
+  document.getElementById("ae_idEdicion").value = ed.id_edicion;
+  document.getElementById("altaEdicionFormTitle").textContent = "Editar edición — " + (ed.nombre_edicion || ed.id_edicion);
+  document.getElementById("aeGuardarBtn").textContent = "Guardar cambios";
+  document.getElementById("ae_nombre").value = ed.nombre_edicion || "";
+  document.getElementById("ae_fechasTexto").value = ed.fechas_texto || "";
+  document.getElementById("ae_fechaInicio").value = fechaInputValue(ed.fecha_inicio);
+  document.getElementById("ae_fechaFin").value = fechaInputValue(ed.fecha_fin);
+  document.getElementById("ae_lugar").value = ed.lugar || "";
+  document.getElementById("ae_estado").value = ed.estado || "Próxima";
+  document.getElementById("ae_notas").value = ed.notas || "";
+  document.getElementById("altaEdicionForm").classList.add("open");
+  document.getElementById("altaEdicionForm").scrollIntoView({ behavior:"smooth", block:"center" });
+}
 
 async function guardarEdicion(){
   const nombre = document.getElementById("ae_nombre").value.trim();
   const fechasTexto = document.getElementById("ae_fechasTexto").value.trim();
   if(!nombre || !fechasTexto){ showMsg("aeMsg","err","Nombre y fechas son obligatorios."); return; }
+  const idEdicionEditando = document.getElementById("ae_idEdicion").value;
 
   const btn = document.querySelector("#altaEdicionForm .btn-guardar");
   btn.disabled = true; btn.textContent = "Guardando…";
   try{
-    const r = await postData({
-      tipo: "re_altaEdicion",
+    const payload = {
+      tipo: idEdicionEditando ? "re_editarEdicion" : "re_altaEdicion",
       nombreEdicion: nombre,
       fechasTexto,
       fechaInicio: document.getElementById("ae_fechaInicio").value,
@@ -664,17 +706,19 @@ async function guardarEdicion(){
       lugar: document.getElementById("ae_lugar").value.trim(),
       estado: document.getElementById("ae_estado").value,
       notas: document.getElementById("ae_notas").value.trim()
-    });
+    };
+    if(idEdicionEditando) payload.idEdicion = idEdicionEditando;
+    const r = await postData(payload);
     if(r.ok){
-      showMsg("aeMsg","ok","Edición creada: " + r.idAsignado);
+      showMsg("aeMsg","ok", idEdicionEditando ? "Edición actualizada." : "Edición creada: " + r.idAsignado);
       EDICIONES = await fetchSheetTab(TABS.ediciones);
-      currentEdicionId = r.idAsignado;
+      if(!idEdicionEditando) currentEdicionId = r.idAsignado;
       HAB_DRAFT = [];
       renderEdicionSelector();
       renderAll();
       initHistorialFilters();
       toggleAltaEdicion();
-      ["ae_nombre","ae_fechasTexto","ae_fechaInicio","ae_fechaFin","ae_lugar","ae_notas"].forEach(id => { document.getElementById(id).value=""; });
+      limpiarFormEdicion();
     } else {
       showMsg("aeMsg","err","Error: " + r.error);
     }

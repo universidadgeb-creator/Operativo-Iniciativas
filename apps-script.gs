@@ -75,6 +75,7 @@ function onOpen() {
     .addItem("🗑️ Borrar TODOS los datos de prueba (PRUEBA...)", "borrarDatosPruebaTodos")
     .addItem("🔧 Configurar Eco-Acción en Sheet nuevo (1 vez)", "configurarEASheetNuevo")
     .addItem("🧪 Sembrar datos de prueba Eco-Acción (Sheet nuevo)", "sembrarPruebasEA")
+    .addItem("🧹 Quitar emojis de todos los Copys (1 vez)", "limpiarEmojisCopys")
     .addToUi();
 }
 
@@ -149,6 +150,48 @@ function borrarDatosPruebaTodos() {
   SpreadsheetApp.getUi().alert("Datos de prueba borrados:\n\n" + resultado.join("\n"));
 }
 
+// ── Quitar emojis de todos los Copys (desarrollo) ────────────────
+// Los emojis en Copy_Texto no siempre llegan bien por WhatsApp. Recorre
+// todas las pestañas *_Copys del Sheet nuevo, busca la columna Copy_Texto
+// por encabezado (no por posición fija, ya que varía entre pestañas) y
+// quita cualquier emoji del texto. Solo reescribe las celdas que
+// realmente cambiaron. Correr una sola vez; los copys nuevos que se
+// capturen después (a mano en el Sheet, o desde el editor de Reto Ahorro
+// en el portal) deben escribirse ya sin emojis.
+function limpiarEmojisCopys() {
+  var tabs = ["AP_Copys", "RA_Copys", "SV_Copys", "BE_Copys", "EG_Copys", "RE_Copys", "BIB_Copys"];
+  var EMOJI_REGEX = /[\u{1F1E6}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}]/gu;
+  var resultado = [];
+
+  tabs.forEach(function (nombreHoja) {
+    var ws = SS.getSheetByName(nombreHoja);
+    if (!ws) { resultado.push(nombreHoja + ": pestaña no encontrada"); return; }
+
+    var headers = ws.getRange(1, 1, 1, ws.getLastColumn()).getValues()[0];
+    var colCopy = headers.indexOf("Copy_Texto");
+    if (colCopy === -1) { resultado.push(nombreHoja + ": no tiene columna Copy_Texto"); return; }
+
+    var data = ws.getDataRange().getValues();
+    var limpiados = 0;
+    for (var i = 1; i < data.length; i++) {
+      var texto = data[i][colCopy];
+      if (typeof texto !== "string" || !texto) continue;
+      var limpio = texto
+        .replace(EMOJI_REGEX, "")
+        .split("\n").map(function (linea) { return linea.replace(/[ \t]{2,}/g, " ").trim(); }).join("\n")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
+      if (limpio !== texto) {
+        ws.getRange(i + 1, colCopy + 1).setValue(limpio);
+        limpiados++;
+      }
+    }
+    resultado.push(nombreHoja + ": " + limpiados + " copy(s) limpiado(s)");
+  });
+
+  SpreadsheetApp.getUi().alert("Emojis eliminados de los copys:\n\n" + resultado.join("\n"));
+}
+
 function doPost(e) {
   try {
     const payload = JSON.parse(e.postData.contents);
@@ -187,6 +230,7 @@ function doPost(e) {
     if (tipo === "migrar_ap_historico") return handleMigrarAPHistorico(payload);
     if (tipo === "retirar_sync_ap")     return handleRetirarSyncAP(payload);
     if (tipo === "re_altaEdicion")           return handleReAltaEdicion(payload);
+    if (tipo === "re_editarEdicion")         return handleReEditarEdicion(payload);
     if (tipo === "re_registro")             return handleReRegistro(payload);
     if (tipo === "re_asistenciaLote")        return handleReAsistenciaLote(payload);
     if (tipo === "re_guardarHabitaciones")   return handleReGuardarHabitaciones(payload);
@@ -1633,6 +1677,36 @@ function handleReAltaEdicion(p) {
   ]);
 
   return resp({ ok: true, idAsignado: idEdicion });
+}
+
+// ── Retiro del Espíritu Santo: Editar una edición existente ──────
+// Corrige datos de una edición ya creada (nombre, fechas, lugar, estado,
+// notas) sin tocar su id_edicion ni las asistencias/habitaciones ya
+// ligadas a ella. Pensado para arreglar errores de captura, incluyendo el
+// campo Estado (a mano hoy tiene valores como "Completada"/"Pendiente de
+// registro" que no siempre coinciden con las opciones del alta original).
+function handleReEditarEdicion(p) {
+  const ws = reEdicionesSheetNuevo_();
+  if (!ws) return resp({ ok: false, error: "Pestaña RE_Ediciones no encontrada en el Sheet nuevo" });
+
+  const idEdicion = (p.idEdicion || "").trim();
+  if (!idEdicion) return resp({ ok: false, error: "Falta el id de la edición" });
+
+  const data = ws.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim() === idEdicion) {
+      ws.getRange(i + 1, 2).setValue(p.nombreEdicion || "");
+      ws.getRange(i + 1, 3).setValue(p.fechasTexto || "");
+      ws.getRange(i + 1, 4).setValue(p.fechaInicio ? new Date(p.fechaInicio) : "");
+      ws.getRange(i + 1, 5).setValue(p.fechaFin ? new Date(p.fechaFin) : "");
+      ws.getRange(i + 1, 6).setValue(p.lugar || "");
+      ws.getRange(i + 1, 7).setValue(p.estado || "");
+      ws.getRange(i + 1, 8).setValue(p.notas || "");
+      return resp({ ok: true });
+    }
+  }
+
+  return resp({ ok: false, error: "No se encontró la edición " + idEdicion });
 }
 
 // ── Retiro del Espíritu Santo: Alta manual de un participante ──

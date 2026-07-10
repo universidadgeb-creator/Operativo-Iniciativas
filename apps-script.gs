@@ -76,6 +76,8 @@ function onOpen() {
     .addItem("🔧 Configurar Eco-Acción en Sheet nuevo (1 vez)", "configurarEASheetNuevo")
     .addItem("🧪 Sembrar datos de prueba Eco-Acción (Sheet nuevo)", "sembrarPruebasEA")
     .addItem("🧹 Quitar emojis de todos los Copys (1 vez)", "limpiarEmojisCopys")
+    .addItem("🔧 Sincronizar Biblioteca desde histórico (una vez, ahora)", "sincronizarBibliotecaDesdeHistorico")
+    .addItem("🔧 Sincronizar Biblioteca desde histórico cada hora (hasta reconectar el Form)", "configurarSincronizacionBibliotecaHoraria")
     .addToUi();
 }
 
@@ -2156,6 +2158,82 @@ function migrarBibliotecaASheetNuevo() {
   });
 
   ui.alert("Migración de Biblioteca al Sheet nuevo:\n\n" + resultado.join("\n"));
+}
+
+// ── Sincronización de respaldo: Biblioteca histórico → Sheet nuevo ──
+// migrarBibliotecaASheetNuevo() fue una copia de una sola vez (2026-07-05).
+// Los Forms de préstamos/donaciones/devoluciones de la Biblioteca siguen
+// mandando sus respuestas a SHEET_HISTORICO_ID (nunca se reconfiguraron
+// para apuntar a SHEET_NUEVO_ID), así que todo lo capturado después de esa
+// fecha se quedó en el Sheet histórico y el portal nunca lo mostró — se
+// confirmó que BIB_Donaciones tiene ~300 filas de diferencia y
+// BIB_Devoluciones no tenía ni una sola fila real en el Sheet nuevo.
+// LA SOLUCIÓN DE FONDO es apuntar cada Form directamente a SHEET_NUEVO_ID
+// (Google Forms → pestaña Respuestas → ícono verde de Sheets → cambiar el
+// destino), no esta función. Esta función es solo un parche: copia (sin
+// duplicar, comparando timestamp+nombre) lo que ya se acumuló en el
+// histórico mientras se hace ese cambio, y opcionalmente corre sola cada
+// hora para no perder nada mientras tanto.
+function sincronizarBibliotecaDesdeHistorico() {
+  var ssNuevo = SpreadsheetApp.openById(SHEET_NUEVO_ID);
+  var ssHistorico = SpreadsheetApp.openById(SHEET_HISTORICO_ID);
+  var specs = [
+    { nombre: "BIB_Prestamos", colNombre: 1 },
+    { nombre: "BIB_Donaciones", colNombre: 1 },
+    { nombre: "BIB_Devoluciones", colNombre: 1 }
+  ];
+  var resultado = [];
+
+  specs.forEach(function (spec) {
+    var wsViejo = ssHistorico.getSheetByName(spec.nombre);
+    var wsNuevo = ssNuevo.getSheetByName(spec.nombre);
+    if (!wsViejo || !wsNuevo) { resultado.push(spec.nombre + ": pestaña no encontrada en alguno de los dos Sheets"); return; }
+
+    var anchoViejo = wsViejo.getLastColumn();
+    var anchoNuevo = wsNuevo.getLastColumn();
+    if (anchoViejo !== anchoNuevo) {
+      resultado.push(spec.nombre + ": columnas no coinciden (histórico=" + anchoViejo + ", nuevo=" + anchoNuevo + ") — no se tocó, revisar a mano");
+      return;
+    }
+
+    var datosNuevo = wsNuevo.getDataRange().getValues();
+    var existentes = {};
+    for (var i = 1; i < datosNuevo.length; i++) {
+      var key = String(datosNuevo[i][0]) + "|" + String(datosNuevo[i][spec.colNombre]).trim().toLowerCase();
+      existentes[key] = true;
+    }
+
+    var datosViejo = wsViejo.getDataRange().getValues();
+    var agregadas = 0;
+    for (var j = 1; j < datosViejo.length; j++) {
+      var fila = datosViejo[j];
+      if (!fila[spec.colNombre] || String(fila[spec.colNombre]).trim() === "") continue;
+      var key2 = String(fila[0]) + "|" + String(fila[spec.colNombre]).trim().toLowerCase();
+      if (existentes[key2]) continue;
+      wsNuevo.appendRow(fila);
+      existentes[key2] = true;
+      agregadas++;
+    }
+    resultado.push(spec.nombre + ": " + agregadas + " fila(s) nueva(s) copiada(s) desde el histórico");
+  });
+
+  var ui;
+  try { ui = SpreadsheetApp.getUi(); } catch (e) { ui = null; }
+  if (ui) ui.alert("Sincronización Biblioteca (histórico → nuevo):\n\n" + resultado.join("\n"));
+}
+
+function _asegurarTriggerHorario(fnName) {
+  var yaExiste = ScriptApp.getProjectTriggers().some(function (t) {
+    return t.getHandlerFunction() === fnName;
+  });
+  if (!yaExiste) ScriptApp.newTrigger(fnName).timeBased().everyHours(1).create();
+}
+
+// Instala el trigger horario Y corre la sincronización una vez de
+// inmediato, para no esperar una hora a ver el primer resultado.
+function configurarSincronizacionBibliotecaHoraria() {
+  _asegurarTriggerHorario("sincronizarBibliotecaDesdeHistorico");
+  sincronizarBibliotecaDesdeHistorico();
 }
 
 const COLS_BIB = {

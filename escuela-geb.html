@@ -144,6 +144,9 @@
   tbody tr:last-child td{ border-bottom:none; }
   tbody tr.seguimiento-row{ background:#FFFBF1; }
   tbody tr.baja-empresa-row{ background:var(--gray-bg); }
+  tbody tr.rezago-row{ background:var(--purple-bg); }
+  .pill.rezago{ background:var(--purple-text); color:#fff; }
+  .icard.rezago{ border-color:var(--purple-text); }
   .name-cell{ display:flex; align-items:center; gap:8px; }
   .dot-new{ width:7px; height:7px; border-radius:50%; background:var(--gold); flex-shrink:0; }
 
@@ -716,8 +719,9 @@ function extraerAñoNac(fechaNac){
 }
 
 function renderStats(){
-  const colabPorNombre = {};
-  COLABORADORES.forEach(c => { colabPorNombre[(c.Nombre||"").trim().toLowerCase()] = c; });
+  COLAB_POR_NOMBRE = {};
+  COLABORADORES.forEach(c => { COLAB_POR_NOMBRE[normNombre(c.Nombre)] = c; });
+  const colabPorNombre = COLAB_POR_NOMBRE;
 
   // Filtrar solo quienes tienen diagnóstico válido (no vacío)
   const validos = INSCRITOS.filter(d => {
@@ -762,23 +766,13 @@ function renderStats(){
 
   // --- Rezago educativo CONEVAL ---
   let rezago = 0, totalRezago = 0;
+  REZAGO_SET = new Set();
   validos.forEach(d => {
-    const diag = d.Diagnostico_Edu.toLowerCase().trim();
-    const colab = colabPorNombre[(d.Nombre||"").trim().toLowerCase()];
+    const colab = colabPorNombre[normNombre(d.Nombre)];
     const añoNac = colab ? extraerAñoNac(colab.FechaNac) : null;
     if(!añoNac) return;
     totalRezago++;
-
-    // Criterios CONEVAL
-    let enRezago = false;
-    if(añoNac < 1982){
-      enRezago = false; // Solo rezago si no concluyó primaria — aquí "Primaria" = concluida
-    } else if(añoNac <= 1997){
-      enRezago = diag === 'primaria';
-    } else {
-      enRezago = diag === 'primaria' || diag === 'secundaria';
-    }
-    if(enRezago) rezago++;
+    if(esRezagoEducativo(d)){ rezago++; REZAGO_SET.add(normNombre(d.Nombre)); }
   });
 
   const tre = totalRezago ? (rezago / totalRezago * 100).toFixed(1) : '—';
@@ -866,7 +860,24 @@ let EXAMENES      = [];
 let COPYS         = [];
 let COLABORADORES = [];
 let BAJA_EMPRESA_SET = new Set();
+let COLAB_POR_NOMBRE = {};
+let REZAGO_SET = new Set();
 function normNombre(n){ return (n||"").toString().trim().toLowerCase(); }
+
+// Mismos criterios CONEVAL que usa el % de rezago en renderStats: persona
+// clave para bajar el indicador a 0 si concluir su diagnóstico actual la
+// sacaría de rezago (nacida <=1997 y diag="primaria", o nacida después de
+// 1997 y diag="primaria"/"secundaria").
+function esRezagoEducativo(d){
+  const diag = (d.Diagnostico_Edu||"").toString().trim().toLowerCase();
+  if(!diag || EQUIV_AÑOS[diag] === undefined) return false;
+  const colab = COLAB_POR_NOMBRE[normNombre(d.Nombre)];
+  const añoNac = colab ? extraerAñoNac(colab.FechaNac) : null;
+  if(!añoNac) return false;
+  if(añoNac < 1982) return false;
+  if(añoNac <= 1997) return diag === 'primaria';
+  return diag === 'primaria' || diag === 'secundaria';
+}
 
 let sortState = { col: null, tipo: null, dir: 1 };
 function ordenarPor(campo, tipo){
@@ -998,9 +1009,10 @@ function renderCards(containerId, modalidad){
 
     const cardId = `card-${d.Nombre.replace(/\s+/g,'_')}`;
     const formId = `form-ex-${d.Nombre.replace(/\s+/g,'_')}`;
+    const esRezago = REZAGO_SET.has(normNombre(d.Nombre));
 
     return `
-      <div class="icard ${seg?'seguimiento':''} ${mc2}" id="${cardId}">
+      <div class="icard ${seg?'seguimiento':''} ${esRezago?'rezago':''} ${mc2}" id="${cardId}">
         <div class="icard-head">
           <div class="avatar ${mc2}">${initials(d.Nombre)}</div>
           <div>
@@ -1010,6 +1022,7 @@ function renderCards(containerId, modalidad){
         </div>
         ${d.Nivel ? `<span class="pill nivel">${d.Nivel}</span>` : ""}
         ${d.Diagnostico_Edu ? `<span class="pill diag">${d.Diagnostico_Edu}</span>` : ""}
+        ${esRezago ? `<span class="pill rezago" title="Concluir su nivel actual la sacaría de rezago educativo">🎯 Clave rezago</span>` : ""}
         ${modPill}
         ${seg
           ? `<span class="pill seguimiento-tag">🏳 seguimiento</span>`
@@ -1092,8 +1105,9 @@ function renderTabla(filtered){
     }).join("");
 
     const bajaEmpresa = BAJA_EMPRESA_SET.has(normNombre(d.Nombre));
+    const esRezago = REZAGO_SET.has(normNombre(d.Nombre));
     html += `
-      <tr class="${seg?'seguimiento-row':''} ${bajaEmpresa?'baja-empresa-row':''}">
+      <tr class="${seg?'seguimiento-row':''} ${bajaEmpresa?'baja-empresa-row':''} ${esRezago?'rezago-row':''}">
         <td>
           <div class="name-cell">
             ${seg ? `<span class="dot-new"></span>` : ""}
@@ -1110,6 +1124,7 @@ function renderTabla(filtered){
         <td>${d.Nivel||"—"}</td>
         <td>
           ${d.Diagnostico_Edu ? `<span class="pill diag">${d.Diagnostico_Edu}</span>` : '<span style="color:var(--text-soft);font-size:12px;">—</span>'}
+          ${esRezago ? `<span class="pill rezago" title="Concluir su nivel actual la sacaría de rezago educativo">🎯 Clave rezago</span>` : ""}
           <button class="atender-btn" style="margin-top:4px;" onclick="abrirModalDiagnostico('${encodeURIComponent(d.Nombre)}','${encodeURIComponent(d.Diagnostico_Edu||"")}')">✎</button>
         </td>
         <td>

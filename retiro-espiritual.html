@@ -240,8 +240,7 @@
         <div class="inline-form-title" id="altaEdicionFormTitle">Nueva edición del retiro</div>
         <input type="hidden" id="ae_idEdicion">
         <div class="form-row"><label>Nombre de la edición *</label><input type="text" id="ae_nombre" placeholder="Ej. Retiro Espíritu Santo — Febrero 2026"></div>
-        <div class="form-row"><label>Fechas (texto libre) *</label><input type="text" id="ae_fechasTexto" placeholder="viernes 14 al domingo 16 de febrero"></div>
-        <div class="form-row"><label>Fecha inicio</label><input type="date" id="ae_fechaInicio"></div>
+        <div class="form-row"><label>Fecha inicio *</label><input type="date" id="ae_fechaInicio"></div>
         <div class="form-row"><label>Fecha fin</label><input type="date" id="ae_fechaFin"></div>
         <div class="form-row"><label>Lugar</label><input type="text" id="ae_lugar"></div>
         <div class="form-row"><label>Estado *</label>
@@ -653,7 +652,7 @@ function limpiarFormEdicion(){
   document.getElementById("ae_idEdicion").value = "";
   document.getElementById("altaEdicionFormTitle").textContent = "Nueva edición del retiro";
   document.getElementById("aeGuardarBtn").textContent = "Guardar";
-  ["ae_nombre","ae_fechasTexto","ae_fechaInicio","ae_fechaFin","ae_lugar","ae_notas"].forEach(id => { document.getElementById(id).value=""; });
+  ["ae_nombre","ae_fechaInicio","ae_fechaFin","ae_lugar","ae_notas"].forEach(id => { document.getElementById(id).value=""; });
   document.getElementById("ae_estado").value = "Próxima";
 }
 
@@ -671,6 +670,25 @@ function fechaInputValue(d){
   return dt.getFullYear() + "-" + String(dt.getMonth()+1).padStart(2,"0") + "-" + String(dt.getDate()).padStart(2,"0");
 }
 
+// Genera el texto amigable ("14 al 16 de febrero de 2026") a partir de las
+// fechas capturadas, para no pedirlo por separado (era redundante con
+// Fecha inicio/Fecha fin). Se usa para el badge y para la variable {Fechas}
+// de los copys.
+function generarFechasTexto(fechaInicioStr, fechaFinStr){
+  if(!fechaInicioStr) return "";
+  const inicio = new Date(fechaInicioStr + "T00:00:00");
+  if(isNaN(inicio.getTime())) return "";
+  const mesInicio = MESES[inicio.getMonth()];
+  if(!fechaFinStr) return inicio.getDate() + " de " + mesInicio + " de " + inicio.getFullYear();
+  const fin = new Date(fechaFinStr + "T00:00:00");
+  if(isNaN(fin.getTime())) return inicio.getDate() + " de " + mesInicio + " de " + inicio.getFullYear();
+  const mesFin = MESES[fin.getMonth()];
+  if(inicio.getFullYear() === fin.getFullYear() && inicio.getMonth() === fin.getMonth()){
+    return inicio.getDate() + " al " + fin.getDate() + " de " + mesInicio + " de " + fin.getFullYear();
+  }
+  return inicio.getDate() + " de " + mesInicio + " al " + fin.getDate() + " de " + mesFin + " de " + fin.getFullYear();
+}
+
 function abrirEditarEdicion(){
   const ed = EDICIONES.find(e => e.id_edicion === currentEdicionId);
   if(!ed){ alert("Selecciona una edición primero."); return; }
@@ -678,7 +696,6 @@ function abrirEditarEdicion(){
   document.getElementById("altaEdicionFormTitle").textContent = "Editar edición — " + (ed.nombre_edicion || ed.id_edicion);
   document.getElementById("aeGuardarBtn").textContent = "Guardar cambios";
   document.getElementById("ae_nombre").value = ed.nombre_edicion || "";
-  document.getElementById("ae_fechasTexto").value = ed.fechas_texto || "";
   document.getElementById("ae_fechaInicio").value = fechaInputValue(ed.fecha_inicio);
   document.getElementById("ae_fechaFin").value = fechaInputValue(ed.fecha_fin);
   document.getElementById("ae_lugar").value = ed.lugar || "";
@@ -690,9 +707,10 @@ function abrirEditarEdicion(){
 
 async function guardarEdicion(){
   const nombre = document.getElementById("ae_nombre").value.trim();
-  const fechasTexto = document.getElementById("ae_fechasTexto").value.trim();
-  if(!nombre || !fechasTexto){ showMsg("aeMsg","err","Nombre y fechas son obligatorios."); return; }
+  const fechaInicio = document.getElementById("ae_fechaInicio").value;
+  if(!nombre || !fechaInicio){ showMsg("aeMsg","err","Nombre y fecha de inicio son obligatorios."); return; }
   const idEdicionEditando = document.getElementById("ae_idEdicion").value;
+  const fechaFin = document.getElementById("ae_fechaFin").value;
 
   const btn = document.querySelector("#altaEdicionForm .btn-guardar");
   btn.disabled = true; btn.textContent = "Guardando…";
@@ -700,9 +718,9 @@ async function guardarEdicion(){
     const payload = {
       tipo: idEdicionEditando ? "re_editarEdicion" : "re_altaEdicion",
       nombreEdicion: nombre,
-      fechasTexto,
-      fechaInicio: document.getElementById("ae_fechaInicio").value,
-      fechaFin: document.getElementById("ae_fechaFin").value,
+      fechasTexto: generarFechasTexto(fechaInicio, fechaFin),
+      fechaInicio,
+      fechaFin,
       lugar: document.getElementById("ae_lugar").value.trim(),
       estado: document.getElementById("ae_estado").value,
       notas: document.getElementById("ae_notas").value.trim()

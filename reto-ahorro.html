@@ -75,6 +75,8 @@
   .atender-btn:hover{background:#f5e2bd;}
   .baja-btn{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:var(--red-text);background:var(--red-bg);border:1px solid #f0c7c7;border-radius:8px;padding:6px 10px;cursor:pointer;margin-top:4px;}
   .baja-btn:hover{background:#f8d8d8;}
+  .reactivar-btn{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:var(--green-text);background:var(--green-bg);border:1px solid #bfe0a0;border-radius:8px;padding:6px 10px;cursor:pointer;margin-top:4px;}
+  .reactivar-btn:hover{background:#dcedc7;}
 
   .filters{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
   .filters input,.filters select{font-size:13px;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:inherit;}
@@ -83,9 +85,13 @@
   .table-wrap{overflow-x:auto;background:var(--card);border:1px solid var(--border);border-radius:12px;}
   table{width:100%;border-collapse:collapse;font-size:13px;}
   thead th{text-align:left;font-size:11px;font-weight:700;color:var(--text-soft);padding:10px 12px;border-bottom:1px solid var(--border);white-space:nowrap;text-transform:uppercase;letter-spacing:.03em;}
+  thead th[data-campo]{cursor:pointer;user-select:none;}
+  thead th[data-campo]:hover{color:var(--blue);}
+  thead th .sort-arrow{margin-left:3px;opacity:.6;}
   tbody td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle;}
   tbody tr:last-child td{border-bottom:none;}
   tbody tr.seguimiento-row{background:#FFFBF1;}
+  tbody tr.baja-empresa-row{background:var(--gray-bg);}
   .name-cell{display:flex;align-items:center;gap:8px;}
   .dot-new{width:7px;height:7px;border-radius:50%;background:var(--gold);flex-shrink:0;}
 
@@ -240,11 +246,11 @@
       <div class="table-wrap">
         <table>
           <thead>
-            <tr>
-              <th>Colaborador</th>
-              <th>Sucursal</th>
-              <th>Semana</th>
-              <th>Estado</th>
+            <tr id="tablaHead">
+              <th data-campo="Nombre" data-tipo="texto">Colaborador</th>
+              <th data-campo="Sucursal" data-tipo="texto">Sucursal</th>
+              <th data-campo="Semana_Actual" data-tipo="numero">Semana</th>
+              <th data-campo="Estado" data-tipo="texto">Estado</th>
               <th>Mensajes</th>
             </tr>
           </thead>
@@ -267,7 +273,7 @@ var TABS = {
   inscritos: "RA_Inscritos",
   copys:     "RA_Copys"
 };
-var TAB_SHEET = { RA_Inscritos: SHEET_ID, RA_Copys: SHEET_ID };
+var TAB_SHEET = { RA_Inscritos: SHEET_ID, RA_Copys: SHEET_ID, Colaboradores: SHEET_ID };
 
 var SCHEMA = {
   // Esquema unificado: 7 columnas base (Nombre..Notas) iguales en las 4
@@ -275,7 +281,8 @@ var SCHEMA = {
   // (Semana_Actual, Fecha_Ultima_Semana). Fecha_Alta reemplaza a la vieja
   // Fecha_Inscripcion (mismo significado, nombre unificado).
   RA_Inscritos: ["Nombre","Sucursal","Telefono_WA","Fecha_Alta","Estado","Requiere_Seguimiento","Notas","Semana_Actual","Fecha_Ultima_Semana"],
-  RA_Copys:     ["Momento","Copy_Texto","Activo"]
+  RA_Copys:     ["Momento","Copy_Texto","Activo"],
+  Colaboradores: ["Nombre","Sucursal","Unidad","Correo","FechaNac","Genero","Telefono_WA","Turno","Rol","Fecha_Alta_Empresa","Baja_Empresa","Fecha_Baja_Empresa"]
 };
 
 function gvizUrl(tabName){
@@ -325,9 +332,12 @@ function initials(name){
   return ((parts[0] ? parts[0][0] : "")+(parts[1] ? parts[1][0] : "")).toUpperCase();
 }
 
+function esSi(v){
+  var s = (v||"").trim().toLowerCase();
+  return s === "sí" || s === "si";
+}
 function isSeguimiento(d){
-  var v = (d.Requiere_Seguimiento||"").trim().toLowerCase();
-  return v === "sí" || v === "si";
+  return esSi(d.Requiere_Seguimiento);
 }
 
 function waLink(telefono, texto){
@@ -356,6 +366,28 @@ function getMomentosDisponibles(d){
 
 var INSCRITOS = [];
 var COPYS = [];
+var BAJA_EMPRESA_SET = new Set();
+function normNombre(n){ return (n||"").toString().trim().toLowerCase(); }
+
+var sortState = { col: null, tipo: null, dir: 1 };
+function ordenarPor(campo, tipo){
+  sortState.dir = (sortState.col === campo) ? -sortState.dir : 1;
+  sortState.col = campo; sortState.tipo = tipo;
+  document.querySelectorAll("#tablaHead .sort-arrow").forEach(function(el){ el.remove(); });
+  var th = document.querySelector('#tablaHead th[data-campo="'+campo+'"]');
+  if(th) th.insertAdjacentHTML("beforeend", '<span class="sort-arrow">'+(sortState.dir===1?"▲":"▼")+'</span>');
+  applyFilters();
+}
+function aplicarOrden(arr){
+  if(!sortState.col) return arr;
+  var col = sortState.col, tipo = sortState.tipo, dir = sortState.dir;
+  return arr.slice().sort(function(a,b){
+    var va = a[col], vb = b[col];
+    if(tipo === "numero"){ va = parseFloat(va)||0; vb = parseFloat(vb)||0; return (va-vb)*dir; }
+    va = (va||"").toString().toLowerCase(); vb = (vb||"").toString().toLowerCase();
+    return va.localeCompare(vb)*dir;
+  });
+}
 
 function buildCopyMap(){
   var map = {};
@@ -514,6 +546,25 @@ async function marcarBajaRA(nombreEnc, btnEl){
   }
 }
 
+async function reactivarRA(nombreEnc, btnEl){
+  var nombre = decodeURIComponent(nombreEnc);
+  if(btnEl){ btnEl.disabled = true; btnEl.textContent = "…"; }
+  try{
+    var r = await fetch(WEBAPP_URL, { method:"POST", body: JSON.stringify({ tipo:"ra_reactivar", nombre:nombre }) }).then(function(r){ return r.json(); });
+    if(r.ok){
+      var d = INSCRITOS.find(function(x){ return x.Nombre === nombre; });
+      if(d){ d.Estado = "Activo"; d.Requiere_Seguimiento = ""; }
+      renderMetrics(); renderCopyHighlight(); renderCards(); applyFilters();
+    } else {
+      alert("Error: "+(r.error||"desconocido"));
+      if(btnEl){ btnEl.disabled = false; btnEl.textContent = "↺ Reactivar"; }
+    }
+  }catch(e){
+    alert("No se pudo conectar con el servidor.");
+    if(btnEl){ btnEl.disabled = false; btnEl.textContent = "↺ Reactivar"; }
+  }
+}
+
 function renderTabla(filtered){
   var copyMap = buildCopyMap();
   var body = document.getElementById("tablaBody");
@@ -537,7 +588,8 @@ function renderTabla(filtered){
     }).join("");
 
     var tFormId = "tf-"+i;
-    html += '<tr class="'+(seg?'seguimiento-row':'')+'">'
+    var bajaEmpresa = BAJA_EMPRESA_SET.has(normNombre(d.Nombre));
+    html += '<tr class="'+(seg?'seguimiento-row':'')+' '+(bajaEmpresa?'baja-empresa-row':'')+'">'
       + '<td><div class="name-cell">'
       + (seg ? '<span class="dot-new"></span>' : '')
       + '<div><div style="font-weight:600;">'+d.Nombre+'</div>'
@@ -553,7 +605,9 @@ function renderTabla(filtered){
       + '</td>'
       + '<td>'+estadoPill
       + (seg ? ' <button class="atender-btn" onclick="marcarAtendidoRA(\''+encodeURIComponent(d.Nombre)+'\', this)">✓ marcar atendido</button>' : '')
-      + ' <button class="baja-btn" onclick="marcarBajaRA(\''+encodeURIComponent(d.Nombre)+'\', this)">✕ Baja</button>'
+      + (esBajaRA(d)
+          ? ' <button class="reactivar-btn" onclick="reactivarRA(\''+encodeURIComponent(d.Nombre)+'\', this)">↺ Reactivar</button>'
+          : ' <button class="baja-btn" onclick="marcarBajaRA(\''+encodeURIComponent(d.Nombre)+'\', this)">✕ Baja</button>')
       + '</td>'
       + '<td><div style="display:flex;flex-wrap:wrap;gap:5px;">'+(btns||'<span style="color:var(--text-soft);font-size:12px;">—</span>')+'</div></td>'
       + '</tr>'
@@ -620,17 +674,19 @@ function applyFilters(){
     var matchS = !seguimiento || (seguimiento === "Si" && seg);
     return matchQ && matchE && matchS;
   });
-  renderTabla(filtered);
+  renderTabla(aplicarOrden(filtered));
 }
 
 async function init(){
   try{
     var results = await Promise.all([
       fetchSheetTab(TABS.inscritos),
-      fetchSheetTab(TABS.copys)
+      fetchSheetTab(TABS.copys),
+      fetchSheetTab("Colaboradores").catch(function(){ return []; })
     ]);
     INSCRITOS = results[0].filter(function(d){ return d.Nombre && d.Nombre.trim() !== ""; });
     COPYS = results[1].filter(function(c){ return c.Momento && c.Momento.trim() !== ""; });
+    BAJA_EMPRESA_SET = new Set(results[2].filter(function(c){ return esSi(c.Baja_Empresa); }).map(function(c){ return normNombre(c.Nombre); }));
 
     document.getElementById("loadingMsg").style.display = "none";
     document.getElementById("appContent").style.display = "block";
@@ -644,6 +700,10 @@ async function init(){
     document.getElementById("fSearch").addEventListener("input", applyFilters);
     document.getElementById("fEstado").addEventListener("change", applyFilters);
     document.getElementById("fSeguimiento").addEventListener("change", applyFilters);
+    document.getElementById("tablaHead").addEventListener("click", function(e){
+      var th = e.target.closest("th[data-campo]");
+      if(th) ordenarPor(th.getAttribute("data-campo"), th.getAttribute("data-tipo"));
+    });
 
   } catch(err){
     console.error("ERROR en init:", err.message, err.stack);

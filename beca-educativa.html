@@ -64,6 +64,8 @@
   .action-btn.revisar:hover{background:#d4e5f7;}
   .action-btn.baja{color:var(--red-text);background:var(--red-bg);border-color:#f0c7c7;}
   .action-btn.baja:hover{background:#f8d8d8;}
+  .action-btn.reactivar{color:var(--green-text);background:var(--green-bg);border-color:#bfe0a0;}
+  .action-btn.reactivar:hover{background:#dcedc7;}
 
   .filters{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
   .filters input,.filters select{font-size:13px;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:inherit;}
@@ -71,10 +73,13 @@
 
   .table-wrap{overflow-x:auto;background:var(--card);border:1px solid var(--border);border-radius:12px;}
   table{width:100%;border-collapse:collapse;font-size:13px;}
-  thead th{text-align:left;font-size:11px;font-weight:700;color:var(--text-soft);padding:10px 12px;border-bottom:1px solid var(--border);white-space:nowrap;text-transform:uppercase;letter-spacing:.03em;}
+  thead th{text-align:left;font-size:11px;font-weight:700;color:var(--text-soft);padding:10px 12px;border-bottom:1px solid var(--border);white-space:nowrap;text-transform:uppercase;letter-spacing:.03em;cursor:pointer;user-select:none;}
+  thead th:hover{color:var(--blue);}
+  thead th .sort-arrow{margin-left:3px;opacity:.6;}
   tbody td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle;}
   tbody tr:last-child td{border-bottom:none;}
   tbody tr.seguimiento-row{background:#FFFBF1;}
+  tbody tr.baja-empresa-row{background:var(--gray-bg);}
   .name-cell{display:flex;align-items:center;gap:8px;}
   .dot-new{width:7px;height:7px;border-radius:50%;background:var(--gold);flex-shrink:0;}
 
@@ -181,7 +186,16 @@
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>Interesado</th><th>Sucursal</th><th>Universidad</th><th>Nivel</th><th>Carrera</th><th>¿Se inscribió?</th><th>Mensajes</th><th>Acciones</th></tr>
+            <tr id="tablaHead">
+              <th data-campo="Nombre" data-tipo="texto">Interesado</th>
+              <th data-campo="Sucursal" data-tipo="texto">Sucursal</th>
+              <th data-campo="Universidad" data-tipo="texto">Universidad</th>
+              <th data-campo="Nivel" data-tipo="texto">Nivel</th>
+              <th data-campo="Carrera" data-tipo="texto">Carrera</th>
+              <th data-campo="Inscribio" data-tipo="texto">¿Se inscribió?</th>
+              <th>Mensajes</th>
+              <th>Acciones</th>
+            </tr>
           </thead>
           <tbody id="tablaBody"></tbody>
         </table>
@@ -203,7 +217,8 @@ const TABS = { inscritos: "BE_Inscritos", copys: "BE_Copys" };
 // pero se queda como Interesado para seguir dándole seguimiento si aplica).
 const SCHEMA = {
   BE_Inscritos: ["Nombre","Sucursal","Telefono_WA","Fecha_Alta","Estado","Requiere_Seguimiento","Notas","Universidad","Nivel","Carrera","Inscribio"],
-  BE_Copys: ["Momento","Copy_Texto","Numero_WA","Activo"]
+  BE_Copys: ["Momento","Copy_Texto","Numero_WA","Activo"],
+  Colaboradores: ["Nombre","Sucursal","Unidad","Correo","FechaNac","Genero","Telefono_WA","Turno","Rol","Fecha_Alta_Empresa","Baja_Empresa","Fecha_Baja_Empresa"]
 };
 
 function gvizUrl(tab){ return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(tab)}`; }
@@ -272,6 +287,29 @@ function sustituirVariables(texto, d){
 }
 
 let INSCRITOS = [], COPYS = [];
+let BAJA_EMPRESA_SET = new Set();
+function normNombre(n){ return (n||"").toString().trim().toLowerCase(); }
+
+let sortState = { col: null, tipo: null, dir: 1 };
+function ordenarPor(campo, tipo){
+  sortState.dir = (sortState.col === campo) ? -sortState.dir : 1;
+  sortState.col = campo; sortState.tipo = tipo;
+  document.querySelectorAll("#tablaHead .sort-arrow").forEach(el => el.remove());
+  const th = document.querySelector(`#tablaHead th[data-campo="${campo}"]`);
+  if(th) th.insertAdjacentHTML("beforeend", `<span class="sort-arrow">${sortState.dir===1?'▲':'▼'}</span>`);
+  applyFilters();
+}
+function aplicarOrden(arr){
+  if(!sortState.col) return arr;
+  const { col, tipo, dir } = sortState;
+  return [...arr].sort((a,b) => {
+    let va = a[col], vb = b[col];
+    if(tipo === "numero"){ va = parseFloat(va)||0; vb = parseFloat(vb)||0; return (va-vb)*dir; }
+    if(tipo === "fecha"){ va = va ? new Date(va).getTime() : 0; vb = vb ? new Date(vb).getTime() : 0; return (va-vb)*dir; }
+    va = (va||"").toString().toLowerCase(); vb = (vb||"").toString().toLowerCase();
+    return va.localeCompare(vb)*dir;
+  });
+}
 
 function buildCopyMap(){
   const map = {};
@@ -305,9 +343,10 @@ function renderTabla(filtered){
   body.innerHTML = filtered.map(d => {
     const seg = esPendiente(d);
     const e = estadoLower(d);
+    const bajaEmpresa = BAJA_EMPRESA_SET.has(normNombre(d.Nombre));
     const copy = copyMap["contacto_universidad"];
     const btn = copy ? `<button class="wa-btn" onclick="abrirCopy('${encodeURIComponent(d.Nombre)}')"><span class="ic">●</span> contacto_universidad</button>` : '<span style="color:var(--text-soft);font-size:12px;">—</span>';
-    return `<tr class="${seg?'seguimiento-row':''}">
+    return `<tr class="${seg?'seguimiento-row':''} ${bajaEmpresa?'baja-empresa-row':''}">
       <td><div class="name-cell">${seg?'<span class="dot-new"></span>':''}<div><div style="font-weight:600;">${d.Nombre}</div></div></div></td>
       <td>${d.Sucursal||"—"}</td>
       <td><span class="pill uni">${d.Universidad||"—"}</span></td>
@@ -318,7 +357,7 @@ function renderTabla(filtered){
       <td>
         ${seg?`<button class="action-btn atender" onclick="marcarAtendido('${encodeURIComponent(d.Nombre)}')">✓ atendido</button>`:""}
         ${e!=="baja" && e!=="inscrito"?`<button class="action-btn revisar" onclick="revisarInscripcion('${encodeURIComponent(d.Nombre)}')">🎓 revisar inscripción</button>`:""}
-        ${e!=="baja"?`<button class="action-btn baja" onclick="marcarBaja('${encodeURIComponent(d.Nombre)}')">✕ Baja</button>`:""}
+        ${e!=="baja"?`<button class="action-btn baja" onclick="marcarBaja('${encodeURIComponent(d.Nombre)}')">✕ Baja</button>`:`<button class="action-btn reactivar" onclick="reactivarBe('${encodeURIComponent(d.Nombre)}')">↺ Reactivar</button>`}
       </td>
     </tr>`;
   }).join("");
@@ -336,7 +375,7 @@ function applyFilters(){
     const matchS = !seguimiento || (seguimiento === "Si" && esPendiente(d));
     return matchQ && matchU && matchE && matchS;
   });
-  renderTabla(filtered);
+  renderTabla(aplicarOrden(filtered));
 }
 
 function abrirCopy(nombreEnc){
@@ -394,6 +433,18 @@ async function marcarBaja(nombreEnc){
   } catch(e){ alert("No se pudo conectar con el servidor."); }
 }
 
+async function reactivarBe(nombreEnc){
+  const nombre = decodeURIComponent(nombreEnc);
+  try{
+    const r = await postData({ tipo:"be_reactivar", nombre });
+    if(r.ok){
+      const d = INSCRITOS.find(x => x.Nombre === nombre);
+      if(d){ d.Estado = "Interesado"; d.Requiere_Seguimiento = ""; }
+      renderMetrics(); applyFilters();
+    } else alert("Error: " + r.error);
+  } catch(e){ alert("No se pudo conectar con el servidor."); }
+}
+
 function toggleAlta(){ document.getElementById("altaForm").classList.toggle("open"); }
 
 async function guardarAlta(){
@@ -434,9 +485,12 @@ async function guardarAlta(){
 
 async function init(){
   try{
-    const [inscritos, copys] = await Promise.all([fetchSheetTab(TABS.inscritos), fetchSheetTab(TABS.copys)]);
+    const [inscritos, copys, colaboradores] = await Promise.all([
+      fetchSheetTab(TABS.inscritos), fetchSheetTab(TABS.copys), fetchSheetTab("Colaboradores").catch(() => [])
+    ]);
     INSCRITOS = inscritos.filter(d => d.Nombre && d.Nombre.trim() !== "");
     COPYS = copys.filter(c => c.Momento && c.Momento.trim() !== "");
+    BAJA_EMPRESA_SET = new Set(colaboradores.filter(c => esSi(c.Baja_Empresa)).map(c => normNombre(c.Nombre)));
 
     document.getElementById("loadingMsg").style.display = "none";
     document.getElementById("appContent").style.display = "block";
@@ -449,6 +503,10 @@ async function init(){
     document.getElementById("fUniversidad").addEventListener("change", applyFilters);
     document.getElementById("fEstado").addEventListener("change", applyFilters);
     document.getElementById("fSeguimiento").addEventListener("change", applyFilters);
+    document.getElementById("tablaHead").addEventListener("click", e => {
+      const th = e.target.closest("th[data-campo]");
+      if(th) ordenarPor(th.dataset.campo, th.dataset.tipo);
+    });
   } catch(err){
     console.error("Error en init:", err.message, err.stack);
     document.getElementById("loadingMsg").style.display = "none";

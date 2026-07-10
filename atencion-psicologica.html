@@ -79,15 +79,21 @@
   .atender-btn:hover{background:#f5e2bd;}
   .action-btn.baja{color:var(--red-text);background:var(--red-bg);border-color:#f0c7c7;}
   .action-btn.baja:hover{background:#f8d8d8;}
+  .action-btn.reactivar{color:var(--green-text);background:var(--green-bg);border-color:#bfe0a0;}
+  .action-btn.reactivar:hover{background:#dcedc7;}
   .filters{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
   .filters input,.filters select{font-size:13px;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:inherit;}
   .filters input{width:220px;}
   .table-wrap{overflow-x:auto;background:var(--card);border:1px solid var(--border);border-radius:12px;}
   table{width:100%;border-collapse:collapse;font-size:13px;}
   thead th{text-align:left;font-size:11px;font-weight:700;color:var(--text-soft);padding:10px 12px;border-bottom:1px solid var(--border);white-space:nowrap;text-transform:uppercase;letter-spacing:.03em;}
+  thead th[data-campo]{cursor:pointer;user-select:none;}
+  thead th[data-campo]:hover{color:var(--blue);}
+  thead th .sort-arrow{margin-left:3px;opacity:.6;}
   tbody td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle;}
   tbody tr:last-child td{border-bottom:none;}
   tbody tr.seguimiento-row{background:#FFFBF1;}
+  tbody tr.baja-empresa-row{background:var(--gray-bg);}
   .name-cell{display:flex;align-items:center;gap:8px;}
   .dot-new{width:7px;height:7px;border-radius:50%;background:var(--gold);flex-shrink:0;}
   .expand-row td{padding:0 !important;}
@@ -240,7 +246,17 @@
         <select id="fGenUrgencia"><option value="">urgencia</option><option value="Alta">Alta</option><option value="Media">Media</option><option value="Baja">Baja</option></select>
       </div>
       <div class="table-wrap">
-        <table><thead><tr><th>Colaborador</th><th>Servicio</th><th>Sucursal</th><th>Urgencia</th><th>Progreso / sesiones</th><th>Diagnóstico</th><th>Estado</th><th>Mensajes</th><th>Acciones</th></tr></thead>
+        <table><thead><tr id="genTablaHead">
+          <th data-campo="Nombre">Colaborador</th>
+          <th data-campo="Modalidad_Servicio">Servicio</th>
+          <th data-campo="Sucursal">Sucursal</th>
+          <th data-campo="Urgencia">Urgencia</th>
+          <th>Progreso / sesiones</th>
+          <th>Diagnóstico</th>
+          <th data-campo="Estado">Estado</th>
+          <th>Mensajes</th>
+          <th>Acciones</th>
+        </tr></thead>
         <tbody id="genTablaBody"></tbody></table>
       </div>
     </div>
@@ -301,7 +317,8 @@ var SCHEMA = {
   // el script (altas.html al crear, o las acciones del panel después).
   AP_Inscritos:["Nombre","Sucursal","Telefono_WA","Fecha_Alta","Estado","Requiere_Seguimiento","Notas","Modalidad_Servicio","Modalidad_Sesion","Urgencia","Total_Sesiones","Sesiones_Tomadas","Progreso_Sesiones","Diagnostico_Inicial","Diagnostico_Final"],
   AP_Sesiones:["Nombre","Num_Sesion","Fecha_Programada","Hora_Programada","Modalidad","Asistio","Cambio_Modalidad","Notas_Sesion"],
-  AP_Copys:["Momento","Servicio","Copy_Texto","Numero_WA","Activo"]
+  AP_Copys:["Momento","Servicio","Copy_Texto","Numero_WA","Activo"],
+  Colaboradores:["Nombre","Sucursal","Unidad","Correo","FechaNac","Genero","Telefono_WA","Turno","Rol","Fecha_Alta_Empresa","Baja_Empresa","Fecha_Baja_Empresa"]
 };
 var MAX_ELA = 8;
 
@@ -360,6 +377,27 @@ function getProximaSesion(sesiones,nombre){
 }
 
 var INSCRITOS=[],SESIONES=[],COPYS=[];
+var BAJA_EMPRESA_SET=new Set();
+function normNombre(n){return(n||"").toString().trim().toLowerCase();}
+
+// Ordenamiento de la tabla general por columna (clic en encabezado, asc/desc).
+var sortState={col:null,dir:1};
+function ordenarPor(campo){
+  sortState.dir=(sortState.col===campo)?-sortState.dir:1;
+  sortState.col=campo;
+  document.querySelectorAll("#genTablaHead .sort-arrow").forEach(function(el){el.remove();});
+  var th=document.querySelector('#genTablaHead th[data-campo="'+campo+'"]');
+  if(th)th.insertAdjacentHTML("beforeend",'<span class="sort-arrow">'+(sortState.dir===1?"▲":"▼")+'</span>');
+  applyGenFilters();
+}
+function aplicarOrden(arr){
+  if(!sortState.col)return arr;
+  var col=sortState.col,dir=sortState.dir;
+  return arr.slice().sort(function(a,b){
+    var va=(a[col]||"").toString().toLowerCase(),vb=(b[col]||"").toString().toLowerCase();
+    return va.localeCompare(vb)*dir;
+  });
+}
 
 function buildCopyMap(){
   var map={};
@@ -555,8 +593,11 @@ function renderTablaGeneral(filtered){
     var diag=diagnosticoInfo(d);
     var diagCell='<span class="pill '+diag.clase+'">'+diag.texto+'</span> '
       +'<button class="action-btn reg" onclick="abrirModalDiagnostico(\''+encodeURIComponent(d.Nombre)+'\',\''+encodeURIComponent(d.Diagnostico_Inicial||"")+'\',\''+encodeURIComponent(d.Diagnostico_Final||"")+'\')">✎</button>';
-    var accionesCell='<button class="action-btn baja" onclick="marcarBaja(\''+encodeURIComponent(d.Nombre)+'\')">✕ Baja</button>';
-    return'<tr'+(pendiente?' class="seguimiento-row"':"")+'>'
+    var accionesCell=esHistorico(d)
+      ?'<button class="action-btn reactivar" onclick="reactivarAp(\''+encodeURIComponent(d.Nombre)+'\')">↺ Reactivar</button>'
+      :'<button class="action-btn baja" onclick="marcarBaja(\''+encodeURIComponent(d.Nombre)+'\')">✕ Baja</button>';
+    var bajaEmpresa=BAJA_EMPRESA_SET.has(normNombre(d.Nombre));
+    return'<tr'+((pendiente||bajaEmpresa)?' class="'+(pendiente?"seguimiento-row ":"")+(bajaEmpresa?"baja-empresa-row":"")+'"':"")+'>'
       +'<td><div class="name-cell">'+(pendiente?'<span class="dot-new" title="Pendiente de seguimiento"></span>':"")+'<div style="font-weight:600;">'+d.Nombre+'</div></div></td>'
       +'<td>'+servicioCell+'</td>'
       +'<td>'+(d.Sucursal||"—")+'</td>'
@@ -616,7 +657,11 @@ function applyGenFilters(){
       &&matchEstado
       &&(!urg||d.Urgencia===urg);
   });
-  f.sort(function(a,b){return grupoOrdenGeneral(a)-grupoOrdenGeneral(b);});
+  if(sortState.col){
+    f=aplicarOrden(f);
+  }else{
+    f.sort(function(a,b){return grupoOrdenGeneral(a)-grupoOrdenGeneral(b);});
+  }
   renderTablaGeneral(f);
 }
 
@@ -763,13 +808,23 @@ async function marcarBaja(nombreEnc){
   }catch(e){alert("No se pudo conectar.");}
 }
 
+async function reactivarAp(nombreEnc){
+  var nombre=decodeURIComponent(nombreEnc);
+  try{
+    var r=await fetch(WEBAPP_URL,{method:"POST",body:JSON.stringify({tipo:"ap_reactivar",nombre:nombre})}).then(function(r){return r.json();});
+    if(r.ok||r.success)location.reload();
+    else alert("Error: "+(r.error||"desconocido"));
+  }catch(e){alert("No se pudo conectar.");}
+}
+
 /* ── INIT ── */
 async function init(){
   try{
-    var results=await Promise.all([fetchTab(TABS.inscritos),fetchTab(TABS.sesiones),fetchTab(TABS.copys)]);
+    var results=await Promise.all([fetchTab(TABS.inscritos),fetchTab(TABS.sesiones),fetchTab(TABS.copys),fetchTab("Colaboradores").catch(function(){return[];})]);
     INSCRITOS=results[0].filter(function(d){return d.Nombre&&d.Nombre.trim()!=="";});
     SESIONES=results[1].filter(function(s){return s.Nombre&&s.Nombre.trim()!=="";});
     COPYS=results[2].filter(function(c){return c.Momento&&c.Momento.trim()!=="";});
+    BAJA_EMPRESA_SET=new Set(results[3].filter(function(c){return esSi(c.Baja_Empresa);}).map(function(c){return normNombre(c.Nombre);}));
 
     document.getElementById("loadingMsg").style.display="none";
     document.getElementById("appContent").style.display="block";
@@ -785,6 +840,10 @@ async function init(){
     document.getElementById("fGenServicio").addEventListener("change",applyGenFilters);
     document.getElementById("fGenEstado").addEventListener("change",applyGenFilters);
     document.getElementById("fGenUrgencia").addEventListener("change",applyGenFilters);
+    document.getElementById("genTablaHead").addEventListener("click",function(e){
+      var th=e.target.closest("th[data-campo]");
+      if(th)ordenarPor(th.getAttribute("data-campo"));
+    });
   }catch(err){
     console.error("ERROR:",err.message,err.stack);
     document.getElementById("loadingMsg").style.display="none";

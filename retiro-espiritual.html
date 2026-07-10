@@ -71,13 +71,21 @@
   .wa-btn .ic{ color:#25D366; font-weight:700; }
   .reg-btn{ display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:600; color:var(--blue); background:var(--b-bg); border:1px solid #c5d9f0; border-radius:7px; padding:6px 10px; cursor:pointer; }
   .reg-btn:hover{ background:#d4e5f7; }
+  .reactivar-btn{ display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:600; color:var(--green-text); background:var(--green-bg); border:1px solid #bfe0a0; border-radius:7px; padding:6px 10px; cursor:pointer; }
+  .reactivar-btn:hover{ background:#dcedc7; }
+  .pill.descartado{ background:var(--gray-bg); color:var(--gray-text); }
+  .pill.baja{ background:var(--red-bg); color:var(--red-text); }
 
   /* ---- tabla pase de lista ---- */
   .table-wrap{ overflow-x:auto; background:var(--card); border:1px solid var(--border); border-radius:12px; }
   table{ width:100%; border-collapse:collapse; font-size:13px; }
   thead th{ text-align:left; font-size:11px; font-weight:700; color:var(--text-soft); padding:10px 12px; border-bottom:1px solid var(--border); white-space:nowrap; text-transform:uppercase; letter-spacing:.03em; }
+  thead th[data-campo]{ cursor:pointer; user-select:none; }
+  thead th[data-campo]:hover{ color:var(--blue); }
+  thead th .sort-arrow{ margin-left:3px; opacity:.6; }
   tbody td{ padding:10px 12px; border-bottom:1px solid var(--border); vertical-align:middle; }
   tbody tr:last-child td{ border-bottom:none; }
+  tbody tr.baja-empresa-row{ background:var(--gray-bg); }
   tbody select{ font-size:12.5px; padding:6px 8px; border-radius:6px; border:1px solid var(--border); background:var(--card); color:var(--text); font-family:inherit; }
 
   /* ---- forms inline ---- */
@@ -286,7 +294,12 @@
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Interesado</th><th>Sucursal</th><th>Estado</th><th>Mensajes</th><th>Acciones</th></tr></thead>
+          <thead><tr id="interesadosHead">
+            <th data-campo="Nombre" data-tipo="texto">Interesado</th>
+            <th data-campo="Sucursal" data-tipo="texto">Sucursal</th>
+            <th data-campo="Estado" data-tipo="texto">Estado</th>
+            <th>Mensajes</th><th>Acciones</th>
+          </tr></thead>
           <tbody id="interesadosBody"></tbody>
         </table>
       </div>
@@ -312,7 +325,7 @@
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>Participante</th><th>Asistió</th><th>Testimonio</th><th>Mensajes</th></tr>
+            <tr id="paseListaHead"><th data-campo="nombre" data-tipo="texto">Participante</th><th>Asistió</th><th>Testimonio</th><th>Mensajes</th></tr>
           </thead>
           <tbody id="paseListaBody"></tbody>
         </table>
@@ -366,7 +379,13 @@
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Colaborador</th><th>Sucursal</th><th>Estado</th><th>Fecha del Camino</th><th>Acciones</th></tr></thead>
+          <thead><tr id="caminoHead">
+            <th data-campo="Nombre" data-tipo="texto">Colaborador</th>
+            <th data-campo="Sucursal" data-tipo="texto">Sucursal</th>
+            <th data-campo="Estado" data-tipo="texto">Estado</th>
+            <th data-campo="Fecha_Camino" data-tipo="fecha">Fecha del Camino</th>
+            <th>Acciones</th>
+          </tr></thead>
           <tbody id="caminoBody"></tbody>
         </table>
       </div>
@@ -426,7 +445,7 @@ const SCHEMA = {
   RE_Copys:      ["Momento","Copy_Texto","Numero_WA","Activo"],
   RE_Interesados:["Nombre","Sucursal","Telefono_WA","Fecha_Alta","Estado","Requiere_Seguimiento","Notas"],
   CS_Inscritos:  ["Nombre","Sucursal","Telefono_WA","Fecha_Alta","Estado","Requiere_Seguimiento","Notas","Fecha_Camino"],
-  Colaboradores: ["Nombre","Sucursal","Unidad","Correo","FechaNac","Genero","Telefono_WA","Turno","Rol","Fecha_Alta_Empresa"]
+  Colaboradores: ["Nombre","Sucursal","Unidad","Correo","FechaNac","Genero","Telefono_WA","Turno","Rol","Fecha_Alta_Empresa","Baja_Empresa","Fecha_Baja_Empresa"]
 };
 
 const DATE_FIELDS = { RE_Ediciones: ["fecha_inicio","fecha_fin"], CS_Inscritos: ["Fecha_Camino"] };
@@ -547,6 +566,50 @@ function showMsg(id, tipo, texto){
    ESTADO GLOBAL
    ============================================================ */
 let EDICIONES = [], ASISTENCIAS = [], HABITACIONES = [], COPYS = [], COLABORADORES = [];
+let BAJA_EMPRESA_SET = new Set();
+function normNombre(n){ return (n||"").toString().trim().toLowerCase(); }
+
+function ordenGenerico(sortState, arr){
+  if(!sortState.col) return arr;
+  const { col, tipo, dir } = sortState;
+  return [...arr].sort((a,b) => {
+    let va = a[col], vb = b[col];
+    if(tipo === "numero"){ va = parseFloat(va)||0; vb = parseFloat(vb)||0; return (va-vb)*dir; }
+    if(tipo === "fecha"){ va = va ? new Date(va).getTime() : 0; vb = vb ? new Date(vb).getTime() : 0; return (va-vb)*dir; }
+    va = (va||"").toString().toLowerCase(); vb = (vb||"").toString().toLowerCase();
+    return va.localeCompare(vb)*dir;
+  });
+}
+
+const sortStateInteresados = { col: null, tipo: null, dir: 1 };
+function ordenarInteresados(campo, tipo){
+  sortStateInteresados.dir = (sortStateInteresados.col === campo) ? -sortStateInteresados.dir : 1;
+  sortStateInteresados.col = campo; sortStateInteresados.tipo = tipo;
+  document.querySelectorAll("#interesadosHead .sort-arrow").forEach(el => el.remove());
+  const th = document.querySelector(`#interesadosHead th[data-campo="${campo}"]`);
+  if(th) th.insertAdjacentHTML("beforeend", `<span class="sort-arrow">${sortStateInteresados.dir===1?'▲':'▼'}</span>`);
+  renderInteresados();
+}
+
+const sortStateCamino = { col: null, tipo: null, dir: 1 };
+function ordenarCamino(campo, tipo){
+  sortStateCamino.dir = (sortStateCamino.col === campo) ? -sortStateCamino.dir : 1;
+  sortStateCamino.col = campo; sortStateCamino.tipo = tipo;
+  document.querySelectorAll("#caminoHead .sort-arrow").forEach(el => el.remove());
+  const th = document.querySelector(`#caminoHead th[data-campo="${campo}"]`);
+  if(th) th.insertAdjacentHTML("beforeend", `<span class="sort-arrow">${sortStateCamino.dir===1?'▲':'▼'}</span>`);
+  renderCamino();
+}
+
+const sortStatePaseLista = { col: null, tipo: null, dir: 1 };
+function ordenarPaseLista(campo, tipo){
+  sortStatePaseLista.dir = (sortStatePaseLista.col === campo) ? -sortStatePaseLista.dir : 1;
+  sortStatePaseLista.col = campo; sortStatePaseLista.tipo = tipo;
+  document.querySelectorAll("#paseListaHead .sort-arrow").forEach(el => el.remove());
+  const th = document.querySelector(`#paseListaHead th[data-campo="${campo}"]`);
+  if(th) th.insertAdjacentHTML("beforeend", `<span class="sort-arrow">${sortStatePaseLista.dir===1?'▲':'▼'}</span>`);
+  renderPaseLista();
+}
 let INTERESADOS = [], CAMINO = [];
 let currentEdicionId = null;
 let HAB_DRAFT = [];
@@ -658,7 +721,7 @@ function renderMetricsEdicion(){
    RENDER: pase de lista (bulk)
    ============================================================ */
 function renderPaseLista(){
-  const rows = ASISTENCIAS.filter(a => a.id_edicion === currentEdicionId);
+  const rows = ordenGenerico(sortStatePaseLista, ASISTENCIAS.filter(a => a.id_edicion === currentEdicionId));
   const copyMap = buildCopyMap();
   const body = document.getElementById("paseListaBody");
 
@@ -667,15 +730,17 @@ function renderPaseLista(){
     return;
   }
 
-  body.innerHTML = rows.map((a, i) => {
+  body.innerHTML = rows.map(a => {
     const col = findColaboradorByNombre(a.nombre) || {};
+    const bajaEmpresa = BAJA_EMPRESA_SET.has(normNombre(a.nombre));
+    const key = encodeURIComponent(a.nombre).replace(/%/g,'_');
     const btns = IND_MOMENTOS.map(m => {
       const copy = copyMap[m];
       if(!copy) return "";
       return `<button class="wa-btn" onclick="abrirCopyIndividual('${encodeURIComponent(a.nombre)}','${m}')"><span class="ic">●</span> ${m}</button>`;
     }).join("");
 
-    return `<tr>
+    return `<tr class="${bajaEmpresa?'baja-empresa-row':''}">
       <td>
         <div style="display:flex; align-items:center; gap:8px;">
           <div class="avatar">${initials(a.nombre)}</div>
@@ -683,14 +748,14 @@ function renderPaseLista(){
         </div>
       </td>
       <td>
-        <select id="pl_asistio_${i}">
+        <select id="pl_asistio_${key}">
           <option value="Pendiente" ${!esSi(a.asistio) && (a.asistio||"").toLowerCase()!=="no" ? "selected":""}>Pendiente</option>
           <option value="Sí" ${esSi(a.asistio) ? "selected":""}>Sí</option>
           <option value="No" ${(a.asistio||"").toLowerCase()==="no" ? "selected":""}>No</option>
         </select>
       </td>
       <td>
-        <select id="pl_testimonio_${i}">
+        <select id="pl_testimonio_${key}">
           <option value="No" ${!esSi(a.dio_testimonio) ? "selected":""}>No</option>
           <option value="Sí" ${esSi(a.dio_testimonio) ? "selected":""}>Sí</option>
         </select>
@@ -746,11 +811,14 @@ async function guardarParticipante(){
 async function guardarPaseLista(){
   const rows = ASISTENCIAS.filter(a => a.id_edicion === currentEdicionId);
   if(rows.length === 0) return;
-  const registros = rows.map((a, i) => ({
-    nombre: a.nombre,
-    asistio: document.getElementById(`pl_asistio_${i}`).value,
-    dioTestimonio: document.getElementById(`pl_testimonio_${i}`).value
-  }));
+  const registros = rows.map(a => {
+    const key = encodeURIComponent(a.nombre).replace(/%/g,'_');
+    return {
+      nombre: a.nombre,
+      asistio: document.getElementById(`pl_asistio_${key}`).value,
+      dioTestimonio: document.getElementById(`pl_testimonio_${key}`).value
+    };
+  });
 
   const btn = document.getElementById("btnGuardarPase");
   btn.disabled = true; btn.textContent = "Guardando…";
@@ -811,32 +879,36 @@ function esPendienteRE(d){
 function renderInteresados(){
   const copyMap = buildCopyMap();
   const body = document.getElementById("interesadosBody");
-  const activos = INTERESADOS.filter(i => (i.Estado||"").toLowerCase() === "interesado");
+  const visibles = INTERESADOS.filter(i => (i.Estado||"").toLowerCase() !== "inscrito");
 
-  if(activos.length === 0){
+  if(visibles.length === 0){
     body.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:20px; color:var(--text-soft);">Sin interesados pendientes.</td></tr>`;
     return;
   }
 
-  body.innerHTML = activos.map(d => {
+  body.innerHTML = ordenGenerico(sortStateInteresados, visibles).map(d => {
     const col = findColaboradorByNombre(d.Nombre) || {};
+    const descartado = (d.Estado||"").toLowerCase() === "descartado";
+    const bajaEmpresa = BAJA_EMPRESA_SET.has(normNombre(d.Nombre));
     const copy = copyMap["saludo_interes"];
     const btn = copy ? `<button class="wa-btn" onclick="abrirCopyIndividual('${encodeURIComponent(d.Nombre)}','saludo_interes')"><span class="ic">●</span> saludo_interes</button>` : '<span style="color:var(--text-soft); font-size:12px;">—</span>';
-    const edSel = EDICIONES.length
+    const edSel = (!descartado && EDICIONES.length)
       ? `<select id="ins-${encodeURIComponent(d.Nombre)}" style="font-size:12px; padding:4px 6px; border-radius:6px; border:1px solid var(--border);">
           ${EDICIONES.map(e => `<option value="${escAttr(e.id_edicion)}" ${e.id_edicion===currentEdicionId?'selected':''}>${e.nombre_edicion||e.id_edicion}</option>`).join("")}
         </select>
         <button class="reg-btn" style="padding:5px 8px;" onclick="inscribirInteresado('${encodeURIComponent(d.Nombre)}')">Inscribir</button>`
       : "";
-    return `<tr>
+    return `<tr class="${bajaEmpresa?'baja-empresa-row':''}">
       <td><div style="font-weight:600;">${d.Nombre}</div>${esPendienteRE(d)?'<span class="pill seguimiento-tag">pendiente saludo</span>':''}</td>
       <td>${d.Sucursal || col.Sucursal || "—"}</td>
-      <td><span class="pill seguimiento-tag">Interesado</span></td>
+      <td>${descartado ? '<span class="pill descartado">Descartado</span>' : '<span class="pill seguimiento-tag">Interesado</span>'}</td>
       <td>${btn}</td>
       <td style="display:flex; flex-wrap:wrap; gap:5px; align-items:center;">
-        ${esPendienteRE(d) ? `<button class="reg-btn" onclick="marcarAtendidoInteresado('${encodeURIComponent(d.Nombre)}')">✓ atendido</button>` : ""}
+        ${esPendienteRE(d) && !descartado ? `<button class="reg-btn" onclick="marcarAtendidoInteresado('${encodeURIComponent(d.Nombre)}')">✓ atendido</button>` : ""}
         ${edSel}
-        <button class="reg-btn" style="color:var(--red-text); background:var(--red-bg); border-color:#f0c7c7;" onclick="descartarInteresado('${encodeURIComponent(d.Nombre)}')">✕ descartar</button>
+        ${descartado
+          ? `<button class="reactivar-btn" onclick="reactivarInteresado('${encodeURIComponent(d.Nombre)}')">↺ Reactivar</button>`
+          : `<button class="reg-btn" style="color:var(--red-text); background:var(--red-bg); border-color:#f0c7c7;" onclick="descartarInteresado('${encodeURIComponent(d.Nombre)}')">✕ descartar</button>`}
       </td>
     </tr>`;
   }).join("");
@@ -862,6 +934,18 @@ async function descartarInteresado(nombreEnc){
     if(r.ok){
       const d = INTERESADOS.find(x => x.Nombre === nombre);
       if(d) d.Estado = "Descartado";
+      renderInteresados();
+    } else alert("Error: " + r.error);
+  } catch(e){ alert("No se pudo conectar con el servidor."); }
+}
+
+async function reactivarInteresado(nombreEnc){
+  const nombre = decodeURIComponent(nombreEnc);
+  try{
+    const r = await postData({ tipo:"re_reactivarInteresado", nombre });
+    if(r.ok){
+      const d = INTERESADOS.find(x => x.Nombre === nombre);
+      if(d){ d.Estado = "Interesado"; d.Requiere_Seguimiento = ""; }
       renderInteresados();
     } else alert("Error: " + r.error);
   } catch(e){ alert("No se pudo conectar con el servidor."); }
@@ -919,28 +1003,33 @@ async function guardarCamino(){
 
 function renderCamino(){
   const body = document.getElementById("caminoBody");
-  const activos = CAMINO.filter(c => (c.Estado||"").toLowerCase() !== "baja");
 
-  if(activos.length === 0){
+  if(CAMINO.length === 0){
     body.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:20px; color:var(--text-soft);">Sin colaboradores registrados.</td></tr>`;
     return;
   }
 
-  body.innerHTML = activos.map(d => {
+  body.innerHTML = ordenGenerico(sortStateCamino, CAMINO).map(d => {
     const col = findColaboradorByNombre(d.Nombre) || {};
     const estado = (d.Estado||"").toLowerCase();
-    const estadoPill = estado === "completado"
-      ? '<span class="pill activo">Completado</span>'
-      : '<span class="pill seguimiento-tag">En proceso</span>';
-    return `<tr>
+    const baja = estado === "baja";
+    const bajaEmpresa = BAJA_EMPRESA_SET.has(normNombre(d.Nombre));
+    const estadoPill = baja
+      ? '<span class="pill baja">Baja</span>'
+      : estado === "completado"
+        ? '<span class="pill activo">Completado</span>'
+        : '<span class="pill seguimiento-tag">En proceso</span>';
+    return `<tr class="${bajaEmpresa?'baja-empresa-row':''}">
       <td><div style="font-weight:600;">${d.Nombre}</div>${esPendienteRE(d)?'<span class="pill seguimiento-tag">pendiente</span>':''}</td>
       <td>${d.Sucursal || col.Sucursal || "—"}</td>
       <td>${estadoPill}</td>
       <td>${d.Fecha_Camino ? new Date(d.Fecha_Camino).toLocaleDateString("es-MX") : "—"}</td>
       <td style="display:flex; flex-wrap:wrap; gap:5px;">
-        ${esPendienteRE(d) ? `<button class="reg-btn" onclick="marcarAtendidoCamino('${encodeURIComponent(d.Nombre)}')">✓ atendido</button>` : ""}
-        ${estado !== "completado" ? `<button class="reg-btn" onclick="registrarFechaCamino('${encodeURIComponent(d.Nombre)}')">📅 registrar fecha</button>` : ""}
-        <button class="reg-btn" style="color:var(--red-text); background:var(--red-bg); border-color:#f0c7c7;" onclick="bajaCamino('${encodeURIComponent(d.Nombre)}')">✕ baja</button>
+        ${esPendienteRE(d) && !baja ? `<button class="reg-btn" onclick="marcarAtendidoCamino('${encodeURIComponent(d.Nombre)}')">✓ atendido</button>` : ""}
+        ${estado !== "completado" && !baja ? `<button class="reg-btn" onclick="registrarFechaCamino('${encodeURIComponent(d.Nombre)}')">📅 registrar fecha</button>` : ""}
+        ${baja
+          ? `<button class="reactivar-btn" onclick="reactivarCamino('${encodeURIComponent(d.Nombre)}')">↺ Reactivar</button>`
+          : `<button class="reg-btn" style="color:var(--red-text); background:var(--red-bg); border-color:#f0c7c7;" onclick="bajaCamino('${encodeURIComponent(d.Nombre)}')">✕ baja</button>`}
       </td>
     </tr>`;
   }).join("");
@@ -978,7 +1067,20 @@ async function bajaCamino(nombreEnc){
   try{
     const r = await postData({ tipo:"cs_baja", nombre });
     if(r.ok){
-      CAMINO = CAMINO.filter(x => x.Nombre !== nombre);
+      const d = CAMINO.find(x => x.Nombre === nombre);
+      if(d){ d.Estado = "Baja"; d.Requiere_Seguimiento = "No"; }
+      renderCamino();
+    } else alert("Error: " + r.error);
+  } catch(e){ alert("No se pudo conectar con el servidor."); }
+}
+
+async function reactivarCamino(nombreEnc){
+  const nombre = decodeURIComponent(nombreEnc);
+  try{
+    const r = await postData({ tipo:"cs_reactivar", nombre });
+    if(r.ok){
+      const d = CAMINO.find(x => x.Nombre === nombre);
+      if(d){ d.Estado = "Activo"; d.Requiere_Seguimiento = ""; }
       renderCamino();
     } else alert("Error: " + r.error);
   } catch(e){ alert("No se pudo conectar con el servidor."); }
@@ -1191,6 +1293,7 @@ async function init(){
     INTERESADOS = interesados.filter(i => i.Nombre && i.Nombre.trim() !== "");
     CAMINO = camino.filter(c => c.Nombre && c.Nombre.trim() !== "");
     COLABORADORES = colaboradores.filter(c => c.Nombre && c.Nombre.trim() !== "");
+    BAJA_EMPRESA_SET = new Set(COLABORADORES.filter(c => esSi(c.Baja_Empresa)).map(c => normNombre(c.Nombre)));
 
     document.getElementById("listaColaboradores").innerHTML = COLABORADORES.map(c => `<option value="${escAttr(c.Nombre)}">`).join("");
 
@@ -1206,6 +1309,18 @@ async function init(){
     document.getElementById("edicionSelect").addEventListener("change", onEdicionChange);
     document.getElementById("fHistSearch").addEventListener("input", renderHistorial);
     document.getElementById("fHistEdicion").addEventListener("change", renderHistorial);
+    document.getElementById("interesadosHead").addEventListener("click", e => {
+      const th = e.target.closest("th[data-campo]");
+      if(th) ordenarInteresados(th.dataset.campo, th.dataset.tipo);
+    });
+    document.getElementById("caminoHead").addEventListener("click", e => {
+      const th = e.target.closest("th[data-campo]");
+      if(th) ordenarCamino(th.dataset.campo, th.dataset.tipo);
+    });
+    document.getElementById("paseListaHead").addEventListener("click", e => {
+      const th = e.target.closest("th[data-campo]");
+      if(th) ordenarPaseLista(th.dataset.campo, th.dataset.tipo);
+    });
 
   } catch(err){
     console.error("Error en init:", err.message, err.stack);

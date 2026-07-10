@@ -107,10 +107,14 @@
     padding:10px 12px; border-bottom:1px solid var(--border); white-space:nowrap;
     text-transform:uppercase; letter-spacing:.03em;
   }
+  thead th[data-campo]{ cursor:pointer; user-select:none; }
+  thead th[data-campo]:hover{ color:var(--blue); }
+  thead th .sort-arrow{ margin-left:3px; opacity:.6; }
   tbody td{ padding:10px 12px; border-bottom:1px solid var(--border); vertical-align:middle; }
   tbody tr:last-child td{ border-bottom:none; }
   tbody tr.atrasado-row{ background:#FFF8F8; }
   tbody tr.porvencer-row{ background:#FFFBF1; }
+  tbody tr.baja-empresa-row{ background:var(--gray-bg); }
 
   .expand-row td{ padding:0 !important; }
   .copy-panel{ display:none; background:#FAF9F5; padding:16px 18px; border-top:1px dashed var(--border); }
@@ -301,7 +305,12 @@
     <div class="table-wrap">
       <table>
         <thead>
-          <tr><th>Nombre</th><th>Libro</th><th>Fecha compromiso</th><th>Estado</th><th>Acciones</th></tr>
+          <tr id="tablaHead">
+            <th data-campo="nombre" data-tipo="texto">Nombre</th>
+            <th data-campo="titulo" data-tipo="texto">Libro</th>
+            <th data-campo="fecha_compromiso" data-tipo="fecha">Fecha compromiso</th>
+            <th>Estado</th><th>Acciones</th>
+          </tr>
         </thead>
         <tbody id="tablaBody"></tbody>
       </table>
@@ -318,7 +327,14 @@
     <div class="table-wrap">
       <table>
         <thead>
-          <tr><th>Nombre</th><th>Libro</th><th>Fecha compromiso</th><th>Fecha devolución</th><th>Condición</th><th>Comentarios</th></tr>
+          <tr id="historialPrestHead">
+            <th data-campo="nombre" data-tipo="texto">Nombre</th>
+            <th data-campo="titulo" data-tipo="texto">Libro</th>
+            <th data-campo="fecha_compromiso" data-tipo="fecha">Fecha compromiso</th>
+            <th data-campo="fecha_devolucion_real" data-tipo="fecha">Fecha devolución</th>
+            <th data-campo="condicion_devolucion" data-tipo="texto">Condición</th>
+            <th>Comentarios</th>
+          </tr>
         </thead>
         <tbody id="historialPrestBody"></tbody>
       </table>
@@ -369,7 +385,14 @@
     <div class="table-wrap">
       <table>
         <thead>
-          <tr><th>Donante</th><th>Título</th><th>Tipo</th><th>Fecha ingreso</th><th>Fecha retorno</th><th>Recibo</th><th>Etiqueta</th></tr>
+          <tr id="historialDonHead">
+            <th data-campo="donante" data-tipo="texto">Donante</th>
+            <th data-campo="titulo" data-tipo="texto">Título</th>
+            <th data-campo="tipo" data-tipo="texto">Tipo</th>
+            <th data-campo="fecha_ingreso" data-tipo="fecha">Fecha ingreso</th>
+            <th data-campo="fecha_retorno" data-tipo="fecha">Fecha retorno</th>
+            <th>Recibo</th><th>Etiqueta</th>
+          </tr>
         </thead>
         <tbody id="historialBody"></tbody>
       </table>
@@ -409,7 +432,8 @@ const SCHEMA = {
   BIB_Prestamos: ["timestamp","nombre","correo","whatsapp","id_libro","titulo","fecha_compromiso","disclosure_aceptado","devuelto","fecha_devolucion_real","condicion_devolucion","comentarios","depto"],
   BIB_Donaciones: ["timestamp","donante","correo","whatsapp","titulo","autor","tipo","fecha_ingreso","fecha_retorno","id_libro","recibo_enviado","etiqueta_generada","link_recibo","link_etiqueta"],
   BIB_Devoluciones: ["timestamp","nombre","id_libro","titulo","condicion","descripcion_dano","recomendaria","comentarios","procesado"],
-  BIB_Copys: ["Momento","Copy_Texto","Numero_WA","Activo"]
+  BIB_Copys: ["Momento","Copy_Texto","Numero_WA","Activo"],
+  Colaboradores: ["Nombre","Sucursal","Unidad","Correo","FechaNac","Genero","Telefono_WA","Turno","Rol","Fecha_Alta_Empresa","Baja_Empresa","Fecha_Baja_Empresa"]
 };
 
 /* ============================================================
@@ -553,6 +577,37 @@ function prestamosActivos(){
    RENDER
    ============================================================ */
 let PRESTAMOS = [], DONACIONES = [], DEVOLUCIONES = [], COPYS = [];
+let BAJA_EMPRESA_SET = new Set();
+function normNombre(n){ return (n||"").toString().trim().toLowerCase(); }
+
+function ordenGenerico(sortState, arr){
+  if(!sortState.col) return arr;
+  const { col, tipo, dir } = sortState;
+  return [...arr].sort((a,b) => {
+    let va = a[col], vb = b[col];
+    if(tipo === "fecha"){ va = va ? new Date(va).getTime() : 0; vb = vb ? new Date(vb).getTime() : 0; return (va-vb)*dir; }
+    va = (va||"").toString().toLowerCase(); vb = (vb||"").toString().toLowerCase();
+    return va.localeCompare(vb)*dir;
+  });
+}
+
+function crearOrdenador(headId, sortState, renderFn){
+  return function(campo, tipo){
+    sortState.dir = (sortState.col === campo) ? -sortState.dir : 1;
+    sortState.col = campo; sortState.tipo = tipo;
+    document.querySelectorAll(`#${headId} .sort-arrow`).forEach(el => el.remove());
+    const th = document.querySelector(`#${headId} th[data-campo="${campo}"]`);
+    if(th) th.insertAdjacentHTML("beforeend", `<span class="sort-arrow">${sortState.dir===1?'▲':'▼'}</span>`);
+    renderFn();
+  };
+}
+
+const sortStateTabla = { col: null, tipo: null, dir: 1 };
+const sortStateHistPrest = { col: null, tipo: null, dir: 1 };
+const sortStateHistDon = { col: null, tipo: null, dir: 1 };
+const ordenarTabla = crearOrdenador("tablaHead", sortStateTabla, applyFilters);
+const ordenarHistPrest = crearOrdenador("historialPrestHead", sortStateHistPrest, applyHistorialPrestamosFilters);
+const ordenarHistDon = crearOrdenador("historialDonHead", sortStateHistDon, applyHistorialFilters);
 
 function renderMetrics(){
   const activos = prestamosActivos();
@@ -639,12 +694,12 @@ function renderTabla(filtered){
     return;
   }
   let html = "";
-  filtered.forEach((p, i) => {
+  ordenGenerico(sortStateTabla, filtered).forEach((p, i) => {
     const est = calcularEstadoPrestamo(p);
     let pill = `<span class="pill activo">Al corriente</span>`;
-    let rowClass = "";
-    if(est.estado === "atrasado"){ pill = `<span class="pill atraso">${est.dias}d atraso</span>`; rowClass = "atrasado-row"; }
-    else if(est.estado === "porvencer"){ pill = `<span class="pill vence">vence en ${est.dias}d</span>`; rowClass = "porvencer-row"; }
+    let rowClass = BAJA_EMPRESA_SET.has(normNombre(p.nombre)) ? "baja-empresa-row" : "";
+    if(est.estado === "atrasado"){ pill = `<span class="pill atraso">${est.dias}d atraso</span>`; rowClass += " atrasado-row"; }
+    else if(est.estado === "porvencer"){ pill = `<span class="pill vence">vence en ${est.dias}d</span>`; rowClass += " porvencer-row"; }
 
     html += `<tr class="${rowClass}">
       <td style="font-weight:600;">${p.nombre}</td>
@@ -676,14 +731,15 @@ function renderHistorial(filtered){
     return;
   }
   let html = "";
-  filtered.forEach(d => {
+  ordenGenerico(sortStateHistDon, filtered).forEach(d => {
     const reciboCell = d.link_recibo
       ? `<a href="${d.link_recibo}" target="_blank">Ver</a> <button class="pdf-btn" style="padding:3px 8px;font-size:11px;" onclick="generarReciboFila(${d._fila}, this)">regenerar</button>`
       : `<button class="pdf-btn" style="padding:3px 8px;font-size:11px;" onclick="generarReciboFila(${d._fila}, this)">Generar</button>`;
     const etiquetaCell = d.link_etiqueta
       ? `<a href="${d.link_etiqueta}" target="_blank">Ver</a> <button class="pdf-btn" style="padding:3px 8px;font-size:11px;" onclick="generarEtiquetaFila(${d._fila}, this)">regenerar</button>`
       : `<button class="pdf-btn" style="padding:3px 8px;font-size:11px;" onclick="generarEtiquetaFila(${d._fila}, this)">Generar</button>`;
-    html += `<tr>
+    const bajaEmpresa = BAJA_EMPRESA_SET.has(normNombre(d.donante));
+    html += `<tr class="${bajaEmpresa?'baja-empresa-row':''}">
       <td style="font-weight:600;">${d.donante}</td>
       <td>"${d.titulo}"</td>
       <td>${d.tipo||"—"}</td>
@@ -753,8 +809,9 @@ function renderHistorialPrestamos(filtered){
     return;
   }
   let html = "";
-  filtered.forEach(p => {
-    html += `<tr>
+  ordenGenerico(sortStateHistPrest, filtered).forEach(p => {
+    const bajaEmpresa = BAJA_EMPRESA_SET.has(normNombre(p.nombre));
+    html += `<tr class="${bajaEmpresa?'baja-empresa-row':''}">
       <td style="font-weight:600;">${p.nombre}</td>
       <td>"${p.titulo}"</td>
       <td>${formatFechaCorta(parseFecha(p.fecha_compromiso))}</td>
@@ -903,17 +960,19 @@ async function sincronizarFisicos(){
    ============================================================ */
 async function init(){
   try{
-    const [prestamos, donaciones, devoluciones, copys] = await Promise.all([
+    const [prestamos, donaciones, devoluciones, copys, colaboradores] = await Promise.all([
       fetchSheetTab(TABS.prestamos),
       fetchSheetTab(TABS.donaciones),
       fetchSheetTab(TABS.devoluciones),
-      fetchSheetTab(TABS.copys)
+      fetchSheetTab(TABS.copys),
+      fetchSheetTab("Colaboradores").catch(() => [])
     ]);
 
     PRESTAMOS = prestamos.filter(p => p.nombre && p.nombre.trim() !== "");
     DONACIONES = donaciones.filter(d => d.donante && d.donante.trim() !== "");
     DEVOLUCIONES = devoluciones.filter(d => d.nombre && d.nombre.trim() !== "");
     COPYS = copys.filter(c => c.Momento && c.Momento.trim() !== "");
+    BAJA_EMPRESA_SET = new Set(colaboradores.filter(c => esSiBib(c.Baja_Empresa)).map(c => normNombre(c.Nombre)));
 
     document.getElementById("loadingMsg").style.display = "none";
     document.getElementById("appContent").style.display = "block";
@@ -929,6 +988,18 @@ async function init(){
     document.getElementById("fEstado").addEventListener("change", applyFilters);
     document.getElementById("fHistSearch").addEventListener("input", applyHistorialFilters);
     document.getElementById("fHistPrestSearch").addEventListener("input", applyHistorialPrestamosFilters);
+    document.getElementById("tablaHead").addEventListener("click", e => {
+      const th = e.target.closest("th[data-campo]");
+      if(th) ordenarTabla(th.dataset.campo, th.dataset.tipo);
+    });
+    document.getElementById("historialPrestHead").addEventListener("click", e => {
+      const th = e.target.closest("th[data-campo]");
+      if(th) ordenarHistPrest(th.dataset.campo, th.dataset.tipo);
+    });
+    document.getElementById("historialDonHead").addEventListener("click", e => {
+      const th = e.target.closest("th[data-campo]");
+      if(th) ordenarHistDon(th.dataset.campo, th.dataset.tipo);
+    });
 
   } catch(err){
     document.getElementById("loadingMsg").style.display = "none";

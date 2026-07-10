@@ -51,6 +51,9 @@
   .badge.si{background:var(--green-bg);color:var(--green-text);}
   .badge.no{background:var(--gray-bg);color:var(--gray-text);opacity:.7;}
   .no-results{font-size:13px;color:var(--text-soft);padding:10px 0;}
+  .profile-baja-btn{margin-top:12px;display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#A32D2D;background:#FCEBEB;border:1px solid #f0c7c7;border-radius:8px;padding:8px 14px;cursor:pointer;}
+  .profile-baja-btn:hover{background:#f8d8d8;}
+  .profile-baja-empresa{margin-top:12px;font-size:12px;font-weight:600;color:#A32D2D;background:#FCEBEB;border:1px solid #f0c7c7;border-radius:8px;padding:8px 14px;display:inline-block;}
 
   /* desglose por iniciativa */
   .breakdown-section{margin-bottom:32px;}
@@ -226,6 +229,7 @@
 // aparece en la pestaña _Inscritos (o equivalente) de cada iniciativa, todas
 // en el Sheet nuevo.
 const SHEET_ID = "1oaWADtW9SmqxuOoOM1bf65Ht_NkpE4l_o_DMutN_IbI";
+const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbypzabPFyTWszyc2-wIPjImOTIitz68R6_okV2yUgxSD6CpkEkfpFlXh8OzgaQWlZYe/exec";
 const PALETTE = ["#0B2545","#C49B4C","#3B6D11","#185FA5","#854F0B","#3C3489","#A32D2D","#5C6B7A","#639922","#EF9F27"];
 let COLABORADORES = [];
 let INICIATIVA_SETS = {};
@@ -235,18 +239,29 @@ function gvizUrl(tab){
 }
 
 function normNombre(n){ return (n||"").toString().trim().toLowerCase(); }
+function esSi(v){ const s=(v||"").toString().trim().toLowerCase(); return s==="sí"||s==="si"; }
+
+function gvizDateToJs(v){
+  if(typeof v === "string" && v.startsWith("Date(")){
+    const nums = v.slice(5, -1).split(",").map(n => parseInt(n, 10));
+    return new Date(nums[0], nums[1], nums[2], nums[3]||0, nums[4]||0, nums[5]||0);
+  }
+  return null;
+}
 
 async function fetchColaboradores(){
   const res = await fetch(gvizUrl("Colaboradores"));
   const text = await res.text();
   const j = JSON.parse(text.substring(text.indexOf('{'), text.lastIndexOf('}')+1));
-  const COLS = ["Nombre","Sucursal","Unidad","Correo","FechaNac","Genero","Telefono_WA","Turno","Rol","Fecha_Alta_Empresa"];
+  const COLS = ["Nombre","Sucursal","Unidad","Correo","FechaNac","Genero","Telefono_WA","Turno","Rol","Fecha_Alta_Empresa","Baja_Empresa","Fecha_Baja_Empresa"];
+  const DATE_FIELDS = new Set(["Fecha_Baja_Empresa"]);
   return j.table.rows
     .filter(r => r && r.c && r.c[0] && r.c[0].v && typeof r.c[0].v === 'string' && r.c[0].v.trim() !== "" && r.c[0].v !== "Nombre")
     .map(r => {
       const obj = {};
       COLS.forEach((col, i) => {
         const cell = r.c ? r.c[i] : null;
+        if(DATE_FIELDS.has(col)){ obj[col] = cell ? gvizDateToJs(cell.v) : null; return; }
         obj[col] = cell ? (cell.v !== null ? cell.v : "") : "";
       });
       return obj;
@@ -328,6 +343,10 @@ function buscarColaborador(){
   const badges = iniciativas.map(ini =>
     `<span class="badge ${ini.activo?'si':'no'}">${ini.activo?'✓':'—'} ${ini.nombre}</span>`
   ).join("");
+  const bajaEmpresa = esSi(match.Baja_Empresa);
+  const bajaEmpresaBloque = bajaEmpresa
+    ? `<div class="profile-baja-empresa">🔴 Baja de empresa${match.Fecha_Baja_Empresa ? " — " + new Date(match.Fecha_Baja_Empresa).toLocaleDateString("es-MX") : ""}</div>`
+    : `<button class="profile-baja-btn" onclick="marcarBajaEmpresa('${encodeURIComponent(match.Nombre)}')">🔴 Marcar baja de empresa</button>`;
   card.innerHTML = `
     <div class="profile-head">
       <div class="profile-avatar">${initials(match.Nombre)}</div>
@@ -336,8 +355,23 @@ function buscarColaborador(){
         <div class="profile-meta">${match.Rol||""} · ${match.Sucursal||""} · ${match.Unidad||""}</div>
       </div>
     </div>
-    <div class="profile-badges">${badges}</div>`;
+    <div class="profile-badges">${badges}</div>
+    ${bajaEmpresaBloque}`;
   card.classList.add("visible");
+}
+
+async function marcarBajaEmpresa(nombreEnc){
+  const nombre = decodeURIComponent(nombreEnc);
+  if(!confirm(`¿Marcar a ${nombre} como baja de la empresa?\n\nEsto la/lo dará de baja automáticamente en Impulso, Convenios (Beca Educativa), Eco-Acción, Atención Psicológica, Retiros (y Camino de Santiago), Escuela y Reto Ahorro.\nSalvando Vidas y Biblioteca no se ven afectados (solo se resaltarán en gris).\n\nEsta acción no se puede deshacer desde el panel.`)) return;
+  try{
+    const res = await fetch(WEBAPP_URL, { method:"POST", body: JSON.stringify({ tipo:"baja_empresa", nombre }) });
+    const r = await res.json();
+    if(r.ok){
+      const c = COLABORADORES.find(x => x.Nombre === nombre);
+      if(c) c.Baja_Empresa = "Sí";
+      buscarColaborador();
+    } else alert("Error: " + (r.error||"desconocido"));
+  } catch(e){ alert("No se pudo conectar con el servidor."); }
 }
 
 function updateCardStats(){

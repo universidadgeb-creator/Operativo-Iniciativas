@@ -21,6 +21,36 @@ const SHEET_HISTORICO_ID = "1fS5qeoB1ViuCUP4HOQ1zTJgh4tfWUkObvb5LMr3to5A";
 // Biblioteca Virtual externa (solo lectura/escritura de la pestaña "Fisicos")
 const SHEET_BIBLIOTECA_ID = "1FDZB3aR-YAyVMsiAjo92PuUdH0iTfBmreCWv5DvCpdM";
 
+// Hojas de las 7 iniciativas restringidas por baja de empresa (Impulso,
+// Convenios/Beca Educativa, Eco-Acción, Atención Psicológica, Retiros +
+// Camino de Santiago, Escuela, Reto Ahorro) — todas comparten el mismo layout
+// base A=Nombre,B=Sucursal,C=Telefono_WA,D=Fecha_Alta,E=Estado,
+// F=Requiere_Seguimiento,G=Notas. Salvando Vidas y Biblioteca NO están aquí:
+// la persona puede seguir participando ahí aunque ya no sea colaborador.
+const HOJAS_RESTRINGIDAS_BAJA_EMPRESA = [
+  "AP_Inscritos", "IG_Inscritos", "BE_Inscritos", "EA_Lideres",
+  "EG_Inscritos", "RA_Inscritos", "RE_Interesados", "CS_Inscritos"
+];
+
+// Busca `nombre` en la columna A de `sheetName` (Sheet nuevo) y, si la
+// encuentra, pone Estado (col E) y Requiere_Seguimiento (col F). Reutilizado
+// por los handlers "Reactivar" y por la cascada de baja de empresa — mismo
+// patrón que ya usaban handleSvBaja/handleEgBaja/etc. antes de este cambio.
+function _marcarEstadoPorNombre(sheetName, nombre, estado, seguimiento) {
+  var ws = SS.getSheetByName(sheetName);
+  if (!ws) return false;
+  var data = ws.getDataRange().getValues();
+  var nombreLower = nombre.trim().toLowerCase();
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim().toLowerCase() === nombreLower) {
+      ws.getRange(i + 1, 5).setValue(estado);
+      ws.getRange(i + 1, 6).setValue(seguimiento);
+      return true;
+    }
+  }
+  return false;
+}
+
 const LOGO_BIBLIO_ID = "1NqoFmESlsTP4dpFscYglcs9o6THQP4TR";
 const LOGO_UGEB_ID = "1mBIHoKyngoa7cBiSvHCVY0x_pIkFyARJ";
 const COLOR_PRIMARIO = "#185FA5";
@@ -131,20 +161,25 @@ function doPost(e) {
     if (tipo === "ap_cambioModalidad") return handleApCambioModalidad(payload);
     if (tipo === "ap_sesionesI43")     return handleApSesionesI43(payload);
     if (tipo === "ap_baja")           return handleApBaja(payload);
+    if (tipo === "ap_reactivar")      return handleApReactivar(payload);
     if (tipo === "ap_diagnostico")    return handleApDiagnostico(payload);
     if (tipo === "alta_unificada")    return handleAltaUnificada(payload);
+    if (tipo === "baja_empresa")      return handleBajaEmpresa(payload);
     if (tipo === "sv_atendido")       return handleSvAtendido(payload);
     if (tipo === "sv_baja")           return handleSvBaja(payload);
+    if (tipo === "sv_reactivar")      return handleSvReactivar(payload);
     if (tipo === "migrar_sv_historico") return handleMigrarSVHistorico(payload);
     if (tipo === "retirar_sync_sv")     return handleRetirarSyncSV(payload);
     if (tipo === "migrar_eg_historico") return handleMigrarEGHistorico(payload);
     if (tipo === "retirar_sync_eg")     return handleRetirarSyncEG(payload);
     if (tipo === "eg_marcarAtendido")   return handleEgMarcarAtendido(payload);
     if (tipo === "eg_baja")             return handleEgBaja(payload);
+    if (tipo === "eg_reactivar")        return handleEgReactivar(payload);
     if (tipo === "eg_diagnostico")      return handleEgDiagnostico(payload);
     if (tipo === "ra_actualizarSemana") return handleRaActualizarSemana(payload);
     if (tipo === "ra_marcarAtendido")   return handleRaMarcarAtendido(payload);
     if (tipo === "ra_baja")             return handleRaBaja(payload);
+    if (tipo === "ra_reactivar")        return handleRaReactivar(payload);
     if (tipo === "migrar_ra_historico") return handleMigrarRAHistorico(payload);
     if (tipo === "retirar_sync_ra")     return handleRetirarSyncRA(payload);
     if (tipo === "migrar_ap_historico") return handleMigrarAPHistorico(payload);
@@ -156,20 +191,25 @@ function doPost(e) {
     if (tipo === "re_altaInteresado")            return handleReAltaInteresado(payload);
     if (tipo === "re_marcarAtendidoInteresado")  return handleReMarcarAtendidoInteresado(payload);
     if (tipo === "re_bajaInteresado")            return handleReBajaInteresado(payload);
+    if (tipo === "re_reactivarInteresado")       return handleReReactivarInteresado(payload);
     if (tipo === "re_inscribirInteresado")       return handleReInscribirInteresado(payload);
     if (tipo === "cs_marcarAtendido")            return handleCsMarcarAtendido(payload);
     if (tipo === "cs_registrarFecha")            return handleCsRegistrarFecha(payload);
     if (tipo === "cs_baja")                      return handleCsBaja(payload);
+    if (tipo === "cs_reactivar")                 return handleCsReactivar(payload);
     if (tipo === "ig_actualizarCampo")   return handleIgActualizarCampo(payload);
     if (tipo === "ig_marcarAtendido")    return handleIgMarcarAtendido(payload);
     if (tipo === "ig_baja")              return handleIgBaja(payload);
+    if (tipo === "ig_reactivar")         return handleIgReactivar(payload);
     if (tipo === "ig_pasarGeneracion2")  return handleIgPasarGeneracion2(payload);
     if (tipo === "be_marcarAtendido")    return handleBeMarcarAtendido(payload);
     if (tipo === "be_baja")              return handleBeBaja(payload);
+    if (tipo === "be_reactivar")         return handleBeReactivar(payload);
     if (tipo === "be_revisarInscripcion") return handleBeRevisarInscripcion(payload);
     if (tipo === "ea_registrarCilindro")  return handleEaRegistrarCilindro(payload);
     if (tipo === "ea_marcarAtendido")     return handleEaMarcarAtendido(payload);
     if (tipo === "ea_baja")               return handleEaBaja(payload);
+    if (tipo === "ea_reactivar")          return handleEaReactivar(payload);
     if (tipo === "bib_altaDonacion")        return handleBibAltaDonacion(payload);
     if (tipo === "bib_procesarDevolucion")  return handleBibProcesarDevolucion(payload);
     if (tipo === "bib_extenderPrestamo")    return handleBibExtenderPrestamo(payload);
@@ -284,6 +324,13 @@ function handleSvBaja(p) {
     }
   }
 
+  return resp({ ok: false, error: "No se encontró a " + nombre + " en SV_Inscritos" });
+}
+
+// ── Salvando Vidas: Reactivar (deshace una baja individual) ──────
+function handleSvReactivar(p) {
+  var nombre = (p.nombre || "").trim();
+  if (_marcarEstadoPorNombre("SV_Inscritos", nombre, "Activo", "")) return resp({ ok: true });
   return resp({ ok: false, error: "No se encontró a " + nombre + " en SV_Inscritos" });
 }
 
@@ -450,6 +497,12 @@ function handleEgBaja(p) {
     }
   }
 
+  return resp({ ok: false, error: "No se encontró a " + nombre + " en EG_Inscritos" });
+}
+
+function handleEgReactivar(p) {
+  var nombre = (p.nombre || "").trim();
+  if (_marcarEstadoPorNombre("EG_Inscritos", nombre, "Activo", "")) return resp({ ok: true });
   return resp({ ok: false, error: "No se encontró a " + nombre + " en EG_Inscritos" });
 }
 
@@ -844,6 +897,12 @@ function handleApBaja(p) {
   return resp({ ok: false, error: "No se encontró a " + nombre + " en AP_Inscritos" });
 }
 
+function handleApReactivar(p) {
+  var nombre = (p.nombre || "").trim();
+  if (_marcarEstadoPorNombre("AP_Inscritos", nombre, "Activo", "")) return resp({ ok: true });
+  return resp({ ok: false, error: "No se encontró a " + nombre + " en AP_Inscritos" });
+}
+
 // ── Atención Psicológica: Diagnóstico inicial/final ─────────────
 // Cols N/O de AP_Inscritos (Sheet nuevo). Escala numérica de severidad — el
 // panel colorea en verde/amarillo/rojo comparando ambos valores, esto solo los
@@ -1102,6 +1161,41 @@ function handleAltaUnificada(p) {
   return resp({ ok: true, creadas: creadas, omitidas: omitidas });
 }
 
+// ── Baja de empresa (colaborador deja de trabajar en GEB) ────────
+// Marca Baja_Empresa="Sí" + Fecha_Baja_Empresa en Colaboradores (col K/L —
+// hoy que se agregaron a las 10 columnas base: Nombre,Sucursal,Unidad,Correo,
+// FechaNac,Genero,Telefono_WA,Turno,Rol,Fecha_Alta_Empresa). Es de una sola
+// vía (no hay handler de "reactivar empresa" — si regresa a trabajar se
+// maneja aparte). En cascada, marca Baja en las 7 iniciativas restringidas
+// (HOJAS_RESTRINGIDAS_BAJA_EMPRESA) donde ya no puede participar sin ser
+// colaborador; Salvando Vidas y Biblioteca no se tocan aquí porque ahí sí
+// puede seguir participando.
+function handleBajaEmpresa(p) {
+  var nombre = (p.nombre || "").trim();
+  if (!nombre) return resp({ ok: false, error: "Falta el nombre" });
+
+  var wsColab = SS.getSheetByName("Colaboradores");
+  if (!wsColab) return resp({ ok: false, error: "Pestaña Colaboradores no encontrada en el Sheet nuevo" });
+
+  var data = wsColab.getDataRange().getValues();
+  var nombreLower = nombre.toLowerCase();
+  var fila = -1;
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim().toLowerCase() === nombreLower) { fila = i; break; }
+  }
+  if (fila === -1) return resp({ ok: false, error: "No se encontró a " + nombre + " en Colaboradores" });
+
+  wsColab.getRange(fila + 1, 11).setValue("Sí");       // Baja_Empresa (col K)
+  wsColab.getRange(fila + 1, 12).setValue(new Date()); // Fecha_Baja_Empresa (col L)
+
+  var bajasAplicadas = [];
+  HOJAS_RESTRINGIDAS_BAJA_EMPRESA.forEach(function (sheetName) {
+    if (_marcarEstadoPorNombre(sheetName, nombre, "Baja", "No")) bajasAplicadas.push(sheetName);
+  });
+
+  return resp({ ok: true, bajasAplicadas: bajasAplicadas });
+}
+
 // ── Reto Ahorro (Sheet NUEVO desde 2026-07-04) ───────────────────
 // Cols RA_Inscritos en SHEET_NUEVO_ID: A=Nombre, B=Sucursal, C=Telefono_WA,
 // D=Fecha_Alta, E=Estado, F=Requiere_Seguimiento, G=Notas, H=Semana_Actual,
@@ -1167,6 +1261,12 @@ function handleRaBaja(p) {
     }
   }
 
+  return resp({ ok: false, error: "No se encontró a " + nombre + " en RA_Inscritos" });
+}
+
+function handleRaReactivar(p) {
+  var nombre = (p.nombre || "").trim();
+  if (_marcarEstadoPorNombre("RA_Inscritos", nombre, "Activo", "")) return resp({ ok: true });
   return resp({ ok: false, error: "No se encontró a " + nombre + " en RA_Inscritos" });
 }
 
@@ -1610,6 +1710,12 @@ function handleReBajaInteresado(p) {
   return resp({ ok: false, error: "No se encontró a " + nombre + " en RE_Interesados" });
 }
 
+function handleReReactivarInteresado(p) {
+  var nombre = (p.nombre || "").trim();
+  if (_marcarEstadoPorNombre("RE_Interesados", nombre, "Interesado", "")) return resp({ ok: true });
+  return resp({ ok: false, error: "No se encontró a " + nombre + " en RE_Interesados" });
+}
+
 // Inscribir a un interesado en una edición: crea su fila en RE_Asistencias
 // (mismo efecto que handleReRegistro) y marca el interesado como "Inscrito".
 function handleReInscribirInteresado(p) {
@@ -1688,6 +1794,12 @@ function handleCsBaja(p) {
       return resp({ ok: true });
     }
   }
+  return resp({ ok: false, error: "No se encontró a " + nombre + " en CS_Inscritos" });
+}
+
+function handleCsReactivar(p) {
+  const nombre = (p.nombre || "").trim();
+  if (_marcarEstadoPorNombre("CS_Inscritos", nombre, "Activo", "")) return resp({ ok: true });
   return resp({ ok: false, error: "No se encontró a " + nombre + " en CS_Inscritos" });
 }
 
@@ -2584,6 +2696,12 @@ function handleIgBaja(p) {
   return resp({ ok: false, error: "No se encontró a " + nombre + " en IG_Inscritos" });
 }
 
+function handleIgReactivar(p) {
+  const nombre = (p.nombre || "").trim();
+  if (_marcarEstadoPorNombre("IG_Inscritos", nombre, "Activo", "")) return resp({ ok: true });
+  return resp({ ok: false, error: "No se encontró a " + nombre + " en IG_Inscritos" });
+}
+
 // Marca que la persona termina Generación 1 y continúa en Generación 2 (aún
 // sin módulo propio) — distinto de "Baja", que es salir de la iniciativa.
 function handleIgPasarGeneracion2(p) {
@@ -2659,6 +2777,14 @@ function handleBeBaja(p) {
       return resp({ ok: true });
     }
   }
+  return resp({ ok: false, error: "No se encontró a " + nombre + " en BE_Inscritos" });
+}
+
+// Vuelve a "Interesado" (no "Inscrito" — si ya se había inscrito antes de la
+// baja, Cecilia revisa/marca la inscripción de nuevo desde el panel).
+function handleBeReactivar(p) {
+  const nombre = (p.nombre || "").trim();
+  if (_marcarEstadoPorNombre("BE_Inscritos", nombre, "Interesado", "")) return resp({ ok: true });
   return resp({ ok: false, error: "No se encontró a " + nombre + " en BE_Inscritos" });
 }
 
@@ -2792,6 +2918,12 @@ function handleEaBaja(p) {
       return resp({ ok: true });
     }
   }
+  return resp({ ok: false, error: "No se encontró a " + nombre + " en EA_Lideres" });
+}
+
+function handleEaReactivar(p) {
+  const nombre = (p.nombre || "").trim();
+  if (_marcarEstadoPorNombre("EA_Lideres", nombre, "Activo", "")) return resp({ ok: true });
   return resp({ ok: false, error: "No se encontró a " + nombre + " en EA_Lideres" });
 }
 

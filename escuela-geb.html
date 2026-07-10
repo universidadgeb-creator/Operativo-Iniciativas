@@ -668,11 +668,27 @@ function formatTel(val){
   return s;
 }
 
+// gviz manda las fechas crudas como texto "Date(y,m,d,...)" en cell.v — el
+// cell.f (formateado) que se prefiere para todo lo demás no sirve para
+// FechaNac porque llega en un formato de fecha ambiguo (dd/mm/yyyy) que
+// `new Date(...)` interpreta mal como mm/dd/yyyy, dando años de nacimiento
+// incorrectos o null. Por eso FechaNac es la única columna que se lee del
+// valor crudo en vez del formateado.
+function gvizDateToJs(v){
+  if(typeof v === "string" && v.startsWith("Date(")){
+    const nums = v.slice(5, -1).split(",").map(n => parseInt(n, 10));
+    return new Date(nums[0], nums[1], nums[2], nums[3]||0, nums[4]||0, nums[5]||0);
+  }
+  return null;
+}
+const DATE_FIELDS_CRUDO = { Colaboradores: ["FechaNac"] };
+
 async function fetchSheetTab(tabName){
   const res  = await fetch(gvizUrl(tabName));
   const text = await res.text();
   const json = JSON.parse(text.substring(text.indexOf('{'), text.lastIndexOf('}')+1));
   const headers = SCHEMA[tabName];
+  const dateFieldsCrudos = new Set(DATE_FIELDS_CRUDO[tabName] || []);
 
   return json.table.rows
     .filter(r => r && r.c && r.c.some(cell => cell && cell.v !== null && cell.v !== ""))
@@ -685,6 +701,7 @@ async function fetchSheetTab(tabName){
       const obj = {};
       headers.forEach((col, i) => {
         const cell = r.c ? r.c[i] : null;
+        if(dateFieldsCrudos.has(col)){ obj[col] = cell ? gvizDateToJs(cell.v) : null; return; }
         let val = cell ? (cell.f !== undefined && cell.f !== null ? cell.f : cell.v) : "";
         if(val === null || val === undefined) val = "";
         if(col === "Telefono_WA") val = formatTel(val);
@@ -703,6 +720,12 @@ async function fetchSheetTab(tabName){
    ============================================================ */
 function extraerAñoNac(fechaNac){
   if(!fechaNac) return null;
+  // fetchSheetTab ya entrega FechaNac como Date real (ver DATE_FIELDS_CRUDO),
+  // pero se mantiene tolerancia a los formatos viejos por si se llama con
+  // datos de otro origen.
+  if(fechaNac instanceof Date){
+    return isNaN(fechaNac.getTime()) ? null : fechaNac.getFullYear();
+  }
   if(typeof fechaNac === 'string' && fechaNac.startsWith('Date(')){
     return parseInt(fechaNac.replace('Date(','').split(',')[0]);
   }
@@ -864,10 +887,17 @@ let COLAB_POR_NOMBRE = {};
 let REZAGO_SET = new Set();
 function normNombre(n){ return (n||"").toString().trim().toLowerCase(); }
 
-// Mismos criterios CONEVAL que usa el % de rezago en renderStats: persona
-// clave para bajar el indicador a 0 si concluir su diagnóstico actual la
-// sacaría de rezago (nacida <=1997 y diag="primaria", o nacida después de
-// 1997 y diag="primaria"/"secundaria").
+// Criterios oficiales CONEVAL (rezago educativo), aplicados a colaboradores
+// adultos — el rango 3-21 años ("no cuenta con educación obligatoria y no
+// asiste a un centro de educación formal") no aplica a una plantilla laboral:
+//   • 16+ nacidos antes de 1982: rezago si no terminó primaria.
+//   • 16+ nacidos 1982-1997: rezago si no terminó secundaria (diag="primaria").
+//   • 22+ nacidos desde 1998: rezago si no terminó bachillerato
+//     (diag="primaria" o "secundaria").
+// El primer bracket (antes de 1982) no se puede evaluar con este modelo de
+// datos: el diagnóstico más bajo capturable es "Primaria" (=ya concluida),
+// no existe una opción "sin primaria" en el catálogo — por eso ese grupo
+// nunca se marca en rezago aquí, aunque CONEVAL sí lo contemplaría.
 function esRezagoEducativo(d){
   const diag = (d.Diagnostico_Edu||"").toString().trim().toLowerCase();
   if(!diag || EQUIV_AÑOS[diag] === undefined) return false;

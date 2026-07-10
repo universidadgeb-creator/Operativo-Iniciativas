@@ -333,7 +333,7 @@
 
 <div class="modal-overlay" id="modalI43">
   <div class="modal-box">
-    <div class="modal-title" id="modalI43Title">Registrar sesiones Impulso43</div>
+    <div class="modal-title" id="modalI43Title">Editar sesiones</div>
     <div class="modal-row"><label>Sesiones tomadas</label><input type="number" id="mI43Sesiones" min="0" max="99"></div>
     <input type="hidden" id="mI43Nombre">
     <div class="modal-actions"><button class="btn-primary" id="mI43Save" onclick="guardarSesionesI43()">Guardar</button><button class="btn-cancel" onclick="cerrarModal('modalI43')">Cancelar</button></div>
@@ -568,14 +568,20 @@ function renderElaActivos(){
       +progressBar(d.Sesiones_Tomadas,d.Total_Sesiones)
       +'<div class="gactions">'+btns+'</div>'
       +'<button class="action-btn cambio" onclick="abrirModalCambio(\''+encodeURIComponent(d.Nombre)+'\','+proxNum+')">↔ Cambio modalidad</button>'
+      +'<button class="action-btn reg" onclick="abrirModalI43(\''+encodeURIComponent(d.Nombre)+'\','+(d.Sesiones_Tomadas||0)+')">✎ Editar sesiones</button>'
       +'</div>';
   }).join("");
 }
 
 function renderElaEspera(){
   var copyMap=buildCopyMap();
+  // "Lista de espera" es un Estado exclusivo de ELA (Impulso43 nunca lo usa),
+  // así que basta con esEnEsperaPrograma(d) — antes se exigía además
+  // Modalidad_Servicio==="ELA", pero varios registros de lista de espera
+  // tienen esa columna vacía y por eso no aparecían aquí (aunque sí en la
+  // tabla general, que no aplica ese filtro).
   var espera=INSCRITOS.filter(function(d){
-    return(d.Modalidad_Servicio||"").toUpperCase()==="ELA"&&esEnEsperaPrograma(d);
+    return esEnEsperaPrograma(d);
   }).sort(function(a,b){
     var ord={alta:0,media:1,baja:2};
     return(ord[(a.Urgencia||"baja").toLowerCase()]||2)-(ord[(b.Urgencia||"baja").toLowerCase()]||2);
@@ -632,9 +638,12 @@ function renderTablaGeneral(filtered){
     var momentos=esELA?getMomentosELA(d):(esI43?getMomentosI43(d):[]);
     var btns=renderWaBtns(momentos,d,copyMap,"abrirCopy");
     var pendiente=esPendienteSeguimiento(d);
-    var progresoCell=esELA?progressBar(d.Sesiones_Tomadas,d.Total_Sesiones)
+    var editarSesionesBtn=(esELA||esI43)&&!esHistorico(d)
+      ?' <button class="action-btn reg" onclick="abrirModalI43(\''+encodeURIComponent(d.Nombre)+'\','+(d.Sesiones_Tomadas||0)+')">✎</button>'
+      :'';
+    var progresoCell=(esELA?progressBar(d.Sesiones_Tomadas,d.Total_Sesiones)
       :esI43?('Sesiones reportadas: <strong>'+(d.Sesiones_Tomadas||0)+'</strong>')
-      :'—';
+      :'—')+editarSesionesBtn;
     var servicioCell=esELA?'<span class="pill modalidad">ELA</span>':esI43?'<span class="pill modalidad">Impulso43</span>':'—';
     var diag=diagnosticoInfo(d);
     var diagCell='<span class="pill '+diag.clase+'">'+diag.texto+'</span> '

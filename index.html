@@ -27,6 +27,8 @@
   header.page-header{display:flex;align-items:baseline;justify-content:space-between;margin:28px 0 24px;flex-wrap:wrap;gap:10px;border-bottom:2px solid var(--gold);padding-bottom:16px;}
   header.page-header h1{font-family:'Cormorant Garamond',serif;font-size:32px;font-weight:600;color:var(--blue);}
   header.page-header .sub{color:var(--text-soft);font-size:13px;}
+  .btn-dar-alta{display:inline-flex;align-items:center;gap:6px;font-size:14px;font-weight:600;color:#fff;background:var(--blue);border:none;border-radius:10px;padding:12px 20px;cursor:pointer;white-space:nowrap;}
+  .btn-dar-alta:hover{background:#0d2f5e;}
 
   /* métricas */
   .metric-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:28px;}
@@ -108,6 +110,7 @@
       <h1>Vista general</h1>
       <div class="sub" id="headerSub">cargando datos…</div>
     </div>
+    <button class="btn-dar-alta" onclick="window.location.href='altas.html'">+ Dar de alta</button>
   </header>
 
   <!-- MÉTRICAS -->
@@ -133,13 +136,6 @@
     <div class="area-title"><span class="bar"></span>Participación por iniciativa</div>
     <div class="breakdown-grid" id="breakdownGrid">
       <div class="bk-card" style="opacity:.4;font-size:13px;color:var(--text-soft);">Cargando datos…</div>
-    </div>
-  </div>
-
-  <div style="margin:18px 0 28px;">
-    <div class="ini-card active" style="display:inline-flex;align-items:center;gap:10px;padding:12px 20px;" onclick="window.location.href='altas.html'">
-      <span class="ini-arrow">+</span>
-      <div class="ini-name">Dar de alta</div>
     </div>
   </div>
 

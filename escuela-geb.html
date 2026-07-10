@@ -351,6 +351,33 @@
     <!-- MÉTRICAS -->
     <div class="metric-grid" id="metricsGrid"></div>
 
+    <div class="section" style="margin-bottom:20px;">
+      <div style="display:flex;justify-content:flex-end;">
+        <button class="reg-btn" onclick="toggleAlta()">+ Agregar participante</button>
+      </div>
+      <div class="inline-form" id="altaForm">
+        <div class="inline-form-title">Nuevo participante</div>
+        <div class="form-row"><label>Nombre *</label><input type="text" id="na_nombre"></div>
+        <div class="form-row"><label>Sucursal</label><input type="text" id="na_sucursal"></div>
+        <div class="form-row"><label>Teléfono (WhatsApp)</label><input type="text" id="na_telefono" placeholder="10 dígitos"></div>
+        <div class="form-row"><label>Modalidad</label>
+          <select id="na_modalidad"><option value="INEA">INEA</option><option value="UVL">UVL</option><option value="Ambas">Ambas</option></select>
+        </div>
+        <div class="form-row"><label>Diagnóstico educativo</label>
+          <select id="na_diagnosticoEdu">
+            <option value="">— selecciona —</option>
+            <option>Primaria</option><option>Secundaria</option><option>Preparatoria</option>
+            <option>Carrera técnica</option><option>Licenciatura</option><option>Posgrado</option>
+          </select>
+        </div>
+        <div class="form-actions">
+          <button class="btn-guardar" onclick="guardarAlta()">Guardar</button>
+          <button class="btn-cancelar" onclick="toggleAlta()">Cancelar</button>
+        </div>
+        <div class="form-msg" id="altaMsg"></div>
+      </div>
+    </div>
+
     <!-- ESTADÍSTICAS GENERALES GEB -->
     <div class="section" style="margin-bottom:20px;">
       <div class="section-title" style="margin-bottom:10px;">Contexto educativo GEB</div>
@@ -1492,6 +1519,46 @@ async function guardarDiagnostico(){
     } else showModalMsg("mDiagMsg","err","Error: " + (r.error||"desconocido"));
   }catch(e){ showModalMsg("mDiagMsg","err","No se pudo conectar."); }
   finally{ btn.disabled = false; btn.textContent = "Guardar"; }
+}
+
+function toggleAlta(){ document.getElementById("altaForm").classList.toggle("open"); }
+
+async function guardarAlta(){
+  const nombre = document.getElementById("na_nombre").value.trim();
+  const msgEl = document.getElementById("altaMsg");
+  if(!nombre){ msgEl.className="form-msg err"; msgEl.textContent="El nombre es obligatorio."; return; }
+  const btn = document.querySelector("#altaForm .btn-guardar");
+  btn.disabled = true; btn.textContent = "Guardando…";
+  try{
+    const r = await postData({
+      tipo: "alta_unificada", nombre,
+      sucursal: document.getElementById("na_sucursal").value.trim(),
+      telefono: document.getElementById("na_telefono").value.trim(),
+      iniciativas: [{
+        tipo:"EG", estado:"Activo",
+        modalidad: document.getElementById("na_modalidad").value,
+        diagnosticoEdu: document.getElementById("na_diagnosticoEdu").value
+      }]
+    });
+    if(r.ok){
+      msgEl.className = "form-msg ok"; msgEl.textContent = "Participante agregado.";
+      const [inscritos, colaboradores] = await Promise.all([fetchSheetTab(TABS.inscritos), fetchSheetTab(TABS.colaboradores)]);
+      INSCRITOS = inscritos.filter(d => d.Nombre && d.Nombre.trim() !== "");
+      COLABORADORES = colaboradores.filter(c => c.Nombre && c.Nombre.trim() !== "");
+      BAJA_EMPRESA_SET = new Set(COLABORADORES.filter(c => { const v=(c.Baja_Empresa||"").trim().toLowerCase(); return v==="sí"||v==="si"; }).map(c => normNombre(c.Nombre)));
+      renderMetrics(); renderStats();
+      renderCards("ineaGrid", "INEA"); renderCards("uvlGrid", "UVL");
+      applyFilters();
+      toggleAlta();
+      ["na_nombre","na_sucursal","na_telefono","na_diagnosticoEdu"].forEach(id => { document.getElementById(id).value=""; });
+    } else {
+      msgEl.className = "form-msg err"; msgEl.textContent = "Error: " + (r.error || (r.omitidas&&r.omitidas.length ? "ya existía" : "desconocido"));
+    }
+  } catch(e){
+    msgEl.className = "form-msg err"; msgEl.textContent = "No se pudo conectar con el servidor.";
+  } finally {
+    btn.disabled = false; btn.textContent = "Guardar";
+  }
 }
 
 /* ============================================================

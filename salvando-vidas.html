@@ -306,6 +306,31 @@
     <!-- MÉTRICAS -->
     <div class="metric-grid" id="metricsGrid"></div>
 
+    <div class="section" style="margin-bottom:20px;">
+      <div style="display:flex;justify-content:flex-end;">
+        <button class="reg-btn" onclick="toggleAlta()">+ Agregar donador</button>
+      </div>
+      <div class="inline-form" id="altaForm">
+        <div class="inline-form-title">Nuevo donador</div>
+        <div class="form-row"><label>Nombre *</label><input type="text" id="na_nombre"></div>
+        <div class="form-row"><label>Sucursal</label><input type="text" id="na_sucursal"></div>
+        <div class="form-row"><label>Teléfono (WhatsApp)</label><input type="text" id="na_telefono" placeholder="10 dígitos"></div>
+        <div class="form-row"><label>Tipo de sangre *</label>
+          <select id="na_tipoSangre">
+            <option value="">— selecciona —</option>
+            <option>O+</option><option>O-</option><option>A+</option><option>A-</option>
+            <option>B+</option><option>B-</option><option>AB+</option><option>AB-</option>
+          </select>
+        </div>
+        <div class="form-row"><label>Mes de guardia</label><input type="text" id="na_mesGuardia" placeholder="ej. Julio"></div>
+        <div class="form-actions">
+          <button class="btn-guardar" onclick="guardarAlta()">Guardar</button>
+          <button class="btn-cancelar" onclick="toggleAlta()">Cancelar</button>
+        </div>
+        <div class="form-msg" id="altaMsg"></div>
+      </div>
+    </div>
+
     <!-- GUARDIAS DEL MES -->
     <div class="section">
       <div class="panel-row">
@@ -1041,6 +1066,45 @@ function initHistorialFilters(){
   document.getElementById("fHistSearch").addEventListener("input", applyHistorialFilters);
   document.getElementById("fHistMes").addEventListener("change", applyHistorialFilters);
   document.getElementById("fHistDono").addEventListener("change", applyHistorialFilters);
+}
+
+function toggleAlta(){ document.getElementById("altaForm").classList.toggle("open"); }
+
+async function guardarAlta(){
+  const nombre = document.getElementById("na_nombre").value.trim();
+  const tipoSangre = document.getElementById("na_tipoSangre").value;
+  const msgEl = document.getElementById("altaMsg");
+  if(!nombre || !tipoSangre){ msgEl.className="form-msg err"; msgEl.textContent="Nombre y tipo de sangre son obligatorios."; return; }
+  const btn = document.querySelector("#altaForm .btn-guardar");
+  btn.disabled = true; btn.textContent = "Guardando…";
+  try{
+    const r = await postData({
+      tipo: "alta_unificada", nombre,
+      sucursal: document.getElementById("na_sucursal").value.trim(),
+      telefono: document.getElementById("na_telefono").value.trim(),
+      iniciativas: [{
+        tipo:"SV", estado:"Activo",
+        tipoSangre,
+        mesGuardia: document.getElementById("na_mesGuardia").value.trim()
+      }]
+    });
+    if(r.ok){
+      msgEl.className = "form-msg ok"; msgEl.textContent = "Donador agregado.";
+      const [donadores, colaboradores] = await Promise.all([fetchSheetTab(TABS.donadores), fetchSheetTab("Colaboradores")]);
+      DONADORES = donadores.filter(d => d.Nombre && d.Nombre.trim() !== "");
+      BAJA_EMPRESA_SET = new Set(colaboradores.filter(c => esSi(c.Baja_Empresa)).map(c => normNombre(c.Nombre)));
+      renderMetrics(); renderGuardias(); applyFilters();
+      toggleAlta();
+      ["na_nombre","na_sucursal","na_telefono","na_mesGuardia"].forEach(id => { document.getElementById(id).value=""; });
+      document.getElementById("na_tipoSangre").value = "";
+    } else {
+      msgEl.className = "form-msg err"; msgEl.textContent = "Error: " + (r.error || (r.omitidas&&r.omitidas.length ? "ya existía" : "desconocido"));
+    }
+  } catch(e){
+    msgEl.className = "form-msg err"; msgEl.textContent = "No se pudo conectar con el servidor.";
+  } finally {
+    btn.disabled = false; btn.textContent = "Guardar";
+  }
 }
 
 /* ============================================================

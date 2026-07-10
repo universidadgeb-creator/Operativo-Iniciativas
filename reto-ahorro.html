@@ -78,6 +78,27 @@
   .reactivar-btn{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:var(--green-text);background:var(--green-bg);border:1px solid #bfe0a0;border-radius:8px;padding:6px 10px;cursor:pointer;margin-top:4px;}
   .reactivar-btn:hover{background:#dcedc7;}
 
+  .reg-btn{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;color:var(--blue);background:#E6F1FB;border:1px solid #c5d9f0;border-radius:7px;padding:6px 10px;cursor:pointer;}
+  .reg-btn:hover{background:#d4e5f7;}
+  .inline-form{background:#FAF9F5;border:1px solid var(--border);border-radius:10px;padding:14px;margin-top:10px;display:none;}
+  .inline-form.open{display:block;}
+  .inline-form-title{font-size:12px;font-weight:700;color:var(--blue);margin-bottom:10px;text-transform:uppercase;letter-spacing:.03em;}
+  .form-row{margin-bottom:8px;}
+  .form-row label{display:block;font-size:11px;font-weight:600;color:var(--text-soft);margin-bottom:3px;}
+  .form-row input,.form-row select,.form-row textarea{width:100%;font-size:12px;font-family:inherit;padding:6px 9px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);}
+  .form-row textarea{resize:vertical;min-height:70px;}
+  .form-actions{display:flex;gap:8px;margin-top:10px;}
+  .btn-guardar{font-size:12px;font-weight:600;padding:7px 14px;border-radius:7px;background:var(--blue);color:#fff;border:none;cursor:pointer;}
+  .btn-guardar:hover{background:#0d2f5e;}
+  .btn-guardar:disabled{opacity:.5;cursor:not-allowed;}
+  .btn-cancelar{font-size:12px;font-weight:500;padding:7px 12px;border-radius:7px;background:var(--bg);color:var(--text-soft);border:1px solid var(--border);cursor:pointer;}
+  .form-msg{font-size:11.5px;margin-top:6px;padding:6px 10px;border-radius:6px;display:none;}
+  .form-msg.ok{background:var(--green-bg);color:var(--green-text);display:block;}
+  .form-msg.err{background:var(--red-bg);color:var(--red-text);display:block;}
+  .bulk-bar{display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:10px 12px;background:#FAF9F5;border:1px solid var(--border);border-radius:10px;flex-wrap:wrap;}
+  .bulk-bar input[type=number]{width:70px;font-size:13px;padding:6px 8px;border-radius:6px;border:1px solid var(--border);}
+  .bulk-bar .count{font-size:12px;color:var(--text-soft);}
+
   .filters{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
   .filters input,.filters select{font-size:13px;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:inherit;}
   .filters input{width:220px;}
@@ -206,6 +227,23 @@
     <!-- MÉTRICAS -->
     <div class="metric-grid" id="metricsGrid"></div>
 
+    <div class="section" style="margin-bottom:20px;">
+      <div style="display:flex;justify-content:flex-end;">
+        <button class="reg-btn" onclick="toggleAlta()">+ Agregar participante</button>
+      </div>
+      <div class="inline-form" id="altaForm">
+        <div class="inline-form-title">Nuevo participante</div>
+        <div class="form-row"><label>Nombre *</label><input type="text" id="na_nombre"></div>
+        <div class="form-row"><label>Sucursal</label><input type="text" id="na_sucursal"></div>
+        <div class="form-row"><label>Teléfono (WhatsApp)</label><input type="text" id="na_telefono" placeholder="10 dígitos"></div>
+        <div class="form-actions">
+          <button class="btn-guardar" onclick="guardarAlta()">Guardar</button>
+          <button class="btn-cancelar" onclick="toggleAlta()">Cancelar</button>
+        </div>
+        <div class="form-msg" id="altaMsg"></div>
+      </div>
+    </div>
+
     <!-- COPY SEMANAL DESTACADO -->
     <div class="copy-highlight" id="copyHighlight" style="display:none;">
       <div class="copy-highlight-head">
@@ -213,7 +251,15 @@
         <div class="copy-highlight-meta" id="copyHighlightMeta"></div>
       </div>
       <div class="copy-highlight-text" id="copyHighlightText"></div>
-      <div class="copy-highlight-note">Este copy se edita directamente en la pestaña RA_Copys del Google Sheet.</div>
+      <div class="inline-form" id="copySemanalForm" style="margin-top:10px;">
+        <div class="form-row"><label>Texto del copy</label><textarea id="cs_texto"></textarea></div>
+        <div class="form-actions">
+          <button class="btn-guardar" onclick="guardarCopySemanal()">Guardar copy</button>
+          <button class="btn-cancelar" onclick="toggleCopySemanalForm()">Cancelar</button>
+        </div>
+        <div class="form-msg" id="copySemanalMsg"></div>
+      </div>
+      <button class="reg-btn" style="margin-top:8px;" onclick="toggleCopySemanalForm()">✎ Editar copy</button>
     </div>
 
     <!-- CARDS DE ACTIVOS -->
@@ -243,10 +289,17 @@
           <option value="Si">pendientes de seguimiento</option>
         </select>
       </div>
+      <div class="bulk-bar">
+        <span class="count" id="bulkCount">0 seleccionados</span>
+        <label style="font-size:12px;color:var(--text-soft);">Nueva semana:</label>
+        <input type="number" id="bulkSemana" min="0" max="52">
+        <button class="submit-semana" onclick="guardarSemanaLote()">Actualizar seleccionados</button>
+      </div>
       <div class="table-wrap">
         <table>
           <thead>
             <tr id="tablaHead">
+              <th><input type="checkbox" id="chkAll" onchange="toggleTodosCheck(this)"></th>
               <th data-campo="Nombre" data-tipo="texto">Colaborador</th>
               <th data-campo="Sucursal" data-tipo="texto">Sucursal</th>
               <th data-campo="Semana_Actual" data-tipo="numero">Semana</th>
@@ -367,7 +420,48 @@ function getMomentosDisponibles(d){
 var INSCRITOS = [];
 var COPYS = [];
 var BAJA_EMPRESA_SET = new Set();
+var SELECCIONADOS = new Set();
 function normNombre(n){ return (n||"").toString().trim().toLowerCase(); }
+
+function toggleRowCheck(el){
+  var nombre = decodeURIComponent(el.getAttribute("data-nombre"));
+  if(el.checked) SELECCIONADOS.add(nombre); else SELECCIONADOS.delete(nombre);
+  updateBulkCount();
+}
+function toggleTodosCheck(chkAll){
+  document.querySelectorAll("#tablaBody .row-check").forEach(function(cb){
+    cb.checked = chkAll.checked;
+    var nombre = decodeURIComponent(cb.getAttribute("data-nombre"));
+    if(chkAll.checked) SELECCIONADOS.add(nombre); else SELECCIONADOS.delete(nombre);
+  });
+  updateBulkCount();
+}
+function updateBulkCount(){
+  var el = document.getElementById("bulkCount");
+  if(el) el.textContent = SELECCIONADOS.size + " seleccionados";
+}
+
+async function guardarSemanaLote(){
+  var nueva = document.getElementById("bulkSemana").value;
+  if(nueva === "" || isNaN(parseInt(nueva,10)) || parseInt(nueva,10) < 0){ alert("Ingresa un número de semana válido."); return; }
+  if(SELECCIONADOS.size === 0){ alert("Selecciona al menos un participante."); return; }
+  var nombres = Array.from(SELECCIONADOS);
+  if(!confirm("¿Actualizar la semana a "+nueva+" para "+nombres.length+" participante(s)?")) return;
+  try{
+    var r = await fetch(WEBAPP_URL, { method:"POST", body: JSON.stringify({ tipo:"ra_actualizarSemanaLote", nombres:nombres, semana:nueva }) }).then(function(r){ return r.json(); });
+    if(r.ok){
+      nombres.forEach(function(nombre){
+        var d = INSCRITOS.find(function(x){ return x.Nombre === nombre; });
+        if(d){ d.Semana_Actual = nueva; d.Requiere_Seguimiento = ""; }
+      });
+      SELECCIONADOS.clear();
+      document.getElementById("bulkSemana").value = "";
+      renderMetrics(); renderCopyHighlight(); renderCards(); applyFilters();
+    } else {
+      alert("Error: "+(r.error||"desconocido"));
+    }
+  }catch(e){ alert("No se pudo conectar con el servidor."); }
+}
 
 var sortState = { col: null, tipo: null, dir: 1 };
 function ordenarPor(campo, tipo){
@@ -438,6 +532,39 @@ function renderCopyHighlight(){
   document.getElementById("copyHighlightText").textContent = copy.Copy_Texto || "";
   document.getElementById("copyHighlightMeta").textContent = activos + " colaboradores activos para envío";
   box.style.display = "block";
+}
+
+function toggleCopySemanalForm(){
+  var form = document.getElementById("copySemanalForm");
+  var abrir = !form.classList.contains("open");
+  form.classList.toggle("open");
+  if(abrir){
+    var copy = buildCopyMap()["Copy semanal"];
+    document.getElementById("cs_texto").value = copy ? (copy.Copy_Texto||"") : "";
+  }
+}
+
+async function guardarCopySemanal(){
+  var texto = document.getElementById("cs_texto").value;
+  var msgEl = document.getElementById("copySemanalMsg");
+  var btn = document.querySelector("#copySemanalForm .btn-guardar");
+  btn.disabled = true; btn.textContent = "Guardando…";
+  try{
+    var r = await fetch(WEBAPP_URL, { method:"POST", body: JSON.stringify({ tipo:"ra_editarCopy", momento:"Copy semanal", copyTexto:texto }) }).then(function(r){ return r.json(); });
+    if(r.ok){
+      var c = COPYS.find(function(x){ return x.Momento === "Copy semanal"; });
+      if(c) c.Copy_Texto = texto;
+      msgEl.className = "form-msg ok"; msgEl.textContent = "Copy actualizado.";
+      renderCopyHighlight();
+      setTimeout(function(){ document.getElementById("copySemanalForm").classList.remove("open"); msgEl.className="form-msg"; msgEl.textContent=""; }, 1200);
+    } else {
+      msgEl.className = "form-msg err"; msgEl.textContent = "Error: " + (r.error||"desconocido");
+    }
+  } catch(e){
+    msgEl.className = "form-msg err"; msgEl.textContent = "No se pudo conectar con el servidor.";
+  } finally {
+    btn.disabled = false; btn.textContent = "Guardar copy";
+  }
 }
 
 function renderCards(){
@@ -569,7 +696,7 @@ function renderTabla(filtered){
   var copyMap = buildCopyMap();
   var body = document.getElementById("tablaBody");
   if(filtered.length === 0){
-    body.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--text-soft);">Sin resultados</td></tr>';
+    body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-soft);">Sin resultados</td></tr>';
     return;
   }
   var html = "";
@@ -589,7 +716,9 @@ function renderTabla(filtered){
 
     var tFormId = "tf-"+i;
     var bajaEmpresa = BAJA_EMPRESA_SET.has(normNombre(d.Nombre));
+    var nombreKey = encodeURIComponent(d.Nombre);
     html += '<tr class="'+(seg?'seguimiento-row':'')+' '+(bajaEmpresa?'baja-empresa-row':'')+'">'
+      + '<td><input type="checkbox" class="row-check" data-nombre="'+nombreKey+'" '+(SELECCIONADOS.has(d.Nombre)?'checked':'')+' onchange="toggleRowCheck(this)"></td>'
       + '<td><div class="name-cell">'
       + (seg ? '<span class="dot-new"></span>' : '')
       + '<div><div style="font-weight:600;">'+d.Nombre+'</div>'
@@ -611,9 +740,10 @@ function renderTabla(filtered){
       + '</td>'
       + '<td><div style="display:flex;flex-wrap:wrap;gap:5px;">'+(btns||'<span style="color:var(--text-soft);font-size:12px;">—</span>')+'</div></td>'
       + '</tr>'
-      + '<tr class="expand-row" id="exp-'+i+'"><td colspan="5"><div class="copy-panel" id="cp-'+i+'"></div></td></tr>';
+      + '<tr class="expand-row" id="exp-'+i+'"><td colspan="6"><div class="copy-panel" id="cp-'+i+'"></div></td></tr>';
   });
   body.innerHTML = html;
+  updateBulkCount();
 }
 
 function toggleCopyPanel(idx, nombreEnc, momentoEnc){
@@ -675,6 +805,37 @@ function applyFilters(){
     return matchQ && matchE && matchS;
   });
   renderTabla(aplicarOrden(filtered));
+}
+
+function toggleAlta(){ document.getElementById("altaForm").classList.toggle("open"); }
+
+async function guardarAlta(){
+  var nombre = document.getElementById("na_nombre").value.trim();
+  var msgEl = document.getElementById("altaMsg");
+  if(!nombre){ msgEl.className="form-msg err"; msgEl.textContent="El nombre es obligatorio."; return; }
+  var btn = document.querySelector("#altaForm .btn-guardar");
+  btn.disabled = true; btn.textContent = "Guardando…";
+  try{
+    var r = await fetch(WEBAPP_URL, { method:"POST", body: JSON.stringify({
+      tipo: "alta_unificada", nombre: nombre,
+      sucursal: document.getElementById("na_sucursal").value.trim(),
+      telefono: document.getElementById("na_telefono").value.trim(),
+      iniciativas: [{ tipo:"RA", estado:"Activo" }]
+    })}).then(function(r){ return r.json(); });
+    if(r.ok){
+      msgEl.className = "form-msg ok"; msgEl.textContent = "Participante agregado.";
+      INSCRITOS = (await fetchSheetTab(TABS.inscritos)).filter(function(d){ return d.Nombre && d.Nombre.trim() !== ""; });
+      renderMetrics(); renderCopyHighlight(); renderCards(); applyFilters();
+      toggleAlta();
+      ["na_nombre","na_sucursal","na_telefono"].forEach(function(id){ document.getElementById(id).value=""; });
+    } else {
+      msgEl.className = "form-msg err"; msgEl.textContent = "Error: " + (r.error || (r.omitidas&&r.omitidas.length ? "ya existía" : "desconocido"));
+    }
+  } catch(e){
+    msgEl.className = "form-msg err"; msgEl.textContent = "No se pudo conectar con el servidor.";
+  } finally {
+    btn.disabled = false; btn.textContent = "Guardar";
+  }
 }
 
 async function init(){

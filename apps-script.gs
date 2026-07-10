@@ -177,6 +177,8 @@ function doPost(e) {
     if (tipo === "eg_reactivar")        return handleEgReactivar(payload);
     if (tipo === "eg_diagnostico")      return handleEgDiagnostico(payload);
     if (tipo === "ra_actualizarSemana") return handleRaActualizarSemana(payload);
+    if (tipo === "ra_actualizarSemanaLote") return handleRaActualizarSemanaLote(payload);
+    if (tipo === "ra_editarCopy")        return handleRaEditarCopy(payload);
     if (tipo === "ra_marcarAtendido")   return handleRaMarcarAtendido(payload);
     if (tipo === "ra_baja")             return handleRaBaja(payload);
     if (tipo === "ra_reactivar")        return handleRaReactivar(payload);
@@ -1224,6 +1226,50 @@ function handleRaActualizarSemana(p) {
   }
 
   return resp({ ok: false, error: "No se encontró a " + nombre + " en RA_Inscritos" });
+}
+
+// ── Reto Ahorro: actualizar semana en lote (selección múltiple en el panel) ──
+// Mismo efecto que handleRaActualizarSemana, pero para varios nombres a la vez
+// — evita tener que abrir el formulario individual uno por uno.
+function handleRaActualizarSemanaLote(p) {
+  var ws = raSheetNuevo_();
+  if (!ws) return resp({ ok: false, error: "Pestaña RA_Inscritos no encontrada en el Sheet nuevo" });
+
+  var nombres = (p.nombres || []).map(function (n) { return String(n).trim().toLowerCase(); });
+  var semana  = parseInt(p.semana, 10) || 0;
+  var data    = ws.getDataRange().getValues();
+  var actualizados = [];
+
+  for (var i = 1; i < data.length; i++) {
+    var nombreFila = String(data[i][0]).trim().toLowerCase();
+    if (nombres.indexOf(nombreFila) === -1) continue;
+    ws.getRange(i + 1, 8).setValue(semana);       // Semana_Actual (col H)
+    ws.getRange(i + 1, 6).setValue("");           // Requiere_Seguimiento (col F)
+    ws.getRange(i + 1, 9).setValue(new Date());   // Fecha_Ultima_Semana (col I)
+    actualizados.push(data[i][0]);
+  }
+
+  return resp({ ok: true, actualizados: actualizados });
+}
+
+// ── Reto Ahorro: editar el texto de un copy directo desde el panel ──────
+// RA_Copys: A=Momento, B=Copy_Texto, C=Activo. Antes solo se podía editar
+// entrando al Sheet directamente — esto permite hacerlo desde el portal.
+function handleRaEditarCopy(p) {
+  var ws = SS.getSheetByName("RA_Copys");
+  if (!ws) return resp({ ok: false, error: "Pestaña RA_Copys no encontrada en el Sheet nuevo" });
+
+  var momento = (p.momento || "").trim();
+  var data = ws.getDataRange().getValues();
+
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim() === momento) {
+      ws.getRange(i + 1, 2).setValue(p.copyTexto || ""); // Copy_Texto (col B)
+      return resp({ ok: true });
+    }
+  }
+
+  return resp({ ok: false, error: "No se encontró el momento '" + momento + "' en RA_Copys" });
 }
 
 // ── Reto Ahorro: Marcar atendido (limpia el flag sin cambiar semana) ──

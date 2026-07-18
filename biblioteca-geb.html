@@ -324,6 +324,28 @@
     <div class="footnote">📊 datos y copys desde Google Sheets · se actualizan al recargar la página</div>
   </div>
 
+  <!-- DEVOLUCIONES REPORTADAS POR FORMS -->
+  <div class="section">
+    <div class="section-title">Devoluciones reportadas (Forms)</div>
+    <div class="footnote" style="padding-top:0;">📊 aquí aparece todo lo que alguien reporta con el Form de devolución — con "Pendiente" hay que confirmar que el libro ya se recibió físicamente para cerrar el préstamo.</div>
+    <div class="filters">
+      <input type="text" id="fDevSearch" placeholder="buscar nombre o libro…">
+      <select id="fDevEstado">
+        <option value="">todas</option>
+        <option value="pendiente">pendientes de confirmar</option>
+        <option value="procesada">ya procesadas</option>
+      </select>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Nombre</th><th>Libro</th><th>Fecha reportada</th><th>Condición</th><th>Estado</th><th>Acción</th></tr>
+        </thead>
+        <tbody id="devolucionesBody"></tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- HISTORIAL DE PRÉSTAMOS -->
   <div class="section-divider"><span class="divider-label">Historial de préstamos</span><span class="divider-line"></span></div>
   <div class="section">
@@ -672,7 +694,7 @@ function renderAtencion(){
         </div>
         <span class="pill ${tipo === 'atrasado' ? 'atraso' : 'vence'}">${pillTxt}</span>
         ${copy ? `<button class="wa-btn" onclick="window.open('${waLink(numero, texto)}','_blank')"><span class="ic">●</span> Enviar recordatorio WA</button>` : ''}
-        <button class="ext-btn" onclick="extenderPrestamo('${encodeURIComponent(p.nombre)}','${encodeURIComponent(p.id_libro)}', this)">+2 semanas</button>
+        <button class="ext-btn" onclick="extenderPrestamo(${p._fila}, this)">+2 semanas</button>
       </div>
     `;
   }
@@ -738,7 +760,7 @@ function renderTabla(filtered){
       <td>"${p.titulo}"</td>
       <td>${formatFechaCorta(parseFecha(p.fecha_compromiso))}</td>
       <td>${pill}</td>
-      <td><button class="ext-btn" onclick="extenderPrestamo('${encodeURIComponent(p.nombre)}','${encodeURIComponent(p.id_libro)}', this)">+2 semanas</button></td>
+      <td><button class="ext-btn" onclick="extenderPrestamo(${p._fila}, this)">+2 semanas</button></td>
     </tr>`;
   });
   body.innerHTML = html;
@@ -754,6 +776,43 @@ function applyFilters(){
     return matchQ && matchEstado;
   });
   renderTabla(filtered);
+}
+
+function renderDevoluciones(filtered){
+  const body = document.getElementById("devolucionesBody");
+  if(!filtered || filtered.length === 0){
+    body.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-soft);">Sin devoluciones reportadas</td></tr>`;
+    return;
+  }
+  body.innerHTML = filtered.map(d => {
+    const pendiente = !d.procesado;
+    const estadoPill = pendiente
+      ? `<span class="pill pendiente">Pendiente</span>`
+      : `<span class="pill activo">Procesada</span>`;
+    const accion = pendiente
+      ? `<button class="ext-btn" onclick="confirmarDevolucionFisica(${d._fila}, this)">✓ Confirmar recepción física</button>`
+      : `<span style="font-size:11px;color:var(--text-soft);">${d.procesado}</span>`;
+    return `<tr>
+      <td style="font-weight:600;">${d.nombre}</td>
+      <td>"${d.titulo || d.id_libro || "—"}"</td>
+      <td>${formatFechaCorta(parseFecha(d.timestamp))}</td>
+      <td>${d.condicion || "—"}</td>
+      <td>${estadoPill}</td>
+      <td>${accion}</td>
+    </tr>`;
+  }).join("");
+}
+
+function applyDevolucionesFilters(){
+  const q = document.getElementById("fDevSearch").value.toLowerCase();
+  const estado = document.getElementById("fDevEstado").value;
+  const filtered = DEVOLUCIONES.filter(d => {
+    const matchQ = !q || (d.nombre||"").toLowerCase().includes(q) || (d.titulo||"").toLowerCase().includes(q);
+    const pendiente = !d.procesado;
+    const matchEstado = !estado || (estado === "pendiente" ? pendiente : !pendiente);
+    return matchQ && matchEstado;
+  });
+  renderDevoluciones(filtered);
 }
 
 function renderHistorial(filtered){
@@ -871,15 +930,13 @@ async function postData(payload){
   return await res.json();
 }
 
-async function extenderPrestamo(nombreEnc, idLibroEnc, btnEl){
-  const nombre = decodeURIComponent(nombreEnc);
-  const idLibro = decodeURIComponent(idLibroEnc);
+async function extenderPrestamo(fila, btnEl){
   btnEl.disabled = true; btnEl.textContent = "Extendiendo…";
   try{
-    const r = await postData({ tipo:"bib_extenderPrestamo", nombre, idLibro });
+    const r = await postData({ tipo:"bib_extenderPrestamo", fila });
     if(r.ok){
       btnEl.textContent = "Extendido ✓";
-      const p = PRESTAMOS.find(x => x.nombre === nombre && x.id_libro === idLibro);
+      const p = PRESTAMOS.find(x => x._fila === fila);
       // El backend regresa nuevaFechaCompromiso como texto formateado (dd/MM/yyyy) para
       // mostrar en mensajes, no como fecha real — reconstruimos el Date en vez de asignar
       // ese texto directo, porque new Date("dd/MM/yyyy") no lo interpreta bien y rompía
@@ -915,7 +972,7 @@ async function confirmarDevolucionFisica(fila, btnEl){
       ]);
       DEVOLUCIONES = devoluciones.filter(d => d.nombre && d.nombre.trim() !== "");
       PRESTAMOS = prestamos.filter(p => p.nombre && p.nombre.trim() !== "");
-      renderMetrics(); renderAtencion(); applyFilters(); applyHistorialPrestamosFilters();
+      renderMetrics(); renderAtencion(); applyFilters(); applyHistorialPrestamosFilters(); applyDevolucionesFilters();
     } else {
       btnEl.disabled = false; btnEl.textContent = "✓ Confirmar recepción física";
       alert("Error: " + r.error);
@@ -1042,11 +1099,14 @@ async function init(){
     applyFilters();
     applyHistorialFilters();
     applyHistorialPrestamosFilters();
+    applyDevolucionesFilters();
 
     document.getElementById("fSearch").addEventListener("input", applyFilters);
     document.getElementById("fEstado").addEventListener("change", applyFilters);
     document.getElementById("fHistSearch").addEventListener("input", applyHistorialFilters);
     document.getElementById("fHistPrestSearch").addEventListener("input", applyHistorialPrestamosFilters);
+    document.getElementById("fDevSearch").addEventListener("input", applyDevolucionesFilters);
+    document.getElementById("fDevEstado").addEventListener("change", applyDevolucionesFilters);
     document.getElementById("tablaHead").addEventListener("click", e => {
       const th = e.target.closest("th[data-campo]");
       if(th) ordenarTabla(th.dataset.campo, th.dataset.tipo);

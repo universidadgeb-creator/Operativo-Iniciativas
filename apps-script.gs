@@ -46,6 +46,24 @@ function _marcarEstadoPorNombre(sheetName, nombre, estado, seguimiento) {
   return false;
 }
 
+// Igual que _marcarEstadoPorNombre pero solo toca Requiere_Seguimiento (col F),
+// sin tocar Estado — usado por los botones "marcar seguimiento" nuevos en
+// Reto Ahorro / Impulso GEB / Beca Educativa / Escuela GEB (dan de alta el
+// flag manualmente, sin esperar a la detección automática de atraso/faltas).
+function _marcarSeguimientoPorNombre(sheetName, nombre, valor) {
+  var ws = SS.getSheetByName(sheetName);
+  if (!ws) return false;
+  var data = ws.getDataRange().getValues();
+  var nombreLower = nombre.trim().toLowerCase();
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim().toLowerCase() === nombreLower) {
+      ws.getRange(i + 1, 6).setValue(valor);
+      return true;
+    }
+  }
+  return false;
+}
+
 const LOGO_BIBLIO_ID = "1NqoFmESlsTP4dpFscYglcs9o6THQP4TR";
 const LOGO_UGEB_ID = "1mBIHoKyngoa7cBiSvHCVY0x_pIkFyARJ";
 const COLOR_PRIMARIO = "#185FA5";
@@ -54,9 +72,60 @@ function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu("GEB CRM")
     .addItem("🔧 Configurar alertas de atraso Reto Ahorro (1 vez)", "configurarAlertasAtrasoRA")
+    .addItem("🔧 Configurar columnas faltantes de Biblioteca (1 vez)", "configurarColumnasFaltantesBiblioteca")
     .addItem("🗑️ Borrar TODOS los datos de prueba (PRUEBA...)", "borrarDatosPruebaTodos")
     .addItem("🧹 Quitar emojis de todos los Copys (1 vez)", "limpiarEmojisCopys")
     .addToUi();
+}
+
+// ── Biblioteca: agregar columnas faltantes en hojas de respuesta de Forms ──
+// BIB_Prestamos y BIB_Devoluciones son hojas de respuestas de Google Forms:
+// solo tienen las columnas que corresponden a preguntas del formulario. Todo
+// el flujo de "marcar devuelto"/"confirmar devolución física" necesita
+// columnas adicionales (devuelto, fecha_devolucion_real, condicion_devolucion,
+// comentarios, depto en Préstamos; procesado en Devoluciones) que nunca se
+// crearon — por eso esos botones no hacían nada (escribían sobre una columna
+// que no existe). Corre esto una sola vez; los Forms nuevos solo llenan sus
+// propias columnas y no tocan estas, así que es seguro agregarlas al final.
+function configurarColumnasFaltantesBiblioteca() {
+  var resultado = [];
+
+  var hojaPre = SS.getSheetByName("BIB_Prestamos");
+  if (hojaPre) {
+    var ultimaColPre = hojaPre.getLastColumn();
+    var headersPre = ultimaColPre > 0 ? hojaPre.getRange(1, 1, 1, ultimaColPre).getValues()[0] : [];
+    var yaExistenPre = headersPre.map(function (h) { return String(h || "").trim().toLowerCase(); });
+    var faltantesPre = ["devuelto", "fecha_devolucion_real", "condicion_devolucion", "comentarios", "depto"];
+    var colInicio = ultimaColPre + 1;
+    var agregadasPre = [];
+    faltantesPre.forEach(function (nombreCol) {
+      if (yaExistenPre.indexOf(nombreCol) === -1) {
+        hojaPre.getRange(1, colInicio).setValue(nombreCol);
+        agregadasPre.push(nombreCol);
+        colInicio++;
+      }
+    });
+    resultado.push("BIB_Prestamos: " + (agregadasPre.length ? "agregadas " + agregadasPre.join(", ") : "ya estaban todas"));
+  } else {
+    resultado.push("BIB_Prestamos no encontrada");
+  }
+
+  var hojaDev = SS.getSheetByName("BIB_Devoluciones");
+  if (hojaDev) {
+    var ultimaColDev = hojaDev.getLastColumn();
+    var headersDev = ultimaColDev > 0 ? hojaDev.getRange(1, 1, 1, ultimaColDev).getValues()[0] : [];
+    var yaExisteProcesado = headersDev.some(function (h) { return String(h || "").trim().toLowerCase() === "procesado"; });
+    if (!yaExisteProcesado) {
+      hojaDev.getRange(1, ultimaColDev + 1).setValue("procesado");
+      resultado.push("BIB_Devoluciones: agregada procesado");
+    } else {
+      resultado.push("BIB_Devoluciones: ya estaba procesado");
+    }
+  } else {
+    resultado.push("BIB_Devoluciones no encontrada");
+  }
+
+  SpreadsheetApp.getUi().alert("Columnas de Biblioteca configuradas:\n\n" + resultado.join("\n"));
 }
 
 // ── Borrar datos de prueba (desarrollo) ──────────────────────────
@@ -172,13 +241,17 @@ function doPost(e) {
     if (tipo === "sv_baja")           return handleSvBaja(payload);
     if (tipo === "sv_reactivar")      return handleSvReactivar(payload);
     if (tipo === "eg_marcarAtendido")   return handleEgMarcarAtendido(payload);
+    if (tipo === "eg_marcarSeguimiento") return handleEgMarcarSeguimiento(payload);
+    if (tipo === "eg_marcarHistoricoProspecto") return handleEgMarcarHistoricoProspecto(payload);
     if (tipo === "eg_baja")             return handleEgBaja(payload);
     if (tipo === "eg_reactivar")        return handleEgReactivar(payload);
     if (tipo === "eg_diagnostico")      return handleEgDiagnostico(payload);
     if (tipo === "ra_actualizarSemana") return handleRaActualizarSemana(payload);
     if (tipo === "ra_actualizarSemanaLote") return handleRaActualizarSemanaLote(payload);
+    if (tipo === "ra_sumarSemanaLote")   return handleRaSumarSemanaLote(payload);
     if (tipo === "ra_editarCopy")        return handleRaEditarCopy(payload);
     if (tipo === "ra_marcarAtendido")   return handleRaMarcarAtendido(payload);
+    if (tipo === "ra_marcarSeguimiento") return handleRaMarcarSeguimiento(payload);
     if (tipo === "ra_baja")             return handleRaBaja(payload);
     if (tipo === "ra_reactivar")        return handleRaReactivar(payload);
     if (tipo === "re_altaEdicion")           return handleReAltaEdicion(payload);
@@ -197,10 +270,12 @@ function doPost(e) {
     if (tipo === "cs_reactivar")                 return handleCsReactivar(payload);
     if (tipo === "ig_actualizarCampo")   return handleIgActualizarCampo(payload);
     if (tipo === "ig_marcarAtendido")    return handleIgMarcarAtendido(payload);
+    if (tipo === "ig_marcarSeguimiento") return handleIgMarcarSeguimiento(payload);
     if (tipo === "ig_baja")              return handleIgBaja(payload);
     if (tipo === "ig_reactivar")         return handleIgReactivar(payload);
     if (tipo === "ig_pasarGeneracion2")  return handleIgPasarGeneracion2(payload);
     if (tipo === "be_marcarAtendido")    return handleBeMarcarAtendido(payload);
+    if (tipo === "be_marcarSeguimiento") return handleBeMarcarSeguimiento(payload);
     if (tipo === "be_baja")              return handleBeBaja(payload);
     if (tipo === "be_reactivar")         return handleBeReactivar(payload);
     if (tipo === "be_revisarInscripcion") return handleBeRevisarInscripcion(payload);
@@ -237,6 +312,7 @@ function handleAsistencia(p) {
       p.notas  || ""
     ]);
   });
+  revisarFaltasEG_();
   return resp({ ok: true });
 }
 
@@ -380,6 +456,98 @@ function handleEgReactivar(p) {
   var nombre = (p.nombre || "").trim();
   if (_marcarEstadoPorNombre("EG_Inscritos", nombre, "Activo", "")) return resp({ ok: true });
   return resp({ ok: false, error: "No se encontró a " + nombre + " en EG_Inscritos" });
+}
+
+// ── Escuela GEB: marcar seguimiento manualmente ──────────────────
+function handleEgMarcarSeguimiento(p) {
+  var nombre = (p.nombre || "").trim();
+  if (_marcarSeguimientoPorNombre("EG_Inscritos", nombre, "Sí")) return resp({ ok: true });
+  return resp({ ok: false, error: "No se encontró a " + nombre + " en EG_Inscritos" });
+}
+
+// ── Escuela GEB: marcar Histórico / Prospecto (columnas K, L) ───────────
+// Cols EG_Inscritos: A-J son las 10 de siempre (ver egSheetNuevo_ arriba);
+// K=Historico, L=Prospecto se agregan al final para no correr nada existente.
+// Son independientes de Estado/Modalidad — una persona puede ser Histórico Y
+// Prospecto a la vez (por eso no se modela con el Estado, que es un solo valor).
+// Si el nombre no existe todavía en EG_Inscritos, crea una fila nueva con los
+// datos básicos tomados de Colaboradores (Sucursal, Telefono_WA).
+function handleEgMarcarHistoricoProspecto(p) {
+  var ws = egSheetNuevo_();
+  if (!ws) return resp({ ok: false, error: "Pestaña EG_Inscritos no encontrada en el Sheet nuevo" });
+
+  var nombre = (p.nombre || "").trim();
+  if (!nombre) return resp({ ok: false, error: "El nombre es obligatorio." });
+  var historico = p.historico ? "Sí" : "No";
+  var prospecto = p.prospecto ? "Sí" : "No";
+
+  var data = ws.getDataRange().getValues();
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
+      ws.getRange(i + 1, 11).setValue(historico); // Historico (col K)
+      ws.getRange(i + 1, 12).setValue(prospecto);  // Prospecto (col L)
+      return resp({ ok: true });
+    }
+  }
+
+  // No existe todavía: crear fila nueva, tomando Sucursal/Telefono de Colaboradores.
+  var sucursal = "", telefono = "";
+  var wsColab = SS.getSheetByName("Colaboradores");
+  if (wsColab) {
+    var colabData = wsColab.getDataRange().getValues();
+    for (var j = 1; j < colabData.length; j++) {
+      if (String(colabData[j][0]).trim().toLowerCase() === nombre.toLowerCase()) {
+        sucursal = colabData[j][1] || "";
+        telefono = colabData[j][6] || "";
+        break;
+      }
+    }
+  }
+
+  ws.appendRow([nombre, sucursal, telefono, new Date(), "", "", "", "", "", "", historico, prospecto]);
+  return resp({ ok: true, creado: true });
+}
+
+// ── Escuela GEB: contar faltas y marcar seguimiento automático ──────────
+// Se corre cada vez que se guarda un pase de lista (handleAsistencia). Para
+// cada inscrito INEA activo que NO esté en la lista de asistentes de esta
+// clase, cuenta cuántas clases totales lleva faltando (comparando el total de
+// clases registradas contra sus asistencias reales en EG_Asistencias) y, si
+// llega a 3 o más, marca Requiere_Seguimiento="Sí" (si no lo estaba ya).
+function revisarFaltasEG_() {
+  var wsIns = egSheetNuevo_();
+  var wsAsist = SS.getSheetByName("EG_Asistencias");
+  if (!wsIns || !wsAsist) return;
+
+  var asistData = wsAsist.getDataRange().getValues();
+  // Total de clases distintas registradas (Fecha_Clase + Tema, cols B y C)
+  var clasesSet = {};
+  var asistPorNombre = {};
+  for (var i = 1; i < asistData.length; i++) {
+    var nombreFila = String(asistData[i][0] || "").trim().toLowerCase();
+    var claseKey = String(asistData[i][1] || "") + "||" + String(asistData[i][2] || "");
+    if (!nombreFila || !claseKey) continue;
+    clasesSet[claseKey] = true;
+    asistPorNombre[nombreFila] = (asistPorNombre[nombreFila] || 0) + 1;
+  }
+  var totalClases = Object.keys(clasesSet).length;
+  if (totalClases === 0) return;
+
+  var insData = wsIns.getDataRange().getValues();
+  for (var k = 1; k < insData.length; k++) {
+    var estado = String(insData[k][4] || "").trim().toLowerCase();     // Estado (E)
+    var modalidad = String(insData[k][7] || "").trim().toUpperCase();  // Modalidad (H)
+    if (estado !== "activo" || modalidad !== "INEA") continue;
+
+    var nombreLower = String(insData[k][0] || "").trim().toLowerCase();
+    var asistio = asistPorNombre[nombreLower] || 0;
+    var faltas = totalClases - asistio;
+
+    var yaMarcado = String(insData[k][5] || "").trim().toLowerCase() === "sí"; // Requiere_Seguimiento (F)
+    if (!yaMarcado && faltas >= 3) {
+      wsIns.getRange(k + 1, 6).setValue("Sí");
+    }
+  }
 }
 
 // Diagnóstico educativo (col I): se captura al alta (altas.html) pero también se
@@ -786,6 +954,38 @@ function handleRaActualizarSemanaLote(p) {
   }
 
   return resp({ ok: true, actualizados: actualizados });
+}
+
+// ── Reto Ahorro: sumar +1 semana en lote (selección múltiple) ───────────
+// Reemplaza al viejo "escribir una semana fija para todos los seleccionados":
+// cada persona puede estar en una semana distinta, así que esto suma 1 a la
+// Semana_Actual que ya tenga cada quien, en vez de igualarlos a un número común.
+function handleRaSumarSemanaLote(p) {
+  var ws = raSheetNuevo_();
+  if (!ws) return resp({ ok: false, error: "Pestaña RA_Inscritos no encontrada en el Sheet nuevo" });
+
+  var nombres = (p.nombres || []).map(function (n) { return String(n).trim().toLowerCase(); });
+  var data    = ws.getDataRange().getValues();
+  var actualizados = [];
+
+  for (var i = 1; i < data.length; i++) {
+    var nombreFila = String(data[i][0]).trim().toLowerCase();
+    if (nombres.indexOf(nombreFila) === -1) continue;
+    var nuevaSemana = (parseInt(data[i][7], 10) || 0) + 1; // Semana_Actual (col H, índice 7)
+    ws.getRange(i + 1, 8).setValue(nuevaSemana);
+    ws.getRange(i + 1, 6).setValue("");           // Requiere_Seguimiento (col F)
+    ws.getRange(i + 1, 9).setValue(new Date());   // Fecha_Ultima_Semana (col I)
+    actualizados.push({ nombre: data[i][0], semana: nuevaSemana });
+  }
+
+  return resp({ ok: true, actualizados: actualizados });
+}
+
+// ── Reto Ahorro: marcar seguimiento manualmente ──────────────────
+function handleRaMarcarSeguimiento(p) {
+  var nombre = (p.nombre || "").trim();
+  if (_marcarSeguimientoPorNombre("RA_Inscritos", nombre, "Sí")) return resp({ ok: true });
+  return resp({ ok: false, error: "No se encontró a " + nombre + " en RA_Inscritos" });
 }
 
 // ── Reto Ahorro: editar el texto de un copy directo desde el panel ──────
@@ -1674,29 +1874,29 @@ function handleBibProcesarDevolucion(p) {
 }
 
 // ── Biblioteca: Extender préstamo +14 días ──────────────────────
-// Recibe: {tipo:"bib_extenderPrestamo", nombre, idLibro}
+// Recibe: {tipo:"bib_extenderPrestamo", fila}
+// Antes buscaba por nombre+idLibro, lo cual podía chocar con préstamos
+// anteriores del mismo libro por la misma persona (nunca se marcaban
+// "devuelto" porque esa columna no existía en el Form — ver
+// configurarColumnasFaltantesBiblioteca). Ahora opera directo sobre la fila
+// exacta que manda el panel (ya la trae del fetch original vía _fila).
 function handleBibExtenderPrestamo(p) {
   const ws = bibSheetNuevo_("BIB_Prestamos");
   if (!ws) return resp({ ok: false, error: "Pestaña BIB_Prestamos no encontrada" });
 
-  const datos = ws.getDataRange().getValues();
-  const idx = obtenerIndicesBib_(datos[0], COLS_BIB.prestamos);
+  const fila = parseInt(p.fila, 10);
+  if (!fila || fila < 2) return resp({ ok: false, error: "fila inválida" });
 
-  const nombreBuscado = String(p.nombre || "").trim().toLowerCase();
-  const idBuscado = String(p.idLibro || "").trim().toLowerCase();
+  const headers = ws.getRange(1, 1, 1, ws.getLastColumn()).getValues()[0];
+  const idx = obtenerIndicesBib_(headers, COLS_BIB.prestamos);
+  if (idx.fechaCompromiso < 0) return resp({ ok: false, error: "No se encontró la columna de fecha compromiso" });
 
-  for (let i = 1; i < datos.length; i++) {
-    const nombreFila = String(datos[i][idx.nombre] || "").trim().toLowerCase();
-    const idFila = String(datos[i][idx.idLibro] || "").trim().toLowerCase();
-    if (nombreFila === nombreBuscado && idFila === idBuscado) {
-      const fechaActual = datos[i][idx.fechaCompromiso] ? new Date(datos[i][idx.fechaCompromiso]) : new Date();
-      const nuevaFecha = new Date(fechaActual.getTime() + 14 * 24 * 60 * 60 * 1000);
-      ws.getRange(i + 1, idx.fechaCompromiso + 1).setValue(nuevaFecha);
-      return resp({ ok: true, nuevaFechaCompromiso: formatearFechaBib_(nuevaFecha) });
-    }
-  }
+  const datos = ws.getRange(fila, 1, 1, ws.getLastColumn()).getValues()[0];
+  const fechaActual = datos[idx.fechaCompromiso] ? new Date(datos[idx.fechaCompromiso]) : new Date();
+  const nuevaFecha = new Date(fechaActual.getTime() + 14 * 24 * 60 * 60 * 1000);
+  ws.getRange(fila, idx.fechaCompromiso + 1).setValue(nuevaFecha);
 
-  return resp({ ok: false, error: "No se encontró el préstamo (nombre + idLibro)" });
+  return resp({ ok: true, nuevaFechaCompromiso: formatearFechaBib_(nuevaFecha) });
 }
 
 // ── Biblioteca: Generar recibo de donación (PDF) ────────────────
@@ -1801,6 +2001,13 @@ function handleIgReactivar(p) {
   return resp({ ok: false, error: "No se encontró a " + nombre + " en IG_Inscritos" });
 }
 
+// ── Impulso GEB: marcar seguimiento manualmente ──────────────────
+function handleIgMarcarSeguimiento(p) {
+  const nombre = (p.nombre || "").trim();
+  if (_marcarSeguimientoPorNombre("IG_Inscritos", nombre, "Sí")) return resp({ ok: true });
+  return resp({ ok: false, error: "No se encontró a " + nombre + " en IG_Inscritos" });
+}
+
 // Marca que la persona termina Generación 1 y continúa en Generación 2 (aún
 // sin módulo propio) — distinto de "Baja", que es salir de la iniciativa.
 function handleIgPasarGeneracion2(p) {
@@ -1862,6 +2069,13 @@ function handleBeBaja(p) {
 function handleBeReactivar(p) {
   const nombre = (p.nombre || "").trim();
   if (_marcarEstadoPorNombre("BE_Inscritos", nombre, "Interesado", "")) return resp({ ok: true });
+  return resp({ ok: false, error: "No se encontró a " + nombre + " en BE_Inscritos" });
+}
+
+// ── Beca Educativa GEB: marcar seguimiento manualmente ────────────
+function handleBeMarcarSeguimiento(p) {
+  const nombre = (p.nombre || "").trim();
+  if (_marcarSeguimientoPorNombre("BE_Inscritos", nombre, "Sí")) return resp({ ok: true });
   return resp({ ok: false, error: "No se encontró a " + nombre + " en BE_Inscritos" });
 }
 

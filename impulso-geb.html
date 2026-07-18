@@ -317,7 +317,7 @@ function renderTabla(filtered){
       <td>${evidenciaBtn(d.Nombre,"Movilidad_Social",d.Movilidad_Social)}</td>
       <td>${estadoPill(d)}</td>
       <td>
-        ${seg?`<button class="action-btn atender" onclick="marcarAtendido('${encodeURIComponent(d.Nombre)}')">✓ atendido</button>`:""}
+        ${seg?`<button class="action-btn atender" onclick="marcarAtendido('${encodeURIComponent(d.Nombre)}')">✓ atendido</button>`:`<button class="action-btn atender" onclick="marcarSeguimiento('${encodeURIComponent(d.Nombre)}')">🏳 seguimiento</button>`}
         ${enGen1?`<button class="action-btn gen2" onclick="pasarGeneracion2('${encodeURIComponent(d.Nombre)}')">→ Gen. 2</button>`:""}
         ${e!=="baja"?`<button class="action-btn baja" onclick="marcarBaja('${encodeURIComponent(d.Nombre)}')">✕ Baja</button>`:`<button class="action-btn reactivar" onclick="reactivarIg('${encodeURIComponent(d.Nombre)}')">↺ Reactivar</button>`}
       </td>
@@ -362,6 +362,18 @@ async function marcarAtendido(nombreEnc){
     if(r.ok){
       const d = INSCRITOS.find(x => x.Nombre === nombre);
       if(d) d.Requiere_Seguimiento = "";
+      renderMetrics(); applyFilters();
+    } else alert("Error: " + r.error);
+  } catch(e){ alert("No se pudo conectar con el servidor."); }
+}
+
+async function marcarSeguimiento(nombreEnc){
+  const nombre = decodeURIComponent(nombreEnc);
+  try{
+    const r = await postData({ tipo:"ig_marcarSeguimiento", nombre });
+    if(r.ok){
+      const d = INSCRITOS.find(x => x.Nombre === nombre);
+      if(d) d.Requiere_Seguimiento = "Sí";
       renderMetrics(); applyFilters();
     } else alert("Error: " + r.error);
   } catch(e){ alert("No se pudo conectar con el servidor."); }

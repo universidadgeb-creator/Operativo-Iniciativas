@@ -291,9 +291,7 @@
       </div>
       <div class="bulk-bar">
         <span class="count" id="bulkCount">0 seleccionados</span>
-        <label style="font-size:12px;color:var(--text-soft);">Nueva semana:</label>
-        <input type="number" id="bulkSemana" min="0" max="52">
-        <button class="submit-semana" onclick="guardarSemanaLote()">Actualizar seleccionados</button>
+        <button class="submit-semana" onclick="sumarSemanaLote()">+1 semana a seleccionados</button>
       </div>
       <div class="table-wrap">
         <table>
@@ -441,21 +439,18 @@ function updateBulkCount(){
   if(el) el.textContent = SELECCIONADOS.size + " seleccionados";
 }
 
-async function guardarSemanaLote(){
-  var nueva = document.getElementById("bulkSemana").value;
-  if(nueva === "" || isNaN(parseInt(nueva,10)) || parseInt(nueva,10) < 0){ alert("Ingresa un número de semana válido."); return; }
+async function sumarSemanaLote(){
   if(SELECCIONADOS.size === 0){ alert("Selecciona al menos un participante."); return; }
   var nombres = Array.from(SELECCIONADOS);
-  if(!confirm("¿Actualizar la semana a "+nueva+" para "+nombres.length+" participante(s)?")) return;
+  if(!confirm("¿Sumar +1 semana a "+nombres.length+" participante(s)?")) return;
   try{
-    var r = await fetch(WEBAPP_URL, { method:"POST", body: JSON.stringify({ tipo:"ra_actualizarSemanaLote", nombres:nombres, semana:nueva }) }).then(function(r){ return r.json(); });
+    var r = await fetch(WEBAPP_URL, { method:"POST", body: JSON.stringify({ tipo:"ra_sumarSemanaLote", nombres:nombres }) }).then(function(r){ return r.json(); });
     if(r.ok){
       nombres.forEach(function(nombre){
         var d = INSCRITOS.find(function(x){ return x.Nombre === nombre; });
-        if(d){ d.Semana_Actual = nueva; d.Requiere_Seguimiento = ""; }
+        if(d){ d.Semana_Actual = (parseInt(d.Semana_Actual,10)||0) + 1; d.Requiere_Seguimiento = ""; }
       });
       SELECCIONADOS.clear();
-      document.getElementById("bulkSemana").value = "";
       renderMetrics(); renderCopyHighlight(); renderCards(); applyFilters();
     } else {
       alert("Error: "+(r.error||"desconocido"));
@@ -593,6 +588,9 @@ function renderCards(){
       + '<input type="number" id="'+formId+'-val" min="0" max="52" value="'+semana+'">'
       + '<button class="submit-semana" id="'+formId+'-btn" onclick="guardarSemana(\''+encodeURIComponent(d.Nombre)+'\',\''+formId+'\')">Guardar</button>'
       + '</div>';
+    var segBtn = seg
+      ? '<button class="atender-btn" onclick="marcarAtendidoRA(\''+encodeURIComponent(d.Nombre)+'\', this)">✓ marcar atendido</button>'
+      : '<button class="toggle-react-btn" onclick="marcarSeguimientoRA(\''+encodeURIComponent(d.Nombre)+'\', this)">🏳 marcar seguimiento</button>';
     return '<div class="gcard '+(seg?'seguimiento':'')+'">'
       + '<div class="gcard-head">'
       + '<div class="avatar">'+initials(d.Nombre)+'</div>'
@@ -600,7 +598,7 @@ function renderCards(){
       + '</div>'
       + '<span class="pill semana">Sem '+(semana||"—")+'</span>'
       + (seg ? '<span class="pill seguimiento-tag">seguimiento</span>' : '<span class="pill activo">activo</span>')
-      + '<div class="gactions">'+btns+semanaForm+'</div>'
+      + '<div class="gactions">'+btns+segBtn+semanaForm+'</div>'
       + '</div>';
   }).join("");
 }
@@ -650,6 +648,25 @@ async function marcarAtendidoRA(nombreEnc, btnEl){
   }catch(e){
     alert("No se pudo conectar con el servidor.");
     if(btnEl){ btnEl.disabled = false; btnEl.textContent = "✓ marcar atendido"; }
+  }
+}
+
+async function marcarSeguimientoRA(nombreEnc, btnEl){
+  var nombre = decodeURIComponent(nombreEnc);
+  if(btnEl){ btnEl.disabled = true; btnEl.textContent = "…"; }
+  try{
+    var r = await fetch(WEBAPP_URL, { method:"POST", body: JSON.stringify({ tipo:"ra_marcarSeguimiento", nombre:nombre }) }).then(function(r){ return r.json(); });
+    if(r.ok){
+      var d = INSCRITOS.find(function(x){ return x.Nombre === nombre; });
+      if(d) d.Requiere_Seguimiento = "Sí";
+      renderMetrics(); renderCards(); applyFilters();
+    } else {
+      alert("Error: "+(r.error||"desconocido"));
+      if(btnEl){ btnEl.disabled = false; btnEl.textContent = "🏳 marcar seguimiento"; }
+    }
+  }catch(e){
+    alert("No se pudo conectar con el servidor.");
+    if(btnEl){ btnEl.disabled = false; btnEl.textContent = "🏳 marcar seguimiento"; }
   }
 }
 
@@ -733,7 +750,7 @@ function renderTabla(filtered){
       + '</div>'
       + '</td>'
       + '<td>'+estadoPill
-      + (seg ? ' <button class="atender-btn" onclick="marcarAtendidoRA(\''+encodeURIComponent(d.Nombre)+'\', this)">✓ marcar atendido</button>' : '')
+      + (seg ? ' <button class="atender-btn" onclick="marcarAtendidoRA(\''+encodeURIComponent(d.Nombre)+'\', this)">✓ marcar atendido</button>' : ' <button class="toggle-react-btn" style="margin-top:0;padding:5px 8px;font-size:11px;" onclick="marcarSeguimientoRA(\''+encodeURIComponent(d.Nombre)+'\', this)">🏳 seguimiento</button>')
       + (esBajaRA(d)
           ? ' <button class="reactivar-btn" onclick="reactivarRA(\''+encodeURIComponent(d.Nombre)+'\', this)">↺ Reactivar</button>'
           : ' <button class="baja-btn" onclick="marcarBajaRA(\''+encodeURIComponent(d.Nombre)+'\', this)">✕ Baja</button>')

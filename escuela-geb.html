@@ -243,6 +243,17 @@
   .action-btn.baja:hover{ background:#f8d8d8; }
   .action-btn.reactivar{ color:var(--green-text); background:var(--green-bg); border-color:#bfe0a0; }
   .action-btn.reactivar:hover{ background:#dcedc7; }
+
+  /* histórico / prospectos — 2 columnas */
+  .hp-grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .hp-col{ background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px; }
+  .hp-col-title{ font-family:'Cormorant Garamond',serif; font-size:16px; font-weight:600; color:var(--blue); margin-bottom:10px; display:flex; align-items:center; justify-content:space-between; }
+  .hp-item{ display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 0; border-bottom:1px solid var(--border); font-size:13px; }
+  .hp-item:last-child{ border-bottom:none; }
+  .hp-item .hp-meta{ font-size:11px; color:var(--text-soft); }
+  .rezago-item{ display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 0; border-bottom:1px dashed var(--border); font-size:13px; }
+  .rezago-item:last-child{ border-bottom:none; }
+  @media(max-width:720px){ .hp-grid{ grid-template-columns:1fr; } }
 </style>
 </head>
 <body>
@@ -406,6 +417,57 @@
         </div>
 
       </div>
+    </div>
+
+    <!-- PERSONAS CLAVE PARA MOVER EL REZAGO EDUCATIVO -->
+    <div class="section" style="margin-bottom:20px;">
+      <div class="section-title" style="margin-bottom:10px;">Personas clave para mover el rezago educativo</div>
+      <div class="hp-grid">
+        <div class="hp-col">
+          <div class="hp-col-title">Confirmados en rezago <span style="font-size:11px;color:var(--text-soft);font-weight:400;" id="rezagoConfCount"></span></div>
+          <div id="rezagoConfirmados"></div>
+        </div>
+        <div class="hp-col">
+          <div class="hp-col-title">Sin diagnóstico capturado <span style="font-size:11px;color:var(--text-soft);font-weight:400;" id="rezagoSinDiagCount"></span></div>
+          <div id="rezagoSinDiagnostico"></div>
+        </div>
+      </div>
+      <div class="footnote">📊 "Confirmados" sale de EG_Inscritos con diagnóstico ya capturado · "Sin diagnóstico" son colaboradores de la Base madre (Colaboradores) que aún no tienen registro en Escuela GEB — prioridad para evaluar y, si aplica, dar de alta.</div>
+    </div>
+
+    <!-- HISTÓRICOS Y PROSPECTOS -->
+    <div class="section" style="margin-bottom:20px;">
+      <div class="section-header">
+        <div class="section-title" style="margin-bottom:0;">Históricos y Prospectos</div>
+        <button class="reg-btn" onclick="toggleHpForm()">+ Agregar desde Base madre</button>
+      </div>
+      <div class="inline-form" id="hpForm">
+        <div class="inline-form-title">Marcar Histórico y/o Prospecto</div>
+        <div class="form-row"><label>Colaborador (Base madre) *</label>
+          <input type="text" id="hp_nombre" list="hpListaColaboradores" placeholder="Escribe para buscar…">
+          <datalist id="hpListaColaboradores"></datalist>
+        </div>
+        <div class="form-checkbox-group">
+          <label><input type="checkbox" id="hp_historico"> Histórico</label>
+          <label><input type="checkbox" id="hp_prospecto"> Prospecto</label>
+        </div>
+        <div class="form-actions">
+          <button class="btn-guardar" onclick="guardarHistoricoProspecto()">Guardar</button>
+          <button class="btn-cancelar" onclick="toggleHpForm()">Cancelar</button>
+        </div>
+        <div class="form-msg" id="hpMsg"></div>
+      </div>
+      <div class="hp-grid">
+        <div class="hp-col">
+          <div class="hp-col-title">Históricos</div>
+          <div id="historicosList"></div>
+        </div>
+        <div class="hp-col">
+          <div class="hp-col-title">Prospectos</div>
+          <div id="prospectosList"></div>
+        </div>
+      </div>
+      <div class="footnote">📊 una persona puede aparecer en ambas columnas al mismo tiempo — son independientes del Estado/Modalidad de inscripción.</div>
     </div>
 
     <!-- ===== SECCIÓN INEA ===== -->
@@ -611,7 +673,9 @@ const SCHEMA = {
     "Notas",               // G (6)
     "Modalidad",           // H (7)
     "Diagnostico_Edu",     // I (8)
-    "Nivel"                // J (9)
+    "Nivel",               // J (9)
+    "Historico",           // K (10) — agregada para el panel de Históricos/Prospectos;
+    "Prospecto"            // L (11) — independiente de Estado, una persona puede ser ambos
   ],
   EG_Asistencias: [
     "Nombre",       // A (0)
@@ -804,6 +868,93 @@ function renderStats(){
 function initials(name){
   const p = (name||"").trim().split(/\s+/);
   return ((p[0]?.[0]||"")+(p[1]?.[0]||"")).toUpperCase();
+}
+
+function esSiEG(v){
+  const s = (v||"").toString().trim().toLowerCase();
+  return s === "sí" || s === "si";
+}
+
+/* ============================================================
+   RENDER: personas clave para mover el rezago educativo
+   Fuente: EG_Inscritos con diagnóstico (confirmados) + Colaboradores (Base
+   madre) que aún no tienen fila en EG_Inscritos (sin diagnóstico capturado).
+   ============================================================ */
+function renderRezagoClave(){
+  const confirmados = INSCRITOS.filter(d => REZAGO_SET.has(normNombre(d.Nombre)));
+  document.getElementById("rezagoConfCount").textContent = `(${confirmados.length})`;
+  document.getElementById("rezagoConfirmados").innerHTML = confirmados.length
+    ? confirmados.map(d => `
+        <div class="rezago-item">
+          <div><strong>${d.Nombre}</strong><div class="hp-meta">${d.Sucursal||""} · diagnóstico: ${d.Diagnostico_Edu||"—"}</div></div>
+          <span class="pill rezago">🎯 clave</span>
+        </div>`).join("")
+    : `<div class="empty-state">Sin personas confirmadas en rezago por ahora.</div>`;
+
+  const nombresInscritos = new Set(INSCRITOS.map(d => normNombre(d.Nombre)));
+  const sinDiagnostico = COLABORADORES.filter(c => !nombresInscritos.has(normNombre(c.Nombre)));
+  document.getElementById("rezagoSinDiagCount").textContent = `(${sinDiagnostico.length})`;
+  document.getElementById("rezagoSinDiagnostico").innerHTML = sinDiagnostico.length
+    ? sinDiagnostico.slice(0, 30).map(c => `
+        <div class="rezago-item">
+          <div><strong>${c.Nombre}</strong><div class="hp-meta">${c.Sucursal||""}</div></div>
+          <button class="reg-btn" style="margin:0;" onclick="prellenarAltaDesdeBaseMadre('${encodeURIComponent(c.Nombre)}','${encodeURIComponent(c.Sucursal||"")}','${encodeURIComponent(c.Telefono_WA||"")}')">+ Agregar</button>
+        </div>`).join("") + (sinDiagnostico.length > 30 ? `<div class="hp-meta" style="padding-top:6px;">y ${sinDiagnostico.length-30} más…</div>` : "")
+    : `<div class="empty-state">Todos los colaboradores de la Base madre ya tienen registro en Escuela GEB.</div>`;
+}
+
+function prellenarAltaDesdeBaseMadre(nombreEnc, sucursalEnc, telEnc){
+  document.getElementById("na_nombre").value = decodeURIComponent(nombreEnc);
+  document.getElementById("na_sucursal").value = decodeURIComponent(sucursalEnc);
+  document.getElementById("na_telefono").value = decodeURIComponent(telEnc);
+  const form = document.getElementById("altaForm");
+  if(!form.classList.contains("open")) toggleAlta();
+  form.scrollIntoView({ behavior:"smooth", block:"center" });
+}
+
+/* ============================================================
+   RENDER: Históricos y Prospectos (columnas independientes de Estado)
+   ============================================================ */
+function renderHistoricosProspectos(){
+  const historicos = INSCRITOS.filter(d => esSiEG(d.Historico));
+  const prospectos  = INSCRITOS.filter(d => esSiEG(d.Prospecto));
+
+  document.getElementById("historicosList").innerHTML = historicos.length
+    ? historicos.map(d => `<div class="hp-item"><div><strong>${d.Nombre}</strong><div class="hp-meta">${d.Sucursal||""} · ${d.Diagnostico_Edu||"sin diagnóstico"}</div></div>${esSiEG(d.Prospecto)?'<span class="pill uvl-tag">también prospecto</span>':''}</div>`).join("")
+    : `<div class="empty-state">Sin históricos marcados.</div>`;
+
+  document.getElementById("prospectosList").innerHTML = prospectos.length
+    ? prospectos.map(d => `<div class="hp-item"><div><strong>${d.Nombre}</strong><div class="hp-meta">${d.Sucursal||""}</div></div>${esSiEG(d.Historico)?'<span class="pill historico">también histórico</span>':''}</div>`).join("")
+    : `<div class="empty-state">Sin prospectos marcados.</div>`;
+}
+
+function toggleHpForm(){ document.getElementById("hpForm").classList.toggle("open"); }
+
+async function guardarHistoricoProspecto(){
+  const nombre = document.getElementById("hp_nombre").value.trim();
+  const historico = document.getElementById("hp_historico").checked;
+  const prospecto = document.getElementById("hp_prospecto").checked;
+  if(!nombre){ showMsg("hpMsg","err","Selecciona un colaborador."); return; }
+  if(!historico && !prospecto){ showMsg("hpMsg","err","Marca al menos Histórico o Prospecto."); return; }
+  const btn = document.querySelector("#hpForm .btn-guardar");
+  btn.disabled = true; btn.textContent = "Guardando…";
+  try{
+    const r = await postData({ tipo:"eg_marcarHistoricoProspecto", nombre, historico, prospecto });
+    if(r.ok){
+      showMsg("hpMsg","ok","Guardado.");
+      INSCRITOS = (await fetchSheetTab(TABS.inscritos)).filter(d => d.Nombre && d.Nombre.trim() !== "");
+      renderHistoricosProspectos();
+      document.getElementById("hp_nombre").value = "";
+      document.getElementById("hp_historico").checked = false;
+      document.getElementById("hp_prospecto").checked = false;
+    } else {
+      showMsg("hpMsg","err","Error: " + (r.error||"desconocido"));
+    }
+  } catch(e){
+    showMsg("hpMsg","err","No se pudo conectar con el servidor.");
+  } finally {
+    btn.disabled = false; btn.textContent = "Guardar";
+  }
 }
 
 function isSeguimiento(d){
@@ -1014,11 +1165,12 @@ function renderCards(containerId, modalidad){
     const asists = ASISTENCIAS.filter(a => a.Nombre === d.Nombre);
     let detalle  = "";
     if(modUp === "INEA"){
-      const totalClases  = ASISTENCIAS.length;
-      const asistio      = ASISTENCIAS.filter(a => {
-        const nombres = (a.Asistentes||"").split(",").map(n => n.trim());
-        return nombres.includes(d.Nombre);
-      }).length;
+      // Cada fila de EG_Asistencias es una persona que asistió a una clase
+      // (no una lista de nombres separada por comas) — el total de clases es
+      // el número de combinaciones distintas Fecha_Clase+Tema, y las
+      // asistencias de esta persona son sus propias filas.
+      const totalClases = new Set(ASISTENCIAS.map(a => (a.Fecha_Clase||"")+"||"+(a.Tema||""))).size;
+      const asistio      = ASISTENCIAS.filter(a => a.Nombre === d.Nombre).length;
       const ultimoExamen = exams.length > 0 ? exams[exams.length-1] : null;
       detalle = `<div class="icard-detail">
         Asistencias: <strong>${asistio}/${totalClases}</strong>
@@ -1159,7 +1311,7 @@ function renderTabla(filtered){
         </td>
         <td>
           ${estadoPill(d.Estado)}
-          ${seg ? `<button class="atender-btn" onclick="marcarAtendido('${encodeURIComponent(d.Nombre)}')">✓ marcar atendido</button>` : ""}
+          ${seg ? `<button class="atender-btn" onclick="marcarAtendido('${encodeURIComponent(d.Nombre)}')">✓ marcar atendido</button>` : `<button class="atender-btn" onclick="marcarSeguimientoEG('${encodeURIComponent(d.Nombre)}')">🏳 seguimiento</button>`}
           ${(d.Estado||"").toLowerCase() !== "baja" ? `<button class="action-btn baja" onclick="marcarBajaEG('${encodeURIComponent(d.Nombre)}')">✕ Baja</button>` : `<button class="action-btn reactivar" onclick="reactivarEG('${encodeURIComponent(d.Nombre)}')">↺ Reactivar</button>`}
         </td>
         <td><div style="display:flex;flex-wrap:wrap;gap:5px;">${btns||'<span style="color:var(--text-soft);font-size:12px;">—</span>'}</div></td>
@@ -1257,7 +1409,8 @@ function renderAsistenciasVisual(){
     return (d.Modalidad||"").toUpperCase() === "INEA" && (d.Estado||"").toLowerCase() === "activo";
   }).map(function(d){ return d.Nombre; });
 
-  // Agrupar por Fecha_Clase + Tema — cada fila tiene nombres en col D separados por coma
+  // Agrupar por Fecha_Clase + Tema — cada fila de EG_Asistencias es UNA
+  // persona que asistió a esa clase (col A = Nombre), no una lista en Asistio.
   var clases = [];
   var claseMap = {};
   ASISTENCIAS.forEach(function(a){
@@ -1266,11 +1419,8 @@ function renderAsistenciasVisual(){
       claseMap[key] = { fecha: a.Fecha_Clase||"—", tema: a.Tema||"—", notas: a.Notas||"", asistieron: [] };
       clases.push(claseMap[key]);
     }
-    // Col D = nombres separados por coma de quienes asistieron
-    var nombres = (a.Asistio||"").split(",").map(function(n){ return n.trim(); }).filter(function(n){ return n; });
-    nombres.forEach(function(n){
-      if(claseMap[key].asistieron.indexOf(n) < 0) claseMap[key].asistieron.push(n);
-    });
+    var n = (a.Nombre||"").trim();
+    if(n && claseMap[key].asistieron.indexOf(n) < 0) claseMap[key].asistieron.push(n);
   });
 
   container.innerHTML = clases.map(function(c){
@@ -1523,6 +1673,15 @@ async function marcarAtendido(nombreEnc){
   }catch(e){ alert("No se pudo conectar."); }
 }
 
+async function marcarSeguimientoEG(nombreEnc){
+  const nombre = decodeURIComponent(nombreEnc);
+  try{
+    const r = await postData({ tipo:"eg_marcarSeguimiento", nombre });
+    if(r.ok) location.reload();
+    else alert("Error: " + (r.error||"desconocido"));
+  }catch(e){ alert("No se pudo conectar."); }
+}
+
 async function marcarBajaEG(nombreEnc){
   const nombre = decodeURIComponent(nombreEnc);
   if(!confirm("¿Marcar a " + nombre + " como Baja? Pasará a histórico y dejará de mostrarse como activo, pero se conserva su registro.")) return;
@@ -1592,6 +1751,7 @@ async function guardarAlta(){
       COLABORADORES = colaboradores.filter(c => c.Nombre && c.Nombre.trim() !== "");
       BAJA_EMPRESA_SET = new Set(COLABORADORES.filter(c => { const v=(c.Baja_Empresa||"").trim().toLowerCase(); return v==="sí"||v==="si"; }).map(c => normNombre(c.Nombre)));
       renderMetrics(); renderStats();
+      renderRezagoClave(); renderHistoricosProspectos();
       renderCards("ineaGrid", "INEA"); renderCards("uvlGrid", "UVL");
       applyFilters();
       toggleAlta();
@@ -1633,6 +1793,10 @@ async function init(){
 
     renderMetrics();
     renderStats();
+    renderRezagoClave();
+    renderHistoricosProspectos();
+    document.getElementById("hpListaColaboradores").innerHTML =
+      COLABORADORES.map(c => `<option value="${c.Nombre}">`).join("");
 
     renderCards("ineaGrid", "INEA");
     renderCards("uvlGrid",  "UVL");

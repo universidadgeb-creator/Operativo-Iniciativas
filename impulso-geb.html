@@ -33,7 +33,7 @@
   header.page-header h1{font-family:'Cormorant Garamond',serif;font-size:34px;font-weight:600;color:var(--blue);}
   header.page-header .sub{color:var(--text-soft);font-size:13px;}
 
-  .metric-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:28px;}
+  .metric-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:28px;}
   .metric{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;}
   .metric.alert{background:var(--amber-bg);border-color:#f0d39a;}
   .metric .val{font-size:26px;font-weight:700;color:var(--blue);line-height:1.1;}
@@ -43,6 +43,7 @@
 
   .section{margin-bottom:30px;}
   .section-title{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:600;color:var(--blue);margin-bottom:12px;}
+  .section-sub{font-size:12px;color:var(--text-soft);margin:-8px 0 12px;}
   .panel-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;}
 
   .pill{display:inline-block;font-size:11px;font-weight:600;padding:2px 9px;border-radius:99px;margin-right:4px;margin-bottom:4px;}
@@ -55,6 +56,7 @@
   .ev-btn{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;border-radius:99px;padding:4px 10px;cursor:pointer;border:1px solid;margin:2px;}
   .ev-btn.si{background:var(--green-bg);color:var(--green-text);border-color:#bfe0a0;}
   .ev-btn.no{background:var(--gray-bg);color:var(--gray-text);border-color:var(--border);}
+  .ev-btn.bloqueado{background:var(--gray-bg);color:var(--gray-text);border-color:var(--border);opacity:.5;cursor:not-allowed;}
 
   .action-btn{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;border-radius:7px;padding:6px 10px;cursor:pointer;margin:2px;border:1px solid;}
   .action-btn.atender{color:var(--amber-text);background:var(--amber-bg);border-color:#f0d39a;}
@@ -104,7 +106,8 @@
   .loading,.errorbox{text-align:center;padding:40px;color:var(--text-soft);font-size:14px;}
   .errorbox{color:var(--red-text);}
 
-  @media(max-width:720px){.metric-grid{grid-template-columns:repeat(2,1fr);}}
+  @media(max-width:900px){.metric-grid{grid-template-columns:repeat(3,1fr);}}
+  @media(max-width:520px){.metric-grid{grid-template-columns:repeat(2,1fr);}}
 </style>
 </head>
 <body>
@@ -121,7 +124,7 @@
   <header class="page-header">
     <div>
       <h1>Impulso GEB</h1>
-      <div class="sub">GEB Iniciativas Humanas — Movilidad Social · Generación 1</div>
+      <div class="sub">GEB Iniciativas Humanas — Movilidad Social · Generación 1 (histórico) y Generación 2</div>
     </div>
     <div class="sub" id="lastSync">cargando datos...</div>
   </header>
@@ -135,11 +138,52 @@
 
     <div class="section">
       <div class="panel-row">
-        <div class="section-title" style="margin-bottom:0;">Participantes — Generación 1</div>
+        <div class="section-title" style="margin-bottom:0;">Generación 1 — histórico</div>
+      </div>
+      <div class="section-sub">Generación 1 está cerrando. Aquí solo se da seguimiento a quienes faltan por pasar a Generación 2 o darse de baja — ya no se dan altas nuevas en esta lista.</div>
+
+      <div class="filters">
+        <input type="text" id="f1Search" placeholder="buscar nombre o sucursal…">
+        <select id="f1Estado">
+          <option value="">todos los estados</option>
+          <option value="activo">Aún en Generación 1</option>
+          <option value="baja">Baja</option>
+        </select>
+        <select id="f1Seguimiento">
+          <option value="">todos</option>
+          <option value="Si">pendientes de seguimiento</option>
+        </select>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr id="tablaHead1">
+              <th data-campo="Nombre" data-tipo="texto">Participante</th>
+              <th data-campo="Sucursal" data-tipo="texto">Sucursal</th>
+              <th data-campo="Plan_Vida" data-tipo="texto">Plan de vida</th>
+              <th data-campo="Presupuesto" data-tipo="texto">Presupuesto</th>
+              <th data-campo="Ahorro" data-tipo="texto">Ahorro</th>
+              <th data-campo="Movilidad_Social" data-tipo="texto">Movilidad social</th>
+              <th data-campo="Estado" data-tipo="texto">Estado</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tablaBody1"></tbody>
+        </table>
+      </div>
+      <div class="footnote">📊 datos desde Google Sheets · se actualizan al recargar la página</div>
+    </div>
+
+    <div class="section">
+      <div class="panel-row">
+        <div class="section-title" style="margin-bottom:0;">Generación 2</div>
         <button class="reg-btn" onclick="toggleAlta()">+ Agregar participante</button>
       </div>
+      <div class="section-sub">Las altas nuevas entran directo aquí. El seguimiento tiene 2 pasos en orden: primero Ruta GEB, luego Impulso GEB.</div>
+
       <div class="inline-form" id="altaForm">
-        <div class="inline-form-title">Nuevo participante</div>
+        <div class="inline-form-title">Nuevo participante — Generación 2</div>
         <div class="form-row"><label>Nombre *</label><input type="text" id="na_nombre"></div>
         <div class="form-row"><label>Sucursal</label><input type="text" id="na_sucursal"></div>
         <div class="form-row"><label>Teléfono (WhatsApp)</label><input type="text" id="na_telefono" placeholder="10 dígitos"></div>
@@ -151,14 +195,18 @@
       </div>
 
       <div class="filters">
-        <input type="text" id="fSearch" placeholder="buscar nombre o sucursal…">
-        <select id="fEstado">
+        <input type="text" id="f2Search" placeholder="buscar nombre o sucursal…">
+        <select id="f2Estado">
           <option value="">todos los estados</option>
-          <option value="Activo">Activo (Gen. 1)</option>
-          <option value="Generación 2">Pasó a Generación 2</option>
-          <option value="Baja">Baja</option>
+          <option value="activo">Activo</option>
+          <option value="baja">Baja</option>
         </select>
-        <select id="fSeguimiento">
+        <select id="f2Origen">
+          <option value="">todos los orígenes</option>
+          <option value="gen1">Viene de Generación 1</option>
+          <option value="directa">Alta directa en Gen. 2</option>
+        </select>
+        <select id="f2Seguimiento">
           <option value="">todos</option>
           <option value="Si">pendientes de seguimiento</option>
         </select>
@@ -167,18 +215,17 @@
       <div class="table-wrap">
         <table>
           <thead>
-            <tr id="tablaHead">
+            <tr id="tablaHead2">
               <th data-campo="Nombre" data-tipo="texto">Participante</th>
               <th data-campo="Sucursal" data-tipo="texto">Sucursal</th>
-              <th data-campo="Plan_Vida" data-tipo="texto">Plan de vida</th>
-              <th data-campo="Presupuesto" data-tipo="texto">Presupuesto</th>
-              <th data-campo="Ahorro" data-tipo="texto">Ahorro</th>
-              <th data-campo="Movilidad_Social" data-tipo="texto">Movilidad social</th>
+              <th>Origen</th>
+              <th data-campo="Ruta_GEB" data-tipo="texto">1. Ruta GEB</th>
+              <th data-campo="Impulso_GEB" data-tipo="texto">2. Impulso GEB</th>
               <th data-campo="Estado" data-tipo="texto">Estado</th>
               <th>Acciones</th>
             </tr>
           </thead>
-          <tbody id="tablaBody"></tbody>
+          <tbody id="tablaBody2"></tbody>
         </table>
       </div>
       <div class="footnote">📊 datos desde Google Sheets · se actualizan al recargar la página</div>
@@ -192,10 +239,16 @@ const SHEET_ID = "1oaWADtW9SmqxuOoOM1bf65Ht_NkpE4l_o_DMutN_IbI";
 const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbypzabPFyTWszyc2-wIPjImOTIitz68R6_okV2yUgxSD6CpkEkfpFlXh8OzgaQWlZYe/exec";
 const TABS = { inscritos: "IG_Inscritos" };
 
-// Estado: Activo (en Generación 1) | Generación 2 (terminó G1, pasó a G2 —
-// módulo propio pendiente de construirse) | Baja (salió de la iniciativa).
+// Estado: Activo | Baja (histórico "Generación 2" en Estado también se trata
+// como activo, por compatibilidad con filas viejas — ver perteneceGen2()).
+// Generacion: "1" o "2" — de qué cohorte es la persona ahora mismo, separado
+// de Estado (que solo dice si sigue activa o se dio de baja).
+// Vino_De_Gen1: "Sí" si llegó a Generación 2 transicionando desde Generación 1
+// (botón "→ Gen. 2"); "No" si se dio de alta directo en Generación 2.
+// Ruta_GEB / Impulso_GEB: los 2 pasos de seguimiento de Generación 2, en ese
+// orden — Impulso_GEB se bloquea en el panel hasta que Ruta_GEB sea "Sí".
 const SCHEMA = {
-  IG_Inscritos: ["Nombre","Sucursal","Telefono_WA","Fecha_Alta","Estado","Requiere_Seguimiento","Notas","Plan_Vida","Presupuesto","Ahorro","Movilidad_Social"],
+  IG_Inscritos: ["Nombre","Sucursal","Telefono_WA","Fecha_Alta","Estado","Requiere_Seguimiento","Notas","Plan_Vida","Presupuesto","Ahorro","Movilidad_Social","Generacion","Vino_De_Gen1","Ruta_GEB","Impulso_GEB"],
   Colaboradores: ["Nombre","Sucursal","Unidad","Correo","FechaNac","Genero","Telefono_WA","Turno","Rol","Fecha_Alta_Empresa","Baja_Empresa","Fecha_Baja_Empresa"]
 };
 
@@ -238,12 +291,27 @@ function initials(n){ if(!n) return "?"; const p=n.trim().split(/\s+/); return (
 function esSi(v){ return (v||"").trim().toLowerCase() === "sí" || (v||"").trim().toLowerCase() === "si"; }
 function esPendiente(d){ return esSi(d.Requiere_Seguimiento); }
 function estadoLower(d){ return (d.Estado||"").trim().toLowerCase(); }
+function esBaja(d){ return estadoLower(d) === "baja"; }
+
+// Filas creadas antes de que existiera la columna Generacion traían el
+// estado histórico "Generación 2" — se siguen reconociendo como Gen. 2
+// aunque la columna Generacion venga vacía.
+function perteneceGen2(d){
+  const g = (d.Generacion||"").toString().trim();
+  if(g === "2") return true;
+  if(g === "1") return false;
+  const e = estadoLower(d);
+  return e === "generación 2" || e === "generacion 2";
+}
 
 function estadoPill(d){
-  const e = estadoLower(d);
-  if(e === "baja") return `<span class="pill baja">Baja</span>`;
-  if(e === "generación 2" || e === "generacion 2") return `<span class="pill gen2">Generación 2</span>`;
-  return `<span class="pill activo">Activo</span>`;
+  return esBaja(d) ? `<span class="pill baja">Baja</span>` : `<span class="pill activo">Activo</span>`;
+}
+
+function origenPill(d){
+  return esSi(d.Vino_De_Gen1)
+    ? `<span class="pill gen2">Viene de Gen. 1</span>`
+    : `<span class="pill pendiente">Alta directa</span>`;
 }
 
 function evidenciaBtn(nombre, campo, valorActual){
@@ -251,24 +319,40 @@ function evidenciaBtn(nombre, campo, valorActual){
   return `<button class="ev-btn ${si?'si':'no'}" onclick="toggleEvidencia('${encodeURIComponent(nombre)}','${campo}','${si?'No':'Sí'}')">${si?'✓ Sí':'— No'}</button>`;
 }
 
+function evidenciaBtnGated(nombre, campo, valorActual, habilitado){
+  if(!habilitado) return `<button class="ev-btn bloqueado" disabled title="Primero hay que completar Ruta GEB">— No</button>`;
+  return evidenciaBtn(nombre, campo, valorActual);
+}
+
 function normNombre(n){ return (n||"").toString().trim().toLowerCase(); }
 
 let INSCRITOS = [];
+let GEN1 = [];
+let GEN2 = [];
 let BAJA_EMPRESA_SET = new Set();
 
-// Ordenamiento de tabla por columna (clic en encabezado, asc/desc).
-let sortState = { col: null, tipo: null, dir: 1 };
-function ordenarPor(campo, tipo){
-  sortState.dir = (sortState.col === campo) ? -sortState.dir : 1;
-  sortState.col = campo; sortState.tipo = tipo;
-  document.querySelectorAll("#tablaHead .sort-arrow").forEach(el => el.remove());
-  const th = document.querySelector(`#tablaHead th[data-campo="${campo}"]`);
-  if(th) th.insertAdjacentHTML("beforeend", `<span class="sort-arrow">${sortState.dir===1?'▲':'▼'}</span>`);
-  applyFilters();
+function recalcularCohortes(){
+  GEN1 = INSCRITOS.filter(d => !perteneceGen2(d));
+  GEN2 = INSCRITOS.filter(perteneceGen2);
 }
-function aplicarOrden(arr){
-  if(!sortState.col) return arr;
-  const { col, tipo, dir } = sortState;
+
+// Ordenamiento de tabla por columna (clic en encabezado, asc/desc) — un
+// estado de orden independiente por tabla (Gen. 1 y Gen. 2 se ordenan aparte).
+let sortState1 = { col: null, tipo: null, dir: 1 };
+let sortState2 = { col: null, tipo: null, dir: 1 };
+function ordenarPor(seccion, campo, tipo){
+  const st = seccion === 1 ? sortState1 : sortState2;
+  st.dir = (st.col === campo) ? -st.dir : 1;
+  st.col = campo; st.tipo = tipo;
+  const headId = seccion === 1 ? "tablaHead1" : "tablaHead2";
+  document.querySelectorAll(`#${headId} .sort-arrow`).forEach(el => el.remove());
+  const th = document.querySelector(`#${headId} th[data-campo="${campo}"]`);
+  if(th) th.insertAdjacentHTML("beforeend", `<span class="sort-arrow">${st.dir===1?'▲':'▼'}</span>`);
+  if(seccion === 1) applyFiltersGen1(); else applyFiltersGen2();
+}
+function aplicarOrden(arr, st){
+  if(!st.col) return arr;
+  const { col, tipo, dir } = st;
   return [...arr].sort((a,b) => {
     let va = a[col], vb = b[col];
     if(tipo === "numero"){ va = parseFloat(va)||0; vb = parseFloat(vb)||0; return (va-vb)*dir; }
@@ -280,15 +364,17 @@ function aplicarOrden(arr){
 
 function renderMetrics(){
   const total = INSCRITOS.length;
-  const activos = INSCRITOS.filter(d => estadoLower(d) === "activo").length;
-  const gen2 = INSCRITOS.filter(d => estadoLower(d).startsWith("generaci")).length;
-  const bajas = INSCRITOS.filter(d => estadoLower(d) === "baja").length;
+  const gen1 = GEN1.filter(d => !esBaja(d)).length;
+  const gen2Activos = GEN2.filter(d => !esBaja(d)).length;
+  const vinieronDeGen1 = GEN2.filter(d => esSi(d.Vino_De_Gen1)).length;
+  const bajas = INSCRITOS.filter(esBaja).length;
   const seguimiento = INSCRITOS.filter(esPendiente).length;
 
   const metrics = [
     { val: total, lbl: "participantes totales" },
-    { val: activos, lbl: "activos en Gen. 1" },
-    { val: gen2, lbl: "pasaron a Gen. 2" },
+    { val: gen1, lbl: "Generación 1" },
+    { val: gen2Activos, lbl: "activos en Gen. 2" },
+    { val: vinieronDeGen1, lbl: "Gen. 2 que vino de Gen. 1" },
     { val: bajas, lbl: "bajas" },
     { val: seguimiento, lbl: "pendientes de seguimiento", alert: seguimiento > 0 }
   ];
@@ -297,16 +383,15 @@ function renderMetrics(){
   `).join("");
 }
 
-function renderTabla(filtered){
-  const body = document.getElementById("tablaBody");
+function renderTablaGen1(filtered){
+  const body = document.getElementById("tablaBody1");
   if(filtered.length === 0){
     body.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-soft);">Sin resultados</td></tr>`;
     return;
   }
   body.innerHTML = filtered.map(d => {
     const seg = esPendiente(d);
-    const e = estadoLower(d);
-    const enGen1 = e === "activo";
+    const baja = esBaja(d);
     const bajaEmpresa = BAJA_EMPRESA_SET.has(normNombre(d.Nombre));
     return `<tr class="${seg?'seguimiento-row':''} ${bajaEmpresa?'baja-empresa-row':''}">
       <td><div class="name-cell">${seg?'<span class="dot-new"></span>':''}<div><div style="font-weight:600;">${d.Nombre}</div></div></div></td>
@@ -318,24 +403,72 @@ function renderTabla(filtered){
       <td>${estadoPill(d)}</td>
       <td>
         ${seg?`<button class="action-btn atender" onclick="marcarAtendido('${encodeURIComponent(d.Nombre)}')">✓ atendido</button>`:`<button class="action-btn atender" onclick="marcarSeguimiento('${encodeURIComponent(d.Nombre)}')">🏳 seguimiento</button>`}
-        ${enGen1?`<button class="action-btn gen2" onclick="pasarGeneracion2('${encodeURIComponent(d.Nombre)}')">→ Gen. 2</button>`:""}
-        ${e!=="baja"?`<button class="action-btn baja" onclick="marcarBaja('${encodeURIComponent(d.Nombre)}')">✕ Baja</button>`:`<button class="action-btn reactivar" onclick="reactivarIg('${encodeURIComponent(d.Nombre)}')">↺ Reactivar</button>`}
+        ${!baja?`<button class="action-btn gen2" onclick="pasarGeneracion2('${encodeURIComponent(d.Nombre)}')">→ Gen. 2</button>`:""}
+        ${!baja?`<button class="action-btn baja" onclick="marcarBaja('${encodeURIComponent(d.Nombre)}')">✕ Baja</button>`:`<button class="action-btn reactivar" onclick="reactivarIg('${encodeURIComponent(d.Nombre)}')">↺ Reactivar</button>`}
       </td>
     </tr>`;
   }).join("");
 }
 
-function applyFilters(){
-  const q = document.getElementById("fSearch").value.toLowerCase();
-  const estado = document.getElementById("fEstado").value;
-  const seguimiento = document.getElementById("fSeguimiento").value;
-  const filtered = INSCRITOS.filter(d => {
+function renderTablaGen2(filtered){
+  const body = document.getElementById("tablaBody2");
+  if(filtered.length === 0){
+    body.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-soft);">Sin resultados</td></tr>`;
+    return;
+  }
+  body.innerHTML = filtered.map(d => {
+    const seg = esPendiente(d);
+    const baja = esBaja(d);
+    const bajaEmpresa = BAJA_EMPRESA_SET.has(normNombre(d.Nombre));
+    const rutaOk = esSi(d.Ruta_GEB);
+    return `<tr class="${seg?'seguimiento-row':''} ${bajaEmpresa?'baja-empresa-row':''}">
+      <td><div class="name-cell">${seg?'<span class="dot-new"></span>':''}<div><div style="font-weight:600;">${d.Nombre}</div></div></div></td>
+      <td>${d.Sucursal||"—"}</td>
+      <td>${origenPill(d)}</td>
+      <td>${evidenciaBtn(d.Nombre,"Ruta_GEB",d.Ruta_GEB)}</td>
+      <td>${evidenciaBtnGated(d.Nombre,"Impulso_GEB",d.Impulso_GEB, rutaOk)}</td>
+      <td>${estadoPill(d)}</td>
+      <td>
+        ${seg?`<button class="action-btn atender" onclick="marcarAtendido('${encodeURIComponent(d.Nombre)}')">✓ atendido</button>`:`<button class="action-btn atender" onclick="marcarSeguimiento('${encodeURIComponent(d.Nombre)}')">🏳 seguimiento</button>`}
+        ${!baja?`<button class="action-btn baja" onclick="marcarBaja('${encodeURIComponent(d.Nombre)}')">✕ Baja</button>`:`<button class="action-btn reactivar" onclick="reactivarIg('${encodeURIComponent(d.Nombre)}')">↺ Reactivar</button>`}
+      </td>
+    </tr>`;
+  }).join("");
+}
+
+function applyFiltersGen1(){
+  const q = document.getElementById("f1Search").value.toLowerCase();
+  const estado = document.getElementById("f1Estado").value;
+  const seguimiento = document.getElementById("f1Seguimiento").value;
+  const filtered = GEN1.filter(d => {
     const matchQ = !q || (d.Nombre||"").toLowerCase().includes(q) || (d.Sucursal||"").toLowerCase().includes(q);
-    const matchE = !estado || d.Estado === estado;
+    const matchE = !estado || (estado === "baja" ? esBaja(d) : !esBaja(d));
     const matchS = !seguimiento || (seguimiento === "Si" && esPendiente(d));
     return matchQ && matchE && matchS;
   });
-  renderTabla(aplicarOrden(filtered));
+  renderTablaGen1(aplicarOrden(filtered, sortState1));
+}
+
+function applyFiltersGen2(){
+  const q = document.getElementById("f2Search").value.toLowerCase();
+  const estado = document.getElementById("f2Estado").value;
+  const origen = document.getElementById("f2Origen").value;
+  const seguimiento = document.getElementById("f2Seguimiento").value;
+  const filtered = GEN2.filter(d => {
+    const matchQ = !q || (d.Nombre||"").toLowerCase().includes(q) || (d.Sucursal||"").toLowerCase().includes(q);
+    const matchE = !estado || (estado === "baja" ? esBaja(d) : !esBaja(d));
+    const matchO = !origen || (origen === "gen1" ? esSi(d.Vino_De_Gen1) : !esSi(d.Vino_De_Gen1));
+    const matchS = !seguimiento || (seguimiento === "Si" && esPendiente(d));
+    return matchQ && matchE && matchO && matchS;
+  });
+  renderTablaGen2(aplicarOrden(filtered, sortState2));
+}
+
+function renderTodo(){
+  recalcularCohortes();
+  renderMetrics();
+  applyFiltersGen1();
+  applyFiltersGen2();
 }
 
 async function postData(payload){
@@ -350,7 +483,7 @@ async function toggleEvidencia(nombreEnc, campo, valor){
     if(r.ok){
       const d = INSCRITOS.find(x => x.Nombre === nombre);
       if(d){ d[campo] = valor; d.Requiere_Seguimiento = ""; }
-      renderMetrics(); applyFilters();
+      renderTodo();
     } else alert("Error: " + r.error);
   } catch(e){ alert("No se pudo conectar con el servidor."); }
 }
@@ -362,7 +495,7 @@ async function marcarAtendido(nombreEnc){
     if(r.ok){
       const d = INSCRITOS.find(x => x.Nombre === nombre);
       if(d) d.Requiere_Seguimiento = "";
-      renderMetrics(); applyFilters();
+      renderTodo();
     } else alert("Error: " + r.error);
   } catch(e){ alert("No se pudo conectar con el servidor."); }
 }
@@ -374,20 +507,20 @@ async function marcarSeguimiento(nombreEnc){
     if(r.ok){
       const d = INSCRITOS.find(x => x.Nombre === nombre);
       if(d) d.Requiere_Seguimiento = "Sí";
-      renderMetrics(); applyFilters();
+      renderTodo();
     } else alert("Error: " + r.error);
   } catch(e){ alert("No se pudo conectar con el servidor."); }
 }
 
 async function pasarGeneracion2(nombreEnc){
   const nombre = decodeURIComponent(nombreEnc);
-  if(!confirm(`¿Marcar a ${nombre} como que pasó a Generación 2? Sale de la lista activa de Generación 1.`)) return;
+  if(!confirm(`¿Marcar a ${nombre} como que pasó a Generación 2? Sale de la lista de Generación 1.`)) return;
   try{
     const r = await postData({ tipo:"ig_pasarGeneracion2", nombre });
     if(r.ok){
       const d = INSCRITOS.find(x => x.Nombre === nombre);
-      if(d){ d.Estado = "Generación 2"; d.Requiere_Seguimiento = "No"; }
-      renderMetrics(); applyFilters();
+      if(d){ d.Generacion = "2"; d.Vino_De_Gen1 = "Sí"; d.Requiere_Seguimiento = "No"; }
+      renderTodo();
     } else alert("Error: " + r.error);
   } catch(e){ alert("No se pudo conectar con el servidor."); }
 }
@@ -400,7 +533,7 @@ async function marcarBaja(nombreEnc){
     if(r.ok){
       const d = INSCRITOS.find(x => x.Nombre === nombre);
       if(d){ d.Estado = "Baja"; d.Requiere_Seguimiento = "No"; }
-      renderMetrics(); applyFilters();
+      renderTodo();
     } else alert("Error: " + r.error);
   } catch(e){ alert("No se pudo conectar con el servidor."); }
 }
@@ -412,7 +545,7 @@ async function reactivarIg(nombreEnc){
     if(r.ok){
       const d = INSCRITOS.find(x => x.Nombre === nombre);
       if(d){ d.Estado = "Activo"; d.Requiere_Seguimiento = ""; }
-      renderMetrics(); applyFilters();
+      renderTodo();
     } else alert("Error: " + r.error);
   } catch(e){ alert("No se pudo conectar con el servidor."); }
 }
@@ -433,9 +566,9 @@ async function guardarAlta(){
     });
     const msgEl = document.getElementById("altaMsg");
     if(r.ok){
-      msgEl.className = "form-msg ok"; msgEl.textContent = "Participante agregado.";
+      msgEl.className = "form-msg ok"; msgEl.textContent = "Participante agregado a Generación 2.";
       INSCRITOS = (await fetchSheetTab(TABS.inscritos)).filter(d => d.Nombre && d.Nombre.trim() !== "");
-      renderMetrics(); applyFilters();
+      renderTodo();
       toggleAlta();
       ["na_nombre","na_sucursal","na_telefono"].forEach(id => { document.getElementById(id).value=""; });
     } else {
@@ -461,15 +594,23 @@ async function init(){
     document.getElementById("appContent").style.display = "block";
     document.getElementById("lastSync").textContent = "actualizado: " + new Date().toLocaleString("es-MX", {dateStyle:"medium", timeStyle:"short"});
 
-    renderMetrics();
-    applyFilters();
+    renderTodo();
 
-    document.getElementById("fSearch").addEventListener("input", applyFilters);
-    document.getElementById("fEstado").addEventListener("change", applyFilters);
-    document.getElementById("fSeguimiento").addEventListener("change", applyFilters);
-    document.getElementById("tablaHead").addEventListener("click", e => {
+    document.getElementById("f1Search").addEventListener("input", applyFiltersGen1);
+    document.getElementById("f1Estado").addEventListener("change", applyFiltersGen1);
+    document.getElementById("f1Seguimiento").addEventListener("change", applyFiltersGen1);
+    document.getElementById("tablaHead1").addEventListener("click", e => {
       const th = e.target.closest("th[data-campo]");
-      if(th) ordenarPor(th.dataset.campo, th.dataset.tipo);
+      if(th) ordenarPor(1, th.dataset.campo, th.dataset.tipo);
+    });
+
+    document.getElementById("f2Search").addEventListener("input", applyFiltersGen2);
+    document.getElementById("f2Estado").addEventListener("change", applyFiltersGen2);
+    document.getElementById("f2Origen").addEventListener("change", applyFiltersGen2);
+    document.getElementById("f2Seguimiento").addEventListener("change", applyFiltersGen2);
+    document.getElementById("tablaHead2").addEventListener("click", e => {
+      const th = e.target.closest("th[data-campo]");
+      if(th) ordenarPor(2, th.dataset.campo, th.dataset.tipo);
     });
   } catch(err){
     console.error("Error en init:", err.message, err.stack);

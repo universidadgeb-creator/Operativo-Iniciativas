@@ -811,7 +811,10 @@ const ALTA_INICIATIVAS = {
   },
   IG: {
     sheet: "IG_Inscritos",
-    campos: function (d) { return ["", "", "", ""]; } // Plan_Vida, Presupuesto, Ahorro, Movilidad_Social — vacíos al alta
+    // Plan_Vida, Presupuesto, Ahorro, Movilidad_Social (evidencias de Gen. 1,
+    // vacías) + Generacion="2", Vino_De_Gen1="No" (alta directa en Gen. 2,
+    // ver [[handleIgPasarGeneracion2]] para el otro camino), Ruta_GEB/Impulso_GEB vacíos.
+    campos: function (d) { return ["", "", "", "", "2", "No", "", ""]; }
   },
   BE: {
     sheet: "BE_Inscritos",
@@ -1492,39 +1495,66 @@ function obtenerOCrearCarpetaBib_(nombreCarpeta) {
   return DriveApp.createFolder(nombreCarpeta);
 }
 
+// Normaliza nombres de persona para comparar (quita acentos, colapsa
+// espacios) — el nombre que alguien escribe a mano en el Form de devolución
+// rara vez es carácter-por-carácter igual al de Préstamos (mayúsculas,
+// acentos, doble espacio, etc.), así que compararlo tal cual causaba falsos
+// "sin match" aunque el libro sí coincidiera.
+function normalizarNombreBib_(s) {
+  return String(s || "")
+    .toLowerCase()
+    .normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
 // Núcleo de matching reutilizado por el barrido completo (procesarDevolucionesBib_)
 // y por el handler individual del Web App.
+// Prioridad de match: 1) código de libro (id_libro) — el identificador más
+// confiable, un préstamo activo con ese código es match aunque el nombre no
+// coincida exactamente; 2) si no hay match por código (Forms viejos sin
+// id_libro), se cae al match anterior por nombre normalizado + título.
 function matchearYProcesarDevolucionBib_(hojaDev, hojaPre, idxD, idxP, datosPre, filaDev, filaDevNum) {
-  const nombreBuscado = String(filaDev[idxD.nombre] || "").trim().toLowerCase();
+  const nombreBuscado = normalizarNombreBib_(filaDev[idxD.nombre]);
   const idBuscado = String(filaDev[idxD.idLibro] || "").trim().toLowerCase();
   const fechaDevolucion = filaDev[idxD.timestamp];
   const condicion = idxD.condicion >= 0 ? filaDev[idxD.condicion] : "";
 
-  if (!nombreBuscado || !idBuscado) return { match: false, intentado: false };
+  if (!nombreBuscado && !idBuscado) return { match: false, intentado: false };
 
-  let mejorMatch = -1;
-  let mejorFecha = null;
-
+  const activos = [];
   for (let j = 1; j < datosPre.length; j++) {
     const filaPre = datosPre[j];
-    const nombrePre = String(filaPre[idxP.nombre] || "").trim().toLowerCase();
-    const idPre = String(filaPre[idxP.idLibro] || "").trim().toLowerCase();
-    const tituloPre = String(filaPre[idxP.titulo] || "").trim().toLowerCase();
     const devuelto = filaPre[idxP.devuelto];
-
     if (devuelto === "Sí" || devuelto === "SI" || devuelto === true) continue;
-    if (nombrePre !== nombreBuscado) continue;
+    activos.push({ fila: filaPre, filaNum: j + 1 });
+  }
 
-    const matchLibro = (idPre === idBuscado) ||
-                       (tituloPre && tituloPre.includes(idBuscado)) ||
-                       (idBuscado && idBuscado.includes(tituloPre) && tituloPre.length > 3);
-    if (!matchLibro) continue;
+  function elegirMasReciente_(candidatos) {
+    let mejorNum = -1, mejorFecha = null;
+    candidatos.forEach(c => {
+      const fp = c.fila[idxP.timestamp] ? new Date(c.fila[idxP.timestamp]) : null;
+      if (mejorNum < 0 || (fp && (!mejorFecha || fp > mejorFecha))) { mejorNum = c.filaNum; mejorFecha = fp; }
+    });
+    return mejorNum;
+  }
 
-    const fechaPrestamo = filaPre[idxP.timestamp] ? new Date(filaPre[idxP.timestamp]) : null;
-    if (!mejorFecha || (fechaPrestamo && fechaPrestamo > mejorFecha)) {
-      mejorMatch = j + 1;
-      mejorFecha = fechaPrestamo;
-    }
+  let mejorMatch = -1;
+  if (idBuscado) {
+    const porCodigo = activos.filter(c => String(c.fila[idxP.idLibro] || "").trim().toLowerCase() === idBuscado);
+    if (porCodigo.length) mejorMatch = elegirMasReciente_(porCodigo);
+  }
+
+  if (mejorMatch < 0 && nombreBuscado) {
+    const porNombreTitulo = activos.filter(c => {
+      const nombrePre = normalizarNombreBib_(c.fila[idxP.nombre]);
+      if (nombrePre !== nombreBuscado) return false;
+      const tituloPre = String(c.fila[idxP.titulo] || "").trim().toLowerCase();
+      return (tituloPre && idBuscado && tituloPre.includes(idBuscado)) ||
+             (idBuscado && tituloPre && idBuscado.includes(tituloPre) && tituloPre.length > 3) ||
+             (!idBuscado && nombrePre === nombreBuscado);
+    });
+    if (porNombreTitulo.length) mejorMatch = elegirMasReciente_(porNombreTitulo);
   }
 
   if (mejorMatch > 0) {
@@ -1938,13 +1968,15 @@ function handleBibSincronizarFisicos(p) {
 // IMPULSO GEB (Generación 1) — Sheet nuevo
 // ================================================================
 // Cols IG_Inscritos: A=Nombre, B=Sucursal, C=Telefono_WA, D=Fecha_Alta,
-// E=Estado (Activo | Generación 2 | Baja), F=Requiere_Seguimiento, G=Notas,
-// H=Plan_Vida, I=Presupuesto, J=Ahorro, K=Movilidad_Social (todas Sí/No).
-// Generación 1 es solo histórico de evidencias entregadas — cuando lance
-// Generación 2 (con momentos de WhatsApp, asistencia, etc.) se construye
-// aparte; por ahora "Generación 2" es solo un estado de "pasó de generación",
-// para no perder a esas personas cuando se arme el nuevo módulo.
-const IG_CAMPOS_EVIDENCIA = { Plan_Vida: 8, Presupuesto: 9, Ahorro: 10, Movilidad_Social: 11 };
+// E=Estado (Activo | Baja — el valor histórico "Generación 2" en filas viejas
+// también se trata como activo, ver perteneceGen2() en el HTML), F=Requiere_Seguimiento,
+// G=Notas, H=Plan_Vida, I=Presupuesto, J=Ahorro, K=Movilidad_Social (evidencias
+// de Generación 1, todas Sí/No), L=Generacion ("1" o "2" — cohorte actual,
+// independiente de Estado), M=Vino_De_Gen1 (Sí/No — si llegó a Gen. 2
+// transicionando desde Gen. 1 o se dio de alta directo ahí), N=Ruta_GEB,
+// O=Impulso_GEB (los 2 pasos de seguimiento de Generación 2, en ese orden,
+// Sí/No).
+const IG_CAMPOS_EVIDENCIA = { Plan_Vida: 8, Presupuesto: 9, Ahorro: 10, Movilidad_Social: 11, Ruta_GEB: 14, Impulso_GEB: 15 };
 
 function igSheetNuevo_() { return SpreadsheetApp.openById(SHEET_NUEVO_ID).getSheetByName("IG_Inscritos"); }
 
@@ -2008,8 +2040,10 @@ function handleIgMarcarSeguimiento(p) {
   return resp({ ok: false, error: "No se encontró a " + nombre + " en IG_Inscritos" });
 }
 
-// Marca que la persona termina Generación 1 y continúa en Generación 2 (aún
-// sin módulo propio) — distinto de "Baja", que es salir de la iniciativa.
+// Marca que la persona termina Generación 1 y continúa en Generación 2.
+// Estado (col E) NO cambia (sigue "Activo") — lo que cambia es la cohorte:
+// Generacion (col L) pasa a "2" y Vino_De_Gen1 (col M) a "Sí", para
+// distinguirla de alguien dado de alta directo en Generación 2.
 function handleIgPasarGeneracion2(p) {
   const ws = igSheetNuevo_();
   if (!ws) return resp({ ok: false, error: "Pestaña IG_Inscritos no encontrada en el Sheet nuevo" });
@@ -2017,8 +2051,9 @@ function handleIgPasarGeneracion2(p) {
   const data = ws.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
     if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
-      ws.getRange(i + 1, 5).setValue("Generación 2");
-      ws.getRange(i + 1, 6).setValue("No");
+      ws.getRange(i + 1, 12).setValue("2");  // Generacion
+      ws.getRange(i + 1, 13).setValue("Sí"); // Vino_De_Gen1
+      ws.getRange(i + 1, 6).setValue("No");  // Requiere_Seguimiento
       return resp({ ok: true });
     }
   }

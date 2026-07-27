@@ -324,28 +324,6 @@
     <div class="footnote">📊 datos y copys desde Google Sheets · se actualizan al recargar la página</div>
   </div>
 
-  <!-- DEVOLUCIONES REPORTADAS POR FORMS -->
-  <div class="section">
-    <div class="section-title">Devoluciones reportadas (Forms)</div>
-    <div class="footnote" style="padding-top:0;">📊 aquí aparece todo lo que alguien reporta con el Form de devolución — con "Pendiente" hay que confirmar que el libro ya se recibió físicamente para cerrar el préstamo.</div>
-    <div class="filters">
-      <input type="text" id="fDevSearch" placeholder="buscar nombre o libro…">
-      <select id="fDevEstado">
-        <option value="">todas</option>
-        <option value="pendiente">pendientes de confirmar</option>
-        <option value="procesada">ya procesadas</option>
-      </select>
-    </div>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr><th>Nombre</th><th>Libro</th><th>Fecha reportada</th><th>Condición</th><th>Estado</th><th>Acción</th></tr>
-        </thead>
-        <tbody id="devolucionesBody"></tbody>
-      </table>
-    </div>
-  </div>
-
   <!-- HISTORIAL DE PRÉSTAMOS -->
   <div class="section-divider"><span class="divider-label">Historial de préstamos</span><span class="divider-line"></span></div>
   <div class="section">
@@ -737,7 +715,13 @@ function renderAtencion(){
 
   const devSinMatch = devolucionesSinMatch();
   document.getElementById("devSinMatchWrap").innerHTML = devSinMatch.length
-    ? `<div class="footnote" style="color:var(--red-text);">⚠️ ${devSinMatch.length} devolución(es) confirmada(s) físicamente pero sin préstamo activo que coincida (nombre/libro) — revisar a mano en BIB_Prestamos: ${devSinMatch.map(d => d.nombre).join(", ")}</div>`
+    ? `<div class="footnote" style="color:var(--red-text);">⚠️ ${devSinMatch.length} devolución(es) confirmada(s) físicamente pero sin préstamo activo que coincida — revisar a mano en BIB_Prestamos, o reintentar si ya se corrigió el dato ahí:</div>
+       <div class="gcard-grid">` + devSinMatch.map(d => `
+        <div class="gcard" style="border-color:#f0c7c7;background:#FFF8F8;">
+          <div class="gcard-head"><div><div class="gname">${d.nombre}</div><div class="glibro">"${d.titulo || d.id_libro || "sin título"}" · código ${d.id_libro || "—"}</div></div></div>
+          <button class="ext-btn" onclick="confirmarDevolucionFisica(${d._fila}, this)">🔁 Reintentar match</button>
+        </div>
+      `).join("") + `</div>`
     : "";
 }
 
@@ -776,43 +760,6 @@ function applyFilters(){
     return matchQ && matchEstado;
   });
   renderTabla(filtered);
-}
-
-function renderDevoluciones(filtered){
-  const body = document.getElementById("devolucionesBody");
-  if(!filtered || filtered.length === 0){
-    body.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-soft);">Sin devoluciones reportadas</td></tr>`;
-    return;
-  }
-  body.innerHTML = filtered.map(d => {
-    const pendiente = !d.procesado;
-    const estadoPill = pendiente
-      ? `<span class="pill pendiente">Pendiente</span>`
-      : `<span class="pill activo">Procesada</span>`;
-    const accion = pendiente
-      ? `<button class="ext-btn" onclick="confirmarDevolucionFisica(${d._fila}, this)">✓ Confirmar recepción física</button>`
-      : `<span style="font-size:11px;color:var(--text-soft);">${d.procesado}</span>`;
-    return `<tr>
-      <td style="font-weight:600;">${d.nombre}</td>
-      <td>"${d.titulo || d.id_libro || "—"}"</td>
-      <td>${formatFechaCorta(parseFecha(d.timestamp))}</td>
-      <td>${d.condicion || "—"}</td>
-      <td>${estadoPill}</td>
-      <td>${accion}</td>
-    </tr>`;
-  }).join("");
-}
-
-function applyDevolucionesFilters(){
-  const q = document.getElementById("fDevSearch").value.toLowerCase();
-  const estado = document.getElementById("fDevEstado").value;
-  const filtered = DEVOLUCIONES.filter(d => {
-    const matchQ = !q || (d.nombre||"").toLowerCase().includes(q) || (d.titulo||"").toLowerCase().includes(q);
-    const pendiente = !d.procesado;
-    const matchEstado = !estado || (estado === "pendiente" ? pendiente : !pendiente);
-    return matchQ && matchEstado;
-  });
-  renderDevoluciones(filtered);
 }
 
 function renderHistorial(filtered){
@@ -958,9 +905,12 @@ async function extenderPrestamo(fila, btnEl){
 
 // Confirma que el libro se recibió físicamente de vuelta: llama al backend
 // (handleBibProcesarDevolucion), que busca el préstamo activo que coincide
-// por nombre + libro y lo marca devuelto, y marca esta fila de BIB_Devoluciones
-// como procesada. Si no encuentra préstamo coincidente, igual queda marcada
-// (ya se confirmó físicamente) pero aparece en el aviso "revisar a mano".
+// primero por código de libro (id_libro, más confiable que el nombre escrito
+// a mano en el Form) y si no encuentra, cae a nombre+título; lo marca
+// devuelto y marca esta fila de BIB_Devoluciones como procesada. Si no
+// encuentra préstamo coincidente, igual queda marcada (ya se confirmó
+// físicamente) pero aparece en el aviso "revisar a mano" — desde ahí mismo
+// se puede reintentar sin tocar el Sheet, útil si el préstamo se corrigió a mano.
 async function confirmarDevolucionFisica(fila, btnEl){
   btnEl.disabled = true; btnEl.textContent = "Confirmando…";
   try{
@@ -972,7 +922,7 @@ async function confirmarDevolucionFisica(fila, btnEl){
       ]);
       DEVOLUCIONES = devoluciones.filter(d => d.nombre && d.nombre.trim() !== "");
       PRESTAMOS = prestamos.filter(p => p.nombre && p.nombre.trim() !== "");
-      renderMetrics(); renderAtencion(); applyFilters(); applyHistorialPrestamosFilters(); applyDevolucionesFilters();
+      renderMetrics(); renderAtencion(); applyFilters(); applyHistorialPrestamosFilters();
     } else {
       btnEl.disabled = false; btnEl.textContent = "✓ Confirmar recepción física";
       alert("Error: " + r.error);
@@ -1099,14 +1049,11 @@ async function init(){
     applyFilters();
     applyHistorialFilters();
     applyHistorialPrestamosFilters();
-    applyDevolucionesFilters();
 
     document.getElementById("fSearch").addEventListener("input", applyFilters);
     document.getElementById("fEstado").addEventListener("change", applyFilters);
     document.getElementById("fHistSearch").addEventListener("input", applyHistorialFilters);
     document.getElementById("fHistPrestSearch").addEventListener("input", applyHistorialPrestamosFilters);
-    document.getElementById("fDevSearch").addEventListener("input", applyDevolucionesFilters);
-    document.getElementById("fDevEstado").addEventListener("change", applyDevolucionesFilters);
     document.getElementById("tablaHead").addEventListener("click", e => {
       const th = e.target.closest("th[data-campo]");
       if(th) ordenarTabla(th.dataset.campo, th.dataset.tipo);

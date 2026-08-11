@@ -440,9 +440,10 @@
   <div class="section-divider"><span class="divider-label">Historial de donaciones</span><span class="divider-line"></span></div>
   <div class="section">
     <div class="panel-row" style="margin-bottom:8px;">
-      <span style="font-size:12.5px; color:var(--text-soft);">Selecciona varias filas para juntar sus etiquetas en un solo PDF</span>
+      <span style="font-size:12.5px; color:var(--text-soft);">Selecciona varias filas para juntar sus etiquetas en PDF (se agrupan de a 12 para que no truene el PDF)</span>
       <button class="pdf-btn" id="btnEtiquetasLote" onclick="generarEtiquetasSeleccionadas()" disabled>🏷️ Generar etiquetas seleccionadas (0)</button>
     </div>
+    <div id="etiquetasLoteResultado" style="margin-bottom:10px;"></div>
     <div class="filters">
       <input type="text" id="fHistSearch" placeholder="buscar donante o título…">
       <select id="fHistUbicacion">
@@ -1041,32 +1042,52 @@ function actualizarBotonEtiquetasLote(){
   btn.disabled = n === 0;
 }
 
-// Junta las etiquetas de todas las filas marcadas en un solo PDF (mismo
-// backend que "Generar" individual, solo que con varias filas a la vez) —
-// para imprimir de un jalón en vez de una por una.
+// Junta las etiquetas de las filas marcadas en PDF(s) (mismo backend que
+// "Generar" individual, solo que con varias filas a la vez). Cada etiqueta
+// repite los logos como imagen embebida, así que un PDF con demasiadas de
+// golpe (~40+) se vuelve tan pesado que Apps Script truena o tarda tanto que
+// el navegador cree que se cayó la conexión — por eso se parte en grupos.
+const ETIQUETAS_POR_LOTE = 12;
 async function generarEtiquetasSeleccionadas(){
   const filas = Array.from(SELECCION_ETIQUETAS);
   if(!filas.length) return;
+
+  const grupos = [];
+  for(let i = 0; i < filas.length; i += ETIQUETAS_POR_LOTE) grupos.push(filas.slice(i, i + ETIQUETAS_POR_LOTE));
+
   const btn = document.getElementById("btnEtiquetasLote");
-  btn.disabled = true; const original = btn.textContent; btn.textContent = "Generando…";
-  try{
-    const r = await postData({ tipo:"bib_generarEtiqueta", filas });
-    if(r.ok){
-      window.open(r.url, "_blank");
-      filas.forEach(fila => {
-        const d = DONACIONES.find(x => x._fila === fila);
-        if(d) d.link_etiqueta = r.url;
-      });
-      SELECCION_ETIQUETAS.clear();
-      applyHistorialFilters();
-    } else {
-      alert("Error: " + r.error);
-      btn.disabled = false; btn.textContent = original;
+  const resultado = document.getElementById("etiquetasLoteResultado");
+  btn.disabled = true;
+  resultado.innerHTML = "";
+
+  const enlaces = [];
+  for(let g = 0; g < grupos.length; g++){
+    btn.textContent = grupos.length > 1 ? `Generando PDF ${g+1}/${grupos.length}…` : "Generando…";
+    try{
+      const r = await postData({ tipo:"bib_generarEtiqueta", filas: grupos[g] });
+      if(r.ok){
+        enlaces.push({ ok:true, n: g+1, url: r.url, cantidad: grupos[g].length });
+        grupos[g].forEach(fila => {
+          const d = DONACIONES.find(x => x._fila === fila);
+          if(d) d.link_etiqueta = r.url;
+        });
+      } else {
+        enlaces.push({ ok:false, n: g+1, error: r.error });
+      }
+    } catch(e){
+      enlaces.push({ ok:false, n: g+1, error: "no se pudo conectar con el servidor" });
     }
-  } catch(e){
-    alert("No se pudo conectar con el servidor.");
-    btn.disabled = false; btn.textContent = original;
   }
+
+  resultado.innerHTML = enlaces.map(e => e.ok
+    ? `<div class="footnote">✅ PDF ${e.n} de ${grupos.length} (${e.cantidad} etiqueta(s)) — <a href="${e.url}" target="_blank">abrir</a></div>`
+    : `<div class="footnote" style="color:var(--red-text);">⚠️ PDF ${e.n} de ${grupos.length} falló: ${e.error}</div>`
+  ).join("");
+
+  SELECCION_ETIQUETAS.clear();
+  applyHistorialFilters();
+  btn.disabled = false;
+  actualizarBotonEtiquetasLote();
 }
 
 function applyHistorialFilters(){

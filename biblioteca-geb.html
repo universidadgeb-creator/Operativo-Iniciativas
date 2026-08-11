@@ -495,7 +495,7 @@ const TABS = {
 // de atrasados/por vencer (leía disclosure_aceptado como si fuera una fecha).
 const SCHEMA = {
   BIB_Prestamos: ["timestamp","nombre","correo","whatsapp","id_libro","titulo","fecha_compromiso","disclosure_aceptado","devuelto","fecha_devolucion_real","condicion_devolucion","comentarios","depto"],
-  BIB_Donaciones: ["timestamp","donante","correo","whatsapp","titulo","autor","tipo","fecha_ingreso","fecha_retorno","id_libro","recibo_enviado","etiqueta_generada","link_recibo","link_etiqueta","ubicacion","estado_libro"],
+  BIB_Donaciones: ["timestamp","donante","correo","whatsapp","titulo","autor","tipo","fecha_ingreso","fecha_retorno","id_libro","recibo_enviado","etiqueta_generada","link_recibo","link_etiqueta","ubicacion","estado_libro","confirmado"],
   BIB_Devoluciones: ["timestamp","nombre","id_libro","titulo","condicion","descripcion_dano","recomendaria","comentarios","procesado"],
   BIB_Copys: ["Momento","Copy_Texto","Numero_WA","Activo"],
   Colaboradores: ["Nombre","Sucursal","Unidad","Correo","FechaNac","Genero","Telefono_WA","Turno","Rol","Fecha_Alta_Empresa","Baja_Empresa","Fecha_Baja_Empresa"]
@@ -735,7 +735,7 @@ function renderAtencion(){
   const activos = prestamosActivos();
   const atrasados = activos.filter(p => calcularEstadoPrestamo(p).estado === "atrasado");
   const porVencer = activos.filter(p => calcularEstadoPrestamo(p).estado === "porvencer");
-  const donPendientes = DONACIONES.filter(d => !d.recibo_enviado && !esSiBib(d.etiqueta_generada) ? true : (!d.recibo_enviado || !d.etiqueta_generada));
+  const donPendientes = DONACIONES.filter(d => !esSiBib(d.confirmado));
 
   function cardPrestamo(p, tipo){
     const est = calcularEstadoPrestamo(p);
@@ -779,19 +779,13 @@ function renderAtencion(){
     : `<div class="footnote">Sin préstamos por vencer en los próximos 3 días.</div>`;
 
   document.getElementById("donPendientesGrid").innerHTML = donPendientes.length
-    ? donPendientes.map(d => {
-        const copy = copyMap["confirmacion_donacion"];
-        const vars = { Nombre: (d.donante||"").split(" ")[0], Titulo: d.titulo||"", Fecha: formatFechaCorta(parseFecha(d.fecha_ingreso)) };
-        const texto = copy ? sustituirVariablesBib(copy.Copy_Texto, vars) : "";
-        const numero = d.whatsapp || (copy ? copy.Numero_WA : "") || "";
-        return `
-          <div class="gcard">
-            <div class="gcard-head"><div><div class="gname">${d.donante}</div><div class="glibro">"${d.titulo}"</div></div></div>
-            <span class="pill pendiente">${d.id_libro || "sin ID"}</span>
-            ${copy ? `<button class="wa-btn" onclick="window.open('${waLink(numero, texto)}','_blank')"><span class="ic">●</span> Enviar confirmación WA</button>` : ''}
-          </div>
-        `;
-      }).join("")
+    ? donPendientes.map(d => `
+        <div class="gcard">
+          <div class="gcard-head"><div><div class="gname">${d.donante}</div><div class="glibro">"${d.titulo}"</div></div></div>
+          <span class="pill pendiente">${d.id_libro || "sin ID"}</span>
+          <button class="ext-btn" onclick="confirmarDonacion(${d._fila}, this)">✓ Confirmar</button>
+        </div>
+      `).join("")
     : `<div class="footnote">No hay donaciones pendientes de confirmar.</div>`;
 
   const devPendientes = devolucionesPendientes();
@@ -925,6 +919,27 @@ async function reportarPerdido(fila, btnEl){
   } catch(e){
     alert("No se pudo conectar con el servidor.");
     btnEl.disabled = false; btnEl.textContent = "Reportar perdido";
+  }
+}
+
+// Un clic marca la donación como recibida/confirmada (sin mandar WhatsApp)
+// y la quita de "Donaciones pendientes de confirmar".
+async function confirmarDonacion(fila, btnEl){
+  btnEl.disabled = true; btnEl.textContent = "Confirmando…";
+  try{
+    const r = await postData({ tipo:"bib_confirmarDonacion", fila });
+    if(r.ok){
+      const d = DONACIONES.find(x => x._fila === fila);
+      if(d) d.confirmado = "Sí";
+      renderMetrics();
+      renderAtencion();
+    } else {
+      alert("Error: " + r.error);
+      btnEl.disabled = false; btnEl.textContent = "✓ Confirmar";
+    }
+  } catch(e){
+    alert("No se pudo conectar con el servidor.");
+    btnEl.disabled = false; btnEl.textContent = "✓ Confirmar";
   }
 }
 

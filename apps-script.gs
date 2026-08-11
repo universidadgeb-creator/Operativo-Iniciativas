@@ -290,6 +290,7 @@ function doPost(e) {
     if (tipo === "bib_generarEtiqueta")     return handleBibGenerarEtiqueta(payload);
     if (tipo === "bib_sincronizarFisicos")  return handleBibSincronizarFisicos(payload);
     if (tipo === "bib_reportarPerdido")     return handleBibReportarPerdido(payload);
+    if (tipo === "bib_confirmarDonacion")   return handleBibConfirmarDonacion(payload);
     if (tipo === "admin_ejecutar")          return handleAdminEjecutar(payload);
 
     return resp({ ok: false, error: "Tipo desconocido: " + tipo });
@@ -1426,7 +1427,8 @@ const COLS_BIB = {
     linkRecibo: ["link_recibo"],
     linkEtiqueta: ["link_etiqueta"],
     ubicacion: ["ubicacion", "Ubicación"],
-    estadoLibro: ["estado_libro", "Estado del libro"]
+    estadoLibro: ["estado_libro", "Estado del libro"],
+    confirmado: ["confirmado", "Confirmado"]
   },
   devoluciones: {
     timestamp: ["timestamp", "Marca temporal"],
@@ -1880,6 +1882,25 @@ function handleBibAltaDonacion(p) {
   ws.appendRow(fila);
 
   return resp({ ok: true, idAsignado: nuevoId, fila: ws.getLastRow() });
+}
+
+// ── Biblioteca: Confirmar recepción física de una donación ───────
+// Un clic en el panel, sin mandar WhatsApp — marca confirmado="Sí" en
+// BIB_Donaciones para que la donación salga de "pendientes de confirmar".
+// Recibe: {tipo:"bib_confirmarDonacion", fila}
+function handleBibConfirmarDonacion(p) {
+  const ws = bibSheetNuevo_("BIB_Donaciones");
+  if (!ws) return resp({ ok: false, error: "Pestaña BIB_Donaciones no encontrada" });
+
+  const filaNum = parseInt(p.fila, 10);
+  if (!filaNum || filaNum < 2) return resp({ ok: false, error: "fila inválida" });
+
+  const headers = ws.getRange(1, 1, 1, ws.getLastColumn()).getValues()[0];
+  const idx = obtenerIndicesBib_(headers, COLS_BIB.donaciones);
+  if (idx.confirmado < 0) return resp({ ok: false, error: "Columna confirmado no encontrada en BIB_Donaciones" });
+
+  ws.getRange(filaNum, idx.confirmado + 1).setValue("Sí");
+  return resp({ ok: true });
 }
 
 // ── Biblioteca: Reportar un libro donado como perdido ────────────

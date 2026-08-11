@@ -439,6 +439,10 @@
   <!-- HISTORIAL DE DONACIONES -->
   <div class="section-divider"><span class="divider-label">Historial de donaciones</span><span class="divider-line"></span></div>
   <div class="section">
+    <div class="panel-row" style="margin-bottom:8px;">
+      <span style="font-size:12.5px; color:var(--text-soft);">Selecciona varias filas para juntar sus etiquetas en un solo PDF</span>
+      <button class="pdf-btn" id="btnEtiquetasLote" onclick="generarEtiquetasSeleccionadas()" disabled>🏷️ Generar etiquetas seleccionadas (0)</button>
+    </div>
     <div class="filters">
       <input type="text" id="fHistSearch" placeholder="buscar donante o título…">
       <select id="fHistUbicacion">
@@ -451,6 +455,7 @@
       <table>
         <thead>
           <tr id="historialDonHead">
+            <th><input type="checkbox" id="chkSeleccionarTodasEtiquetas" onchange="toggleSeleccionarTodasEtiquetas(this.checked)"></th>
             <th data-campo="donante" data-tipo="texto">Donante</th>
             <th data-campo="titulo" data-tipo="texto">Título</th>
             <th data-campo="tipo" data-tipo="texto">Tipo</th>
@@ -665,6 +670,7 @@ function ubicacionDePrestamo(p, mapa){
    RENDER
    ============================================================ */
 let PRESTAMOS = [], DONACIONES = [], DEVOLUCIONES = [], COPYS = [];
+const SELECCION_ETIQUETAS = new Set();
 let BAJA_EMPRESA_SET = new Set();
 function normNombre(n){ return (n||"").toString().trim().toLowerCase(); }
 
@@ -875,7 +881,7 @@ function applyFiltersAmbasUbicaciones(){
 function renderHistorial(filtered){
   const body = document.getElementById("historialBody");
   if(!filtered || filtered.length === 0){
-    body.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--text-soft);">Sin registros en el historial</td></tr>`;
+    body.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:24px;color:var(--text-soft);">Sin registros en el historial</td></tr>`;
     return;
   }
   let html = "";
@@ -891,7 +897,9 @@ function renderHistorial(filtered){
     const accionCell = perdido
       ? `<span class="pill perdido">Perdido</span>`
       : `<button class="ext-btn" style="background:var(--red-bg);color:var(--red-text);border-color:#f0c7c7;" onclick="reportarPerdido(${d._fila}, this)">Reportar perdido</button>`;
+    const marcado = SELECCION_ETIQUETAS.has(d._fila);
     html += `<tr class="${bajaEmpresa?'baja-empresa-row':''} ${perdido?'perdido-row':''}">
+      <td><input type="checkbox" ${marcado?'checked':''} onchange="toggleSeleccionEtiqueta(${d._fila}, this.checked)"></td>
       <td style="font-weight:600;">${d.donante}</td>
       <td>"${d.titulo}"</td>
       <td>${d.tipo||"—"}</td>
@@ -904,6 +912,7 @@ function renderHistorial(filtered){
     </tr>`;
   });
   body.innerHTML = html;
+  actualizarBotonEtiquetasLote();
 }
 
 async function reportarPerdido(fila, btnEl){
@@ -1007,6 +1016,56 @@ async function generarEtiquetaFila(fila, btnEl){
   } catch(e){
     alert("No se pudo conectar con el servidor.");
     btnEl.disabled = false; btnEl.textContent = original;
+  }
+}
+
+function toggleSeleccionEtiqueta(fila, marcado){
+  if(marcado) SELECCION_ETIQUETAS.add(fila);
+  else SELECCION_ETIQUETAS.delete(fila);
+  actualizarBotonEtiquetasLote();
+}
+
+// El checkbox de "seleccionar todas" solo afecta las filas visibles con el
+// filtro actual, no todo el historial completo.
+function toggleSeleccionarTodasEtiquetas(marcado){
+  document.querySelectorAll("#historialBody input[type=checkbox]").forEach(chk => {
+    chk.checked = marcado;
+    chk.dispatchEvent(new Event("change"));
+  });
+}
+
+function actualizarBotonEtiquetasLote(){
+  const btn = document.getElementById("btnEtiquetasLote");
+  const n = SELECCION_ETIQUETAS.size;
+  btn.textContent = `🏷️ Generar etiquetas seleccionadas (${n})`;
+  btn.disabled = n === 0;
+}
+
+// Junta las etiquetas de todas las filas marcadas en un solo PDF (mismo
+// backend que "Generar" individual, solo que con varias filas a la vez) —
+// para imprimir de un jalón en vez de una por una.
+async function generarEtiquetasSeleccionadas(){
+  const filas = Array.from(SELECCION_ETIQUETAS);
+  if(!filas.length) return;
+  const btn = document.getElementById("btnEtiquetasLote");
+  btn.disabled = true; const original = btn.textContent; btn.textContent = "Generando…";
+  try{
+    const r = await postData({ tipo:"bib_generarEtiqueta", filas });
+    if(r.ok){
+      window.open(r.url, "_blank");
+      filas.forEach(fila => {
+        const d = DONACIONES.find(x => x._fila === fila);
+        if(d) d.link_etiqueta = r.url;
+      });
+      SELECCION_ETIQUETAS.clear();
+      applyHistorialFilters();
+    } else {
+      alert("Error: " + r.error);
+      btn.disabled = false; btn.textContent = original;
+    }
+  } catch(e){
+    alert("No se pudo conectar con el servidor.");
+    btn.disabled = false; btn.textContent = original;
   }
 }
 

@@ -49,7 +49,7 @@
   header.page-header h1{ font-family:'Cormorant Garamond', serif; font-size:34px; font-weight:600; color:var(--blue); }
   header.page-header .sub{ color:var(--text-soft); font-size:13px; }
 
-  .metric-grid{ display:grid; grid-template-columns:repeat(6,1fr); gap:12px; margin-bottom:28px; }
+  .metric-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; margin-bottom:28px; }
   .metric{ background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px 16px; }
   .metric.alert{ background:var(--red-bg); border-color:#f0c7c7; }
   .metric .val{ font-size:26px; font-weight:700; color:var(--blue); line-height:1.1; }
@@ -77,6 +77,10 @@
   .pill.vence{ background:var(--amber-bg); color:var(--amber-text); }
   .pill.activo{ background:var(--green-bg); color:var(--green-text); }
   .pill.pendiente{ background:var(--ab-bg); color:var(--ab-text); }
+  .pill.perdido{ background:var(--red-bg); color:var(--red-text); }
+  tbody tr.perdido-row{ background:#FFF8F8; }
+  tbody tr.perdido-row td{ text-decoration:line-through; text-decoration-color:var(--red-text); }
+  tbody tr.perdido-row td:last-child{ text-decoration:none; }
 
   .wa-btn{
     display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:500;
@@ -273,17 +277,33 @@
 
   <!-- ATENCIÓN REQUERIDA -->
   <div class="section">
-    <div class="section-title">Atención requerida</div>
+    <div class="section-title">Atención requerida — Naciones</div>
     <div class="panel-row" style="margin-bottom:8px;">
       <span style="font-size:12.5px; color:var(--text-soft);">Atrasados</span>
     </div>
-    <div class="gcard-grid" id="atrasadosGrid" style="margin-bottom:20px;"></div>
+    <div class="gcard-grid" id="atrasadosGridNaciones" style="margin-bottom:20px;"></div>
 
     <div class="panel-row" style="margin-bottom:8px;">
       <span style="font-size:12.5px; color:var(--text-soft);">Por vencer (próximos 3 días)</span>
     </div>
-    <div class="gcard-grid" id="porVencerGrid" style="margin-bottom:20px;"></div>
+    <div class="gcard-grid" id="porVencerGridNaciones" style="margin-bottom:20px;"></div>
+  </div>
 
+  <div class="section">
+    <div class="section-title">Atención requerida — Estancia</div>
+    <div class="panel-row" style="margin-bottom:8px;">
+      <span style="font-size:12.5px; color:var(--text-soft);">Atrasados</span>
+    </div>
+    <div class="gcard-grid" id="atrasadosGridEstancia" style="margin-bottom:20px;"></div>
+
+    <div class="panel-row" style="margin-bottom:8px;">
+      <span style="font-size:12.5px; color:var(--text-soft);">Por vencer (próximos 3 días)</span>
+    </div>
+    <div class="gcard-grid" id="porVencerGridEstancia" style="margin-bottom:20px;"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Otras pendientes</div>
     <div class="panel-row" style="margin-bottom:8px;">
       <span style="font-size:12.5px; color:var(--text-soft);">Donaciones pendientes de confirmar</span>
     </div>
@@ -298,10 +318,10 @@
 
   <!-- TABLA DE PRÉSTAMOS ACTIVOS -->
   <div class="section">
-    <div class="section-title">Préstamos activos</div>
+    <div class="section-title">Préstamos activos — Naciones</div>
     <div class="filters">
-      <input type="text" id="fSearch" placeholder="buscar nombre o libro…">
-      <select id="fEstado">
+      <input type="text" id="fSearchNaciones" placeholder="buscar nombre o libro…">
+      <select id="fEstadoNaciones">
         <option value="">todos los estados</option>
         <option value="atrasado">solo atrasados</option>
         <option value="porvencer">solo por vencer</option>
@@ -311,14 +331,41 @@
     <div class="table-wrap">
       <table>
         <thead>
-          <tr id="tablaHead">
+          <tr id="tablaHeadNaciones">
             <th data-campo="nombre" data-tipo="texto">Nombre</th>
             <th data-campo="titulo" data-tipo="texto">Libro</th>
             <th data-campo="fecha_compromiso" data-tipo="fecha">Fecha compromiso</th>
             <th>Estado</th><th>Acciones</th>
           </tr>
         </thead>
-        <tbody id="tablaBody"></tbody>
+        <tbody id="tablaBodyNaciones"></tbody>
+      </table>
+    </div>
+    <div class="footnote">📊 datos y copys desde Google Sheets · se actualizan al recargar la página</div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Préstamos activos — Estancia</div>
+    <div class="filters">
+      <input type="text" id="fSearchEstancia" placeholder="buscar nombre o libro…">
+      <select id="fEstadoEstancia">
+        <option value="">todos los estados</option>
+        <option value="atrasado">solo atrasados</option>
+        <option value="porvencer">solo por vencer</option>
+        <option value="ok">al corriente</option>
+      </select>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr id="tablaHeadEstancia">
+            <th data-campo="nombre" data-tipo="texto">Nombre</th>
+            <th data-campo="titulo" data-tipo="texto">Libro</th>
+            <th data-campo="fecha_compromiso" data-tipo="fecha">Fecha compromiso</th>
+            <th>Estado</th><th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="tablaBodyEstancia"></tbody>
       </table>
     </div>
     <div class="footnote">📊 datos y copys desde Google Sheets · se actualizan al recargar la página</div>
@@ -365,6 +412,12 @@
         </div>
         <div class="form-row"><label>Título *</label><input type="text" id="donTitulo"></div>
         <div class="form-row"><label>Autor</label><input type="text" id="donAutor"></div>
+        <div class="form-row"><label>Ubicación *</label>
+          <select id="donUbicacion">
+            <option value="Naciones">Naciones</option>
+            <option value="Estancia">Estancia</option>
+          </select>
+        </div>
       </div>
       <div class="form-actions">
         <button class="btn-guardar" id="btnGuardarDonacion" onclick="guardarDonacionAlta()">Registrar donación</button>
@@ -387,6 +440,11 @@
   <div class="section">
     <div class="filters">
       <input type="text" id="fHistSearch" placeholder="buscar donante o título…">
+      <select id="fHistUbicacion">
+        <option value="">todas las ubicaciones</option>
+        <option value="Naciones">Naciones</option>
+        <option value="Estancia">Estancia</option>
+      </select>
     </div>
     <div class="table-wrap">
       <table>
@@ -395,9 +453,10 @@
             <th data-campo="donante" data-tipo="texto">Donante</th>
             <th data-campo="titulo" data-tipo="texto">Título</th>
             <th data-campo="tipo" data-tipo="texto">Tipo</th>
+            <th data-campo="ubicacion" data-tipo="texto">Ubicación</th>
             <th data-campo="fecha_ingreso" data-tipo="fecha">Fecha ingreso</th>
             <th data-campo="fecha_retorno" data-tipo="fecha">Fecha retorno</th>
-            <th>Recibo</th><th>Etiqueta</th>
+            <th>Recibo</th><th>Etiqueta</th><th>Acción</th>
           </tr>
         </thead>
         <tbody id="historialBody"></tbody>
@@ -436,7 +495,7 @@ const TABS = {
 // de atrasados/por vencer (leía disclosure_aceptado como si fuera una fecha).
 const SCHEMA = {
   BIB_Prestamos: ["timestamp","nombre","correo","whatsapp","id_libro","titulo","fecha_compromiso","disclosure_aceptado","devuelto","fecha_devolucion_real","condicion_devolucion","comentarios","depto"],
-  BIB_Donaciones: ["timestamp","donante","correo","whatsapp","titulo","autor","tipo","fecha_ingreso","fecha_retorno","id_libro","recibo_enviado","etiqueta_generada","link_recibo","link_etiqueta"],
+  BIB_Donaciones: ["timestamp","donante","correo","whatsapp","titulo","autor","tipo","fecha_ingreso","fecha_retorno","id_libro","recibo_enviado","etiqueta_generada","link_recibo","link_etiqueta","ubicacion","estado_libro"],
   BIB_Devoluciones: ["timestamp","nombre","id_libro","titulo","condicion","descripcion_dano","recomendaria","comentarios","procesado"],
   BIB_Copys: ["Momento","Copy_Texto","Numero_WA","Activo"],
   Colaboradores: ["Nombre","Sucursal","Unidad","Correo","FechaNac","Genero","Telefono_WA","Turno","Rol","Fecha_Alta_Empresa","Baja_Empresa","Fecha_Baja_Empresa"]
@@ -579,6 +638,25 @@ function prestamosActivos(){
   return PRESTAMOS.filter(p => !esSiBib(p.devuelto));
 }
 
+function esPerdido(d){ return (d.estado_libro||"").trim().toLowerCase() === "perdido"; }
+
+// Un préstamo no guarda su propia ubicación — vive donde vive el ejemplar
+// físico (BIB_Donaciones.ubicacion), buscado por id_libro. Libros donados
+// antes de que existiera esta columna, o préstamos sin id_libro, caen en
+// "Naciones" por default (única ubicación que ha habido hasta ahora).
+function mapaUbicacionesLibros(){
+  const mapa = {};
+  DONACIONES.forEach(d => {
+    const id = (d.id_libro||"").trim();
+    if(id) mapa[id] = (d.ubicacion||"").trim() || "Naciones";
+  });
+  return mapa;
+}
+function ubicacionDePrestamo(p, mapa){
+  const id = (p.id_libro||"").trim();
+  return (id && mapa[id]) || "Naciones";
+}
+
 /* ============================================================
    RENDER
    ============================================================ */
@@ -608,10 +686,12 @@ function crearOrdenador(headId, sortState, renderFn){
   };
 }
 
-const sortStateTabla = { col: null, tipo: null, dir: 1 };
+const sortStateTablaNaciones = { col: null, tipo: null, dir: 1 };
+const sortStateTablaEstancia = { col: null, tipo: null, dir: 1 };
 const sortStateHistPrest = { col: null, tipo: null, dir: 1 };
 const sortStateHistDon = { col: null, tipo: null, dir: 1 };
-const ordenarTabla = crearOrdenador("tablaHead", sortStateTabla, applyFilters);
+const ordenarTablaNaciones = crearOrdenador("tablaHeadNaciones", sortStateTablaNaciones, applyFiltersNaciones);
+const ordenarTablaEstancia = crearOrdenador("tablaHeadEstancia", sortStateTablaEstancia, applyFiltersEstancia);
 const ordenarHistPrest = crearOrdenador("historialPrestHead", sortStateHistPrest, applyHistorialPrestamosFilters);
 const ordenarHistDon = crearOrdenador("historialDonHead", sortStateHistDon, applyHistorialFilters);
 
@@ -632,6 +712,7 @@ function renderMetrics(){
   const receptoresUnicos = new Set(PRESTAMOS.map(p => (p.nombre||"").trim().toLowerCase()).filter(Boolean));
 
   const metrics = [
+    { val: DONACIONES.length, lbl: "total de libros" },
     { val: activos.length, lbl: "préstamos activos" },
     { val: atrasados.length, lbl: "atrasados", alert: atrasados.length > 0 },
     { val: porVencer.length, lbl: "por vencer (3 días)" },
@@ -650,6 +731,7 @@ function renderMetrics(){
 
 function renderAtencion(){
   const copyMap = buildCopyMapBib();
+  const mapaUbic = mapaUbicacionesLibros();
   const activos = prestamosActivos();
   const atrasados = activos.filter(p => calcularEstadoPrestamo(p).estado === "atrasado");
   const porVencer = activos.filter(p => calcularEstadoPrestamo(p).estado === "porvencer");
@@ -677,12 +759,23 @@ function renderAtencion(){
     `;
   }
 
-  document.getElementById("atrasadosGrid").innerHTML = atrasados.length
-    ? atrasados.map(p => cardPrestamo(p, "atrasado")).join("")
+  const atrasadosNac = atrasados.filter(p => ubicacionDePrestamo(p, mapaUbic) === "Naciones");
+  const atrasadosEst = atrasados.filter(p => ubicacionDePrestamo(p, mapaUbic) === "Estancia");
+  const porVencerNac = porVencer.filter(p => ubicacionDePrestamo(p, mapaUbic) === "Naciones");
+  const porVencerEst = porVencer.filter(p => ubicacionDePrestamo(p, mapaUbic) === "Estancia");
+
+  document.getElementById("atrasadosGridNaciones").innerHTML = atrasadosNac.length
+    ? atrasadosNac.map(p => cardPrestamo(p, "atrasado")).join("")
+    : `<div class="footnote">Sin préstamos atrasados.</div>`;
+  document.getElementById("atrasadosGridEstancia").innerHTML = atrasadosEst.length
+    ? atrasadosEst.map(p => cardPrestamo(p, "atrasado")).join("")
     : `<div class="footnote">Sin préstamos atrasados.</div>`;
 
-  document.getElementById("porVencerGrid").innerHTML = porVencer.length
-    ? porVencer.map(p => cardPrestamo(p, "porvencer")).join("")
+  document.getElementById("porVencerGridNaciones").innerHTML = porVencerNac.length
+    ? porVencerNac.map(p => cardPrestamo(p, "porvencer")).join("")
+    : `<div class="footnote">Sin préstamos por vencer en los próximos 3 días.</div>`;
+  document.getElementById("porVencerGridEstancia").innerHTML = porVencerEst.length
+    ? porVencerEst.map(p => cardPrestamo(p, "porvencer")).join("")
     : `<div class="footnote">Sin préstamos por vencer en los próximos 3 días.</div>`;
 
   document.getElementById("donPendientesGrid").innerHTML = donPendientes.length
@@ -725,14 +818,14 @@ function renderAtencion(){
     : "";
 }
 
-function renderTabla(filtered){
-  const body = document.getElementById("tablaBody");
+function renderTabla(bodyId, sortState, filtered){
+  const body = document.getElementById(bodyId);
   if(filtered.length === 0){
     body.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:24px; color:var(--text-soft);">Sin resultados</td></tr>`;
     return;
   }
   let html = "";
-  ordenGenerico(sortStateTabla, filtered).forEach((p, i) => {
+  ordenGenerico(sortState, filtered).forEach((p, i) => {
     const est = calcularEstadoPrestamo(p);
     let pill = `<span class="pill activo">Al corriente</span>`;
     let rowClass = BAJA_EMPRESA_SET.has(normNombre(p.nombre)) ? "baja-empresa-row" : "";
@@ -750,22 +843,41 @@ function renderTabla(filtered){
   body.innerHTML = html;
 }
 
-function applyFilters(){
-  const q = document.getElementById("fSearch").value.toLowerCase();
-  const estadoF = document.getElementById("fEstado").value;
-  const filtered = prestamosActivos().filter(p => {
+function prestamosActivosPorUbicacion(ubicacion){
+  const mapaUbic = mapaUbicacionesLibros();
+  return prestamosActivos().filter(p => ubicacionDePrestamo(p, mapaUbic) === ubicacion);
+}
+
+function aplicarFiltrosTabla(ubicacion, qId, estadoId){
+  const q = document.getElementById(qId).value.toLowerCase();
+  const estadoF = document.getElementById(estadoId).value;
+  return prestamosActivosPorUbicacion(ubicacion).filter(p => {
     const matchQ = !q || (p.nombre||"").toLowerCase().includes(q) || (p.titulo||"").toLowerCase().includes(q);
     const est = calcularEstadoPrestamo(p).estado;
     const matchEstado = !estadoF || est === estadoF || (estadoF === "ok" && est !== "atrasado" && est !== "porvencer");
     return matchQ && matchEstado;
   });
-  renderTabla(filtered);
+}
+
+function applyFiltersNaciones(){
+  const filtered = aplicarFiltrosTabla("Naciones", "fSearchNaciones", "fEstadoNaciones");
+  renderTabla("tablaBodyNaciones", sortStateTablaNaciones, filtered);
+}
+
+function applyFiltersEstancia(){
+  const filtered = aplicarFiltrosTabla("Estancia", "fSearchEstancia", "fEstadoEstancia");
+  renderTabla("tablaBodyEstancia", sortStateTablaEstancia, filtered);
+}
+
+function applyFiltersAmbasUbicaciones(){
+  applyFiltersNaciones();
+  applyFiltersEstancia();
 }
 
 function renderHistorial(filtered){
   const body = document.getElementById("historialBody");
   if(!filtered || filtered.length === 0){
-    body.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-soft);">Sin registros en el historial</td></tr>`;
+    body.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--text-soft);">Sin registros en el historial</td></tr>`;
     return;
   }
   let html = "";
@@ -777,17 +889,43 @@ function renderHistorial(filtered){
       ? `<a href="${d.link_etiqueta}" target="_blank">Ver</a> <button class="pdf-btn" style="padding:3px 8px;font-size:11px;" onclick="generarEtiquetaFila(${d._fila}, this)">regenerar</button>`
       : `<button class="pdf-btn" style="padding:3px 8px;font-size:11px;" onclick="generarEtiquetaFila(${d._fila}, this)">Generar</button>`;
     const bajaEmpresa = BAJA_EMPRESA_SET.has(normNombre(d.donante));
-    html += `<tr class="${bajaEmpresa?'baja-empresa-row':''}">
+    const perdido = esPerdido(d);
+    const accionCell = perdido
+      ? `<span class="pill perdido">Perdido</span>`
+      : `<button class="ext-btn" style="background:var(--red-bg);color:var(--red-text);border-color:#f0c7c7;" onclick="reportarPerdido(${d._fila}, this)">Reportar perdido</button>`;
+    html += `<tr class="${bajaEmpresa?'baja-empresa-row':''} ${perdido?'perdido-row':''}">
       <td style="font-weight:600;">${d.donante}</td>
       <td>"${d.titulo}"</td>
       <td>${d.tipo||"—"}</td>
+      <td>${d.ubicacion||"Naciones"}</td>
       <td>${formatFechaCorta(parseFecha(d.fecha_ingreso))}</td>
       <td>${d.fecha_retorno ? formatFechaCorta(parseFecha(d.fecha_retorno)) : "—"}</td>
       <td>${reciboCell}</td>
       <td>${etiquetaCell}</td>
+      <td>${accionCell}</td>
     </tr>`;
   });
   body.innerHTML = html;
+}
+
+async function reportarPerdido(fila, btnEl){
+  if(!confirm("¿Marcar este libro como perdido? Es para libros que alguien tomó sin pasar por un préstamo formal.")) return;
+  btnEl.disabled = true; btnEl.textContent = "Guardando…";
+  try{
+    const r = await postData({ tipo:"bib_reportarPerdido", fila });
+    if(r.ok){
+      const d = DONACIONES.find(x => x._fila === fila);
+      if(d) d.estado_libro = "Perdido";
+      renderMetrics();
+      applyHistorialFilters();
+    } else {
+      alert("Error: " + r.error);
+      btnEl.disabled = false; btnEl.textContent = "Reportar perdido";
+    }
+  } catch(e){
+    alert("No se pudo conectar con el servidor.");
+    btnEl.disabled = false; btnEl.textContent = "Reportar perdido";
+  }
 }
 
 async function generarReciboFila(fila, btnEl){
@@ -830,9 +968,12 @@ async function generarEtiquetaFila(fila, btnEl){
 
 function applyHistorialFilters(){
   const q = document.getElementById("fHistSearch").value.toLowerCase();
-  const filtered = DONACIONES.filter(d =>
-    !q || (d.donante||"").toLowerCase().includes(q) || (d.titulo||"").toLowerCase().includes(q)
-  );
+  const ubicacion = document.getElementById("fHistUbicacion").value;
+  const filtered = DONACIONES.filter(d => {
+    const matchQ = !q || (d.donante||"").toLowerCase().includes(q) || (d.titulo||"").toLowerCase().includes(q);
+    const matchUbic = !ubicacion || (d.ubicacion||"Naciones") === ubicacion;
+    return matchQ && matchUbic;
+  });
   renderHistorial(filtered);
 }
 
@@ -892,7 +1033,7 @@ async function extenderPrestamo(fila, btnEl){
         const base = parseFecha(p.fecha_compromiso) || new Date();
         p.fecha_compromiso = new Date(base.getTime() + 14 * 24 * 60 * 60 * 1000);
       }
-      renderMetrics(); renderAtencion(); applyFilters();
+      renderMetrics(); renderAtencion(); applyFiltersAmbasUbicaciones();
     } else {
       btnEl.disabled = false; btnEl.textContent = "+2 semanas";
       alert("Error al extender: " + r.error);
@@ -922,7 +1063,7 @@ async function confirmarDevolucionFisica(fila, btnEl){
       ]);
       DEVOLUCIONES = devoluciones.filter(d => d.nombre && d.nombre.trim() !== "");
       PRESTAMOS = prestamos.filter(p => p.nombre && p.nombre.trim() !== "");
-      renderMetrics(); renderAtencion(); applyFilters(); applyHistorialPrestamosFilters();
+      renderMetrics(); renderAtencion(); applyFiltersAmbasUbicaciones(); applyHistorialPrestamosFilters();
     } else {
       btnEl.disabled = false; btnEl.textContent = "✓ Confirmar recepción física";
       alert("Error: " + r.error);
@@ -960,7 +1101,8 @@ async function guardarDonacionAlta(){
       whatsapp,
       titulo,
       autor: document.getElementById("donAutor").value.trim(),
-      modalidad
+      modalidad,
+      ubicacion: document.getElementById("donUbicacion").value
     });
     if(r.ok){
       showFormMsg("donMsg","ok","Donación registrada correctamente.");
@@ -1046,17 +1188,24 @@ async function init(){
 
     renderMetrics();
     renderAtencion();
-    applyFilters();
+    applyFiltersAmbasUbicaciones();
     applyHistorialFilters();
     applyHistorialPrestamosFilters();
 
-    document.getElementById("fSearch").addEventListener("input", applyFilters);
-    document.getElementById("fEstado").addEventListener("change", applyFilters);
+    document.getElementById("fSearchNaciones").addEventListener("input", applyFiltersNaciones);
+    document.getElementById("fEstadoNaciones").addEventListener("change", applyFiltersNaciones);
+    document.getElementById("fSearchEstancia").addEventListener("input", applyFiltersEstancia);
+    document.getElementById("fEstadoEstancia").addEventListener("change", applyFiltersEstancia);
     document.getElementById("fHistSearch").addEventListener("input", applyHistorialFilters);
+    document.getElementById("fHistUbicacion").addEventListener("change", applyHistorialFilters);
     document.getElementById("fHistPrestSearch").addEventListener("input", applyHistorialPrestamosFilters);
-    document.getElementById("tablaHead").addEventListener("click", e => {
+    document.getElementById("tablaHeadNaciones").addEventListener("click", e => {
       const th = e.target.closest("th[data-campo]");
-      if(th) ordenarTabla(th.dataset.campo, th.dataset.tipo);
+      if(th) ordenarTablaNaciones(th.dataset.campo, th.dataset.tipo);
+    });
+    document.getElementById("tablaHeadEstancia").addEventListener("click", e => {
+      const th = e.target.closest("th[data-campo]");
+      if(th) ordenarTablaEstancia(th.dataset.campo, th.dataset.tipo);
     });
     document.getElementById("historialPrestHead").addEventListener("click", e => {
       const th = e.target.closest("th[data-campo]");

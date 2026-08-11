@@ -289,6 +289,7 @@ function doPost(e) {
     if (tipo === "bib_generarRecibo")       return handleBibGenerarRecibo(payload);
     if (tipo === "bib_generarEtiqueta")     return handleBibGenerarEtiqueta(payload);
     if (tipo === "bib_sincronizarFisicos")  return handleBibSincronizarFisicos(payload);
+    if (tipo === "bib_reportarPerdido")     return handleBibReportarPerdido(payload);
     if (tipo === "admin_ejecutar")          return handleAdminEjecutar(payload);
 
     return resp({ ok: false, error: "Tipo desconocido: " + tipo });
@@ -1423,7 +1424,9 @@ const COLS_BIB = {
     reciboEnviado: ["recibo_enviado"],
     etiquetaGenerada: ["etiqueta_generada"],
     linkRecibo: ["link_recibo"],
-    linkEtiqueta: ["link_etiqueta"]
+    linkEtiqueta: ["link_etiqueta"],
+    ubicacion: ["ubicacion", "Ubicación"],
+    estadoLibro: ["estado_libro", "Estado del libro"]
   },
   devoluciones: {
     timestamp: ["timestamp", "Marca temporal"],
@@ -1842,7 +1845,8 @@ function sincronizarFisicosBib_() {
 }
 
 // ── Biblioteca: Alta de donación ────────────────────────────────
-// Recibe: {tipo:"bib_altaDonacion", donante, correo, whatsapp, titulo, autor, modalidad}
+// Recibe: {tipo:"bib_altaDonacion", donante, correo, whatsapp, titulo, autor, modalidad, ubicacion}
+// ubicacion: "Naciones" (default, único lugar que ha habido hasta ahora) o "Estancia".
 function handleBibAltaDonacion(p) {
   const ws = bibSheetNuevo_("BIB_Donaciones");
   if (!ws) return resp({ ok: false, error: "Pestaña BIB_Donaciones no encontrada" });
@@ -1871,10 +1875,31 @@ function handleBibAltaDonacion(p) {
   if (idx.tipo >= 0)         fila[idx.tipo]         = p.modalidad || "";
   if (idx.fechaIngreso >= 0) fila[idx.fechaIngreso] = new Date();
   if (idx.idLibro >= 0)      fila[idx.idLibro]      = nuevoId;
+  if (idx.ubicacion >= 0)    fila[idx.ubicacion]    = (p.ubicacion === "Estancia") ? "Estancia" : "Naciones";
 
   ws.appendRow(fila);
 
   return resp({ ok: true, idAsignado: nuevoId, fila: ws.getLastRow() });
+}
+
+// ── Biblioteca: Reportar un libro donado como perdido ────────────
+// Para libros que alguien tomó sin pasar por el flujo de préstamo (por eso
+// se reporta desde el historial de donaciones, no desde Préstamos). Solo
+// marca estado_libro="Perdido" en BIB_Donaciones — no toca BIB_Prestamos.
+// Recibe: {tipo:"bib_reportarPerdido", fila}
+function handleBibReportarPerdido(p) {
+  const ws = bibSheetNuevo_("BIB_Donaciones");
+  if (!ws) return resp({ ok: false, error: "Pestaña BIB_Donaciones no encontrada" });
+
+  const filaNum = parseInt(p.fila, 10);
+  if (!filaNum || filaNum < 2) return resp({ ok: false, error: "fila inválida" });
+
+  const headers = ws.getRange(1, 1, 1, ws.getLastColumn()).getValues()[0];
+  const idx = obtenerIndicesBib_(headers, COLS_BIB.donaciones);
+  if (idx.estadoLibro < 0) return resp({ ok: false, error: "Columna estado_libro no encontrada en BIB_Donaciones" });
+
+  ws.getRange(filaNum, idx.estadoLibro + 1).setValue("Perdido");
+  return resp({ ok: true });
 }
 
 // ── Biblioteca: Procesar una devolución específica ──────────────

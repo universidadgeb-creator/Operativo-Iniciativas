@@ -306,6 +306,7 @@
     <div class="section-title">Otras pendientes</div>
     <div class="panel-row" style="margin-bottom:8px;">
       <span style="font-size:12.5px; color:var(--text-soft);">Donaciones pendientes de confirmar</span>
+      <button class="ext-btn" id="btnConfirmarTodas" onclick="confirmarTodasDonaciones()">✓ Confirmar todas</button>
     </div>
     <div class="gcard-grid" id="donPendientesGrid" style="margin-bottom:20px;"></div>
 
@@ -495,7 +496,10 @@ const TABS = {
 // de atrasados/por vencer (leía disclosure_aceptado como si fuera una fecha).
 const SCHEMA = {
   BIB_Prestamos: ["timestamp","nombre","correo","whatsapp","id_libro","titulo","fecha_compromiso","disclosure_aceptado","devuelto","fecha_devolucion_real","condicion_devolucion","comentarios","depto"],
-  BIB_Donaciones: ["timestamp","donante","correo","whatsapp","titulo","autor","tipo","fecha_ingreso","fecha_retorno","id_libro","recibo_enviado","etiqueta_generada","link_recibo","link_etiqueta","ubicacion","estado_libro","confirmado"],
+  // "notas" existe en el Sheet real entre link_etiqueta y ubicacion aunque el
+  // panel no la usa — hay que declararla igual para que las columnas de
+  // después (ubicacion, estado_libro, confirmado) no se lean corridas.
+  BIB_Donaciones: ["timestamp","donante","correo","whatsapp","titulo","autor","tipo","fecha_ingreso","fecha_retorno","id_libro","recibo_enviado","etiqueta_generada","link_recibo","link_etiqueta","notas","ubicacion","estado_libro","confirmado"],
   BIB_Devoluciones: ["timestamp","nombre","id_libro","titulo","condicion","descripcion_dano","recomendaria","comentarios","procesado"],
   BIB_Copys: ["Momento","Copy_Texto","Numero_WA","Activo"],
   Colaboradores: ["Nombre","Sucursal","Unidad","Correo","FechaNac","Genero","Telefono_WA","Turno","Rol","Fecha_Alta_Empresa","Baja_Empresa","Fecha_Baja_Empresa"]
@@ -940,6 +944,31 @@ async function confirmarDonacion(fila, btnEl){
   } catch(e){
     alert("No se pudo conectar con el servidor.");
     btnEl.disabled = false; btnEl.textContent = "✓ Confirmar";
+  }
+}
+
+// Confirma de un solo golpe todas las donaciones que hoy aparecen como
+// pendientes — mismo efecto que dar clic en "Confirmar" fila por fila.
+async function confirmarTodasDonaciones(){
+  const pendientes = DONACIONES.filter(d => !esSiBib(d.confirmado));
+  if(!pendientes.length){ alert("No hay donaciones pendientes de confirmar."); return; }
+  if(!confirm(`¿Confirmar las ${pendientes.length} donación(es) pendiente(s)?`)) return;
+
+  const btn = document.getElementById("btnConfirmarTodas");
+  btn.disabled = true; btn.textContent = "Confirmando…";
+  try{
+    const r = await postData({ tipo:"bib_confirmarDonacionLote", filas: pendientes.map(d => d._fila) });
+    if(r.ok){
+      pendientes.forEach(d => { d.confirmado = "Sí"; });
+      renderMetrics();
+      renderAtencion();
+    } else {
+      alert("Error: " + r.error);
+    }
+  } catch(e){
+    alert("No se pudo conectar con el servidor.");
+  } finally {
+    btn.disabled = false; btn.textContent = "✓ Confirmar todas";
   }
 }
 

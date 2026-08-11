@@ -291,6 +291,7 @@ function doPost(e) {
     if (tipo === "bib_sincronizarFisicos")  return handleBibSincronizarFisicos(payload);
     if (tipo === "bib_reportarPerdido")     return handleBibReportarPerdido(payload);
     if (tipo === "bib_confirmarDonacion")   return handleBibConfirmarDonacion(payload);
+    if (tipo === "bib_confirmarDonacionLote") return handleBibConfirmarDonacionLote(payload);
     if (tipo === "admin_ejecutar")          return handleAdminEjecutar(payload);
 
     return resp({ ok: false, error: "Tipo desconocido: " + tipo });
@@ -1901,6 +1902,22 @@ function handleBibConfirmarDonacion(p) {
 
   ws.getRange(filaNum, idx.confirmado + 1).setValue("Sí");
   return resp({ ok: true });
+}
+
+// ── Biblioteca: Confirmar en lote varias donaciones pendientes ───
+// Recibe: {tipo:"bib_confirmarDonacionLote", filas:[...]}
+function handleBibConfirmarDonacionLote(p) {
+  const ws = bibSheetNuevo_("BIB_Donaciones");
+  if (!ws) return resp({ ok: false, error: "Pestaña BIB_Donaciones no encontrada" });
+
+  const headers = ws.getRange(1, 1, 1, ws.getLastColumn()).getValues()[0];
+  const idx = obtenerIndicesBib_(headers, COLS_BIB.donaciones);
+  if (idx.confirmado < 0) return resp({ ok: false, error: "Columna confirmado no encontrada en BIB_Donaciones" });
+
+  const filas = (p.filas || []).map(f => parseInt(f, 10)).filter(f => f >= 2);
+  filas.forEach(f => ws.getRange(f, idx.confirmado + 1).setValue("Sí"));
+
+  return resp({ ok: true, confirmadas: filas.length });
 }
 
 // ── Biblioteca: Reportar un libro donado como perdido ────────────

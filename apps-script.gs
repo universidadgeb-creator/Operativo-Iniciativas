@@ -292,6 +292,7 @@ function doPost(e) {
     if (tipo === "bib_reportarPerdido")     return handleBibReportarPerdido(payload);
     if (tipo === "bib_confirmarDonacion")   return handleBibConfirmarDonacion(payload);
     if (tipo === "bib_confirmarDonacionLote") return handleBibConfirmarDonacionLote(payload);
+    if (tipo === "bib_confirmarPrestamo")   return handleBibConfirmarPrestamo(payload);
     if (tipo === "admin_ejecutar")          return handleAdminEjecutar(payload);
 
     return resp({ ok: false, error: "Tipo desconocido: " + tipo });
@@ -1410,7 +1411,8 @@ const COLS_BIB = {
     fechaDevolucionReal: ["fecha_devolucion_real"],
     condicionDevolucion: ["condicion_devolucion"],
     comentarios: ["comentarios"],
-    depto: ["depto", "Departamento"]
+    depto: ["depto", "Departamento"],
+    confirmado: ["confirmado"]
   },
   donaciones: {
     timestamp: ["timestamp", "Marca temporal"],
@@ -1858,15 +1860,18 @@ function handleBibAltaDonacion(p) {
   const idx = obtenerIndicesBib_(headers, COLS_BIB.donaciones);
 
   const datos = ws.getDataRange().getValues();
-  let maxNum = 0;
+  // Piso 81: el consecutivo real del catálogo de libros (fuera de este Sheet)
+  // ya iba en L081 al 2026-08-20 — sin este piso, el panel repetiría folios
+  // ya usados si el Sheet no tiene todavía todo el historial cargado.
+  let maxNum = 81;
   if (idx.idLibro >= 0) {
     for (let i = 1; i < datos.length; i++) {
       const id = String(datos[i][idx.idLibro] || "");
-      const m = id.match(/DON-(\d+)/);
+      const m = id.match(/L(\d+)/);
       if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
     }
   }
-  const nuevoId = "DON-" + String(maxNum + 1).padStart(4, "0");
+  const nuevoId = "L" + String(maxNum + 1).padStart(3, "0");
 
   const fila = new Array(headers.length).fill("");
   if (idx.timestamp >= 0)    fila[idx.timestamp]    = new Date();
@@ -1990,6 +1995,49 @@ function handleBibExtenderPrestamo(p) {
   ws.getRange(fila, idx.fechaCompromiso + 1).setValue(nuevaFecha);
 
   return resp({ ok: true, nuevaFechaCompromiso: formatearFechaBib_(nuevaFecha) });
+}
+
+// ── Biblioteca: Confirmar préstamo (asignar libro correcto) ─────
+// Recibe: {tipo:"bib_confirmarPrestamo", fila, idLibro, titulo}
+// La persona casi nunca llena bien el id_libro en el Form de préstamo, así
+// que el préstamo queda oculto del resto del panel (no cuenta como activo,
+// no aparece en atrasados/por vencer) hasta que aquí se le asigna a mano el
+// libro correcto, elegido de la lista de disponibles en Fisicos.
+function handleBibConfirmarPrestamo(p) {
+  const ws = bibSheetNuevo_("BIB_Prestamos");
+  if (!ws) return resp({ ok: false, error: "Pestaña BIB_Prestamos no encontrada" });
+
+  const fila = parseInt(p.fila, 10);
+  if (!fila || fila < 2) return resp({ ok: false, error: "fila inválida" });
+  if (!p.idLibro) return resp({ ok: false, error: "Falta seleccionar un libro" });
+
+  const headers = ws.getRange(1, 1, 1, ws.getLastColumn()).getValues()[0];
+  const idx = obtenerIndicesBib_(headers, COLS_BIB.prestamos);
+
+  const nombre = idx.nombre >= 0 ? String(ws.getRange(fila, idx.nombre + 1).getValue() || "").trim() : "";
+
+  if (idx.idLibro >= 0) ws.getRange(fila, idx.idLibro + 1).setValue(p.idLibro);
+  if (idx.titulo >= 0) ws.getRange(fila, idx.titulo + 1).setValue(p.titulo || "");
+  if (idx.confirmado >= 0) ws.getRange(fila, idx.confirmado + 1).setValue("Sí");
+
+  try {
+    const hojaFisicos = SpreadsheetApp.openById(SHEET_BIBLIOTECA_ID).getSheetByName("Fisicos");
+    if (hojaFisicos) {
+      const filasFisicos = hojaFisicos.getDataRange().getValues();
+      for (let j = 1; j < filasFisicos.length; j++) {
+        if (String(filasFisicos[j][3] || "").trim() === String(p.idLibro).trim()) {
+          hojaFisicos.getRange(j + 1, 7).setValue(false);
+          hojaFisicos.getRange(j + 1, 8).setValue(nombre);
+          hojaFisicos.getRange(j + 1, 10).setValue(Utilities.formatDate(new Date(), "GMT-6", "yyyy-MM-dd"));
+          break;
+        }
+      }
+    }
+  } catch (e) {
+    // Si falla el update de Fisicos no se bloquea la confirmación del préstamo.
+  }
+
+  return resp({ ok: true });
 }
 
 // ── Biblioteca: Generar recibo de donación (PDF) ────────────────

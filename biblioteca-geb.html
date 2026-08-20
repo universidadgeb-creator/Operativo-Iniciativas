@@ -305,6 +305,11 @@
   <div class="section">
     <div class="section-title">Otras pendientes</div>
     <div class="panel-row" style="margin-bottom:8px;">
+      <span style="font-size:12.5px; color:var(--text-soft);">Préstamos pendientes de confirmar (asignar libro)</span>
+    </div>
+    <div class="gcard-grid" id="prestPendientesGrid" style="margin-bottom:20px;"></div>
+
+    <div class="panel-row" style="margin-bottom:8px;">
       <span style="font-size:12.5px; color:var(--text-soft);">Donaciones pendientes de confirmar</span>
       <button class="ext-btn" id="btnConfirmarTodas" onclick="confirmarTodasDonaciones()">✓ Confirmar todas</button>
     </div>
@@ -487,6 +492,9 @@
 // Devoluciones/Copys tenían datos reales de producción; se copiaron tal cual,
 // no se perdió nada. El Sheet histórico queda como respaldo, sin usarse ya.
 const SHEET_ID = "1oaWADtW9SmqxuOoOM1bf65Ht_NkpE4l_o_DMutN_IbI";
+// Biblioteca Virtual externa — solo la pestaña "Fisicos" (columnas por
+// posición, no por encabezado; ver nota en fetchFisicos()).
+const SHEET_BIBLIOTECA_ID = "1FDZB3aR-YAyVMsiAjo92PuUdH0iTfBmreCWv5DvCpdM";
 const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbypzabPFyTWszyc2-wIPjImOTIitz68R6_okV2yUgxSD6CpkEkfpFlXh8OzgaQWlZYe/exec";
 const TABS = {
   prestamos: "BIB_Prestamos",
@@ -501,7 +509,10 @@ const TABS = {
 // tenía un campo de más que corría todo lo demás una posición, rompiendo el cálculo
 // de atrasados/por vencer (leía disclosure_aceptado como si fuera una fecha).
 const SCHEMA = {
-  BIB_Prestamos: ["timestamp","nombre","correo","whatsapp","id_libro","titulo","fecha_compromiso","disclosure_aceptado","devuelto","fecha_devolucion_real","condicion_devolucion","comentarios","depto"],
+  // "confirmado" es columna nueva (2026-08) al final de la pestaña — antes de
+  // agregarla, hay que rellenar "Sí" en las filas ya existentes en el Sheet
+  // para no ocultar de golpe todo el historial de préstamos activos.
+  BIB_Prestamos: ["timestamp","nombre","correo","whatsapp","id_libro","titulo","fecha_compromiso","disclosure_aceptado","devuelto","fecha_devolucion_real","condicion_devolucion","comentarios","depto","confirmado"],
   // "notas" existe en el Sheet real entre link_etiqueta y ubicacion aunque el
   // panel no la usa — hay que declararla igual para que las columnas de
   // después (ubicacion, estado_libro, confirmado) no se lean corridas.
@@ -582,6 +593,28 @@ async function fetchSheetTab(tabName){
     });
 }
 
+// Fisicos (Biblioteca Virtual externa) se lee por posición, no por
+// encabezado — es la única pestaña del proyecto sin SCHEMA propio (ver
+// nota en CLAUDE.md). Columnas verificadas contra sincronizarFisicosBib_()
+// en apps-script.gs: 0=id, 1=titulo, 2=autor, 3=id_libro, 6=disponible(bool),
+// 7=prestado_a, 9=fecha_prestamo.
+async function fetchFisicos(){
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_BIBLIOTECA_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent("Fisicos")}`;
+  const res = await fetch(url);
+  const text = await res.text();
+  const jsonStr = text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1);
+  const data = JSON.parse(jsonStr);
+  return data.table.rows
+    .map(r => r.c || [])
+    .map(c => ({
+      idLibro: c[3] ? String(c[3].v || "").trim() : "",
+      titulo: c[1] ? String(c[1].v || "").trim() : "",
+      autor: c[2] ? String(c[2].v || "").trim() : "",
+      disponible: c[6] ? (c[6].v === true || String(c[6].v).toLowerCase() === "true") : false
+    }))
+    .filter(f => f.idLibro && f.titulo);
+}
+
 /* ============================================================
    UTILIDADES
    ============================================================ */
@@ -645,7 +678,13 @@ function calcularEstadoPrestamo(p){
 }
 
 function prestamosActivos(){
-  return PRESTAMOS.filter(p => !esSiBib(p.devuelto));
+  return PRESTAMOS.filter(p => !esSiBib(p.devuelto) && esSiBib(p.confirmado));
+}
+
+// Préstamos recién capturados por el Form, con el libro sin asignar a mano
+// todavía — quedan fuera de atrasados/por vencer/tabla hasta confirmarse.
+function prestamosPendientesConfirmar(){
+  return PRESTAMOS.filter(p => !esSiBib(p.devuelto) && !esSiBib(p.confirmado));
 }
 
 function esPerdido(d){ return (d.estado_libro||"").trim().toLowerCase() === "perdido"; }
@@ -670,7 +709,7 @@ function ubicacionDePrestamo(p, mapa){
 /* ============================================================
    RENDER
    ============================================================ */
-let PRESTAMOS = [], DONACIONES = [], DEVOLUCIONES = [], COPYS = [];
+let PRESTAMOS = [], DONACIONES = [], DEVOLUCIONES = [], COPYS = [], FISICOS = [];
 const SELECCION_ETIQUETAS = new Set();
 let BAJA_EMPRESA_SET = new Set();
 function normNombre(n){ return (n||"").toString().trim().toLowerCase(); }
@@ -718,6 +757,7 @@ function renderMetrics(){
   const atrasados = activos.filter(p => calcularEstadoPrestamo(p).estado === "atrasado");
   const porVencer = activos.filter(p => calcularEstadoPrestamo(p).estado === "porvencer");
   const devPendientes = devolucionesPendientes();
+  const prestPendientes = prestamosPendientesConfirmar();
 
   const donantesUnicos = new Set(DONACIONES.map(d => (d.donante||"").trim().toLowerCase()).filter(Boolean));
   const receptoresUnicos = new Set(PRESTAMOS.map(p => (p.nombre||"").trim().toLowerCase()).filter(Boolean));
@@ -725,6 +765,7 @@ function renderMetrics(){
   const metrics = [
     { val: DONACIONES.length, lbl: "total de libros" },
     { val: activos.length, lbl: "préstamos activos" },
+    { val: prestPendientes.length, lbl: "préstamos por confirmar", alert: prestPendientes.length > 0 },
     { val: atrasados.length, lbl: "atrasados", alert: atrasados.length > 0 },
     { val: porVencer.length, lbl: "por vencer (3 días)" },
     { val: devPendientes.length, lbl: "devoluciones sin check físico", alert: devPendientes.length > 0 },
@@ -788,6 +829,24 @@ function renderAtencion(){
   document.getElementById("porVencerGridEstancia").innerHTML = porVencerEst.length
     ? porVencerEst.map(p => cardPrestamo(p, "porvencer")).join("")
     : `<div class="footnote">Sin préstamos por vencer en los próximos 3 días.</div>`;
+
+  const librosDisponibles = FISICOS.filter(f => f.disponible);
+  document.getElementById("prestPendientesGrid").innerHTML = prestPendientes.length
+    ? prestPendientes.map(p => {
+        const escrito = p.titulo || p.id_libro;
+        return `
+        <div class="gcard">
+          <div class="gcard-head"><div><div class="gname">${p.nombre}</div><div class="glibro">compromiso: ${formatFechaCorta(parseFecha(p.fecha_compromiso))}</div></div></div>
+          ${escrito ? `<div class="glibro">escribió en el form: "${escrito}"</div>` : ""}
+          <select id="selLibroPrest_${p._fila}" style="width:100%; font-size:12.5px; padding:7px 9px; border-radius:6px; border:1px solid var(--border); margin-top:4px; font-family:inherit;">
+            <option value="">— seleccionar título —</option>
+            ${librosDisponibles.map(f => `<option value="${f.idLibro}">${f.titulo}${f.autor ? " — " + f.autor : ""}</option>`).join("")}
+          </select>
+          <button class="ext-btn" onclick="confirmarPrestamo(${p._fila}, this)">✓ Confirmar préstamo</button>
+        </div>
+      `;
+      }).join("")
+    : `<div class="footnote">No hay préstamos pendientes de confirmar.</div>`;
 
   document.getElementById("donPendientesGrid").innerHTML = donPendientes.length
     ? donPendientes.map(d => `
@@ -933,6 +992,36 @@ async function reportarPerdido(fila, btnEl){
   } catch(e){
     alert("No se pudo conectar con el servidor.");
     btnEl.disabled = false; btnEl.textContent = "Reportar perdido";
+  }
+}
+
+// Asigna el libro correcto (elegido de Fisicos) a un préstamo recién
+// capturado y lo saca de "Préstamos por confirmar" hacia atrasados/por
+// vencer/tabla como cualquier préstamo activo.
+async function confirmarPrestamo(fila, btnEl){
+  const sel = document.getElementById(`selLibroPrest_${fila}`);
+  const idLibro = sel ? sel.value : "";
+  if(!idLibro){ alert("Selecciona un título antes de confirmar."); return; }
+  const libro = FISICOS.find(f => f.idLibro === idLibro);
+  const titulo = libro ? libro.titulo : "";
+
+  btnEl.disabled = true; btnEl.textContent = "Confirmando…";
+  try{
+    const r = await postData({ tipo:"bib_confirmarPrestamo", fila, idLibro, titulo });
+    if(r.ok){
+      const p = PRESTAMOS.find(x => x._fila === fila);
+      if(p){ p.id_libro = idLibro; p.titulo = titulo; p.confirmado = "Sí"; }
+      if(libro) libro.disponible = false;
+      renderMetrics();
+      renderAtencion();
+      applyFiltersAmbasUbicaciones();
+    } else {
+      alert("Error: " + r.error);
+      btnEl.disabled = false; btnEl.textContent = "✓ Confirmar préstamo";
+    }
+  } catch(e){
+    alert("No se pudo conectar con el servidor.");
+    btnEl.disabled = false; btnEl.textContent = "✓ Confirmar préstamo";
   }
 }
 
@@ -1292,18 +1381,20 @@ async function sincronizarFisicos(){
    ============================================================ */
 async function init(){
   try{
-    const [prestamos, donaciones, devoluciones, copys, colaboradores] = await Promise.all([
+    const [prestamos, donaciones, devoluciones, copys, colaboradores, fisicos] = await Promise.all([
       fetchSheetTab(TABS.prestamos),
       fetchSheetTab(TABS.donaciones),
       fetchSheetTab(TABS.devoluciones),
       fetchSheetTab(TABS.copys),
-      fetchSheetTab("Colaboradores").catch(() => [])
+      fetchSheetTab("Colaboradores").catch(() => []),
+      fetchFisicos().catch(() => [])
     ]);
 
     PRESTAMOS = prestamos.filter(p => p.nombre && p.nombre.trim() !== "");
     DONACIONES = donaciones.filter(d => d.donante && d.donante.trim() !== "");
     DEVOLUCIONES = devoluciones.filter(d => d.nombre && d.nombre.trim() !== "");
     COPYS = copys.filter(c => c.Momento && c.Momento.trim() !== "");
+    FISICOS = fisicos;
     BAJA_EMPRESA_SET = new Set(colaboradores.filter(c => esSiBib(c.Baja_Empresa)).map(c => normNombre(c.Nombre)));
 
     document.getElementById("loadingMsg").style.display = "none";

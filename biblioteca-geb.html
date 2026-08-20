@@ -158,14 +158,6 @@
   .pdf-btn:hover{ background:#F4F3EE; }
   .pdf-btn:disabled{ opacity:.5; cursor:not-allowed; }
 
-  .sync-btn{
-    display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600;
-    color:var(--text-soft); background:var(--card); border:1px solid var(--border);
-    border-radius:8px; padding:8px 14px; cursor:pointer;
-  }
-  .sync-btn:hover{ background:#F4F3EE; }
-  .sync-msg{ font-size:12px; color:var(--text-soft); margin-left:10px; }
-
   .loading, .errorbox{ text-align:center; padding:40px; color:var(--text-soft); font-size:14px; }
   .errorbox{ color:var(--red-text); }
 
@@ -474,10 +466,6 @@
         <tbody id="historialBody"></tbody>
       </table>
     </div>
-    <div class="footnote">
-      <button class="sync-btn" onclick="sincronizarFisicos()">🔄 Sincronizar con Biblioteca Virtual</button>
-      <span class="sync-msg" id="syncMsg"></span>
-    </div>
   </div>
 
   </div>
@@ -595,7 +583,7 @@ async function fetchSheetTab(tabName){
 
 // Fisicos (Biblioteca Virtual externa) se lee por posición, no por
 // encabezado — es la única pestaña del proyecto sin SCHEMA propio (ver
-// nota en CLAUDE.md). Columnas verificadas contra sincronizarFisicosBib_()
+// nota en CLAUDE.md). Columnas verificadas contra handleBibConfirmarPrestamo()
 // en apps-script.gs: 0=id, 1=titulo, 2=autor, 3=id_libro, 6=disponible(bool),
 // 7=prestado_a, 9=fecha_prestamo.
 async function fetchFisicos(){
@@ -1363,17 +1351,6 @@ function enviarWaBienvenidaAlta(){
   if(!copy){ alert("No se encontró el copy 'bienvenida_donacion' en BIB_Copys."); return; }
   const texto = sustituirVariablesBib(copy.Copy_Texto, { Nombre: ULTIMA_ALTA.donante.split(" ")[0] });
   window.open(waLink(ULTIMA_ALTA.whatsapp || copy.Numero_WA || "", texto), "_blank");
-}
-
-async function sincronizarFisicos(){
-  const msgEl = document.getElementById("syncMsg");
-  msgEl.textContent = "Sincronizando…";
-  try{
-    const r = await postData({ tipo:"bib_sincronizarFisicos" });
-    msgEl.textContent = r.ok ? r.mensaje : ("Error: " + r.error);
-  } catch(e){
-    msgEl.textContent = "No se pudo conectar con el servidor.";
-  }
 }
 
 /* ============================================================

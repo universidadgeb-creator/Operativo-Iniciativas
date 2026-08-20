@@ -288,7 +288,6 @@ function doPost(e) {
     if (tipo === "bib_extenderPrestamo")    return handleBibExtenderPrestamo(payload);
     if (tipo === "bib_generarRecibo")       return handleBibGenerarRecibo(payload);
     if (tipo === "bib_generarEtiqueta")     return handleBibGenerarEtiqueta(payload);
-    if (tipo === "bib_sincronizarFisicos")  return handleBibSincronizarFisicos(payload);
     if (tipo === "bib_reportarPerdido")     return handleBibReportarPerdido(payload);
     if (tipo === "bib_confirmarDonacion")   return handleBibConfirmarDonacion(payload);
     if (tipo === "bib_confirmarDonacionLote") return handleBibConfirmarDonacionLote(payload);
@@ -1775,79 +1774,6 @@ function generarEtiquetaPorFilasBib_(filas) {
   return { url, cantidad: etiquetas.length };
 }
 
-function sincronizarFisicosBib_() {
-  const ssBiblio = SpreadsheetApp.openById(SHEET_BIBLIOTECA_ID);
-  const hojaFisicos = ssBiblio.getSheetByName("Fisicos");
-  if (!hojaFisicos) throw new Error("No se encontró la pestaña 'Fisicos' en la Biblioteca Virtual.");
-
-  const fisicosActuales = hojaFisicos.getDataRange().getValues();
-  const idsExistentes = new Set(
-    fisicosActuales.slice(1).map(r => String(r[3] || "").trim()).filter(id => id !== "")
-  );
-
-  let nextId = fisicosActuales.length;
-  const nuevasFilas = [];
-
-  const hojaDonaciones = bibSheetNuevo_("BIB_Donaciones");
-  if (hojaDonaciones) {
-    const donaciones = hojaDonaciones.getDataRange().getValues();
-    if (donaciones.length > 1) {
-      const idxD = obtenerIndicesBib_(donaciones[0], COLS_BIB.donaciones);
-      for (let i = 1; i < donaciones.length; i++) {
-        const fila = donaciones[i];
-        const titulo  = idxD.titulo >= 0 ? String(fila[idxD.titulo] || "").trim() : "";
-        const autor   = idxD.autor >= 0 ? String(fila[idxD.autor] || "").trim() : "";
-        const idLibro = idxD.idLibro >= 0 ? String(fila[idxD.idLibro] || "").trim() : "";
-        if (!titulo || !idLibro) continue;
-        if (idsExistentes.has(idLibro)) continue;
-        nextId++;
-        nuevasFilas.push([nextId, titulo, autor, idLibro, "", "", true, "", "", ""]);
-        idsExistentes.add(idLibro);
-      }
-    }
-  }
-
-  if (nuevasFilas.length > 0) {
-    hojaFisicos.getRange(hojaFisicos.getLastRow() + 1, 1, nuevasFilas.length, nuevasFilas[0].length).setValues(nuevasFilas);
-  }
-
-  const hojaPrestamos = bibSheetNuevo_("BIB_Prestamos");
-  if (hojaPrestamos) {
-    const prestamos = hojaPrestamos.getDataRange().getValues();
-    if (prestamos.length > 1) {
-      const idxP = obtenerIndicesBib_(prestamos[0], COLS_BIB.prestamos);
-      for (let i = 1; i < prestamos.length; i++) {
-        const fila = prestamos[i];
-        const nombre  = idxP.nombre >= 0 ? String(fila[idxP.nombre] || "").trim() : "";
-        const idLibro = idxP.idLibro >= 0 ? String(fila[idxP.idLibro] || "").trim() : "";
-        let fecha = "";
-        if (idxP.fechaPrestamo >= 0 && fila[idxP.fechaPrestamo]) fecha = fila[idxP.fechaPrestamo];
-        else if (idxP.timestamp >= 0 && fila[idxP.timestamp]) fecha = fila[idxP.timestamp];
-        const devuelto = idxP.devuelto >= 0 ? fila[idxP.devuelto] : "";
-        if (devuelto === "Sí" || devuelto === "SI" || devuelto === true) continue;
-        if (!idLibro) continue;
-
-        const filasFisicos = hojaFisicos.getDataRange().getValues();
-        for (let j = 1; j < filasFisicos.length; j++) {
-          const idFisico = String(filasFisicos[j][3] || "").trim();
-          if (idFisico === idLibro) {
-            hojaFisicos.getRange(j + 1, 7).setValue(false);
-            hojaFisicos.getRange(j + 1, 8).setValue(nombre);
-            hojaFisicos.getRange(j + 1, 10).setValue(fecha ? Utilities.formatDate(new Date(fecha), "GMT-6", "yyyy-MM-dd") : "");
-            break;
-          }
-        }
-      }
-    }
-  }
-
-  return {
-    nuevos: nuevasFilas.length,
-    mensaje: nuevasFilas.length > 0
-      ? `${nuevasFilas.length} libro(s) nuevo(s) agregado(s) y préstamos activos sincronizados por ID.`
-      : "Préstamos activos sincronizados por ID. No había libros nuevos que agregar."
-  };
-}
 
 // ── Biblioteca: Alta de donación ────────────────────────────────
 // Recibe: {tipo:"bib_altaDonacion", donante, correo, whatsapp, titulo, autor, modalidad, ubicacion}
@@ -2059,17 +1985,6 @@ function handleBibGenerarEtiqueta(p) {
     if (filas.length === 0) return resp({ ok: false, error: "No se recibieron filas válidas" });
     const resultado = generarEtiquetaPorFilasBib_(filas);
     return resp({ ok: true, url: resultado.url, cantidad: resultado.cantidad });
-  } catch (err) {
-    return resp({ ok: false, error: err.message });
-  }
-}
-
-// ── Biblioteca: Sincronizar libros físicos con Biblioteca Virtual ──
-// Recibe: {tipo:"bib_sincronizarFisicos"}
-function handleBibSincronizarFisicos(p) {
-  try {
-    const resultado = sincronizarFisicosBib_();
-    return resp({ ok: true, nuevos: resultado.nuevos, mensaje: resultado.mensaje });
   } catch (err) {
     return resp({ ok: false, error: err.message });
   }

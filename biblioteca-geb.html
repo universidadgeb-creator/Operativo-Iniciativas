@@ -97,6 +97,28 @@
   .ext-btn:hover{ background:#d4e5f7; }
   .ext-btn:disabled{ opacity:.5; cursor:not-allowed; }
 
+  .libro-combo{ position:relative; margin-top:6px; }
+  .libro-search{
+    width:100%; font-size:12.5px; padding:7px 9px; border-radius:6px;
+    border:1px solid var(--border); font-family:inherit; background:#fff;
+  }
+  .libro-opciones{
+    display:none; position:absolute; z-index:5; top:calc(100% + 3px); left:0; right:0;
+    max-height:220px; overflow-y:auto; background:#fff; border:1px solid var(--border);
+    border-radius:8px; box-shadow:0 4px 14px rgba(0,0,0,.1);
+  }
+  .libro-opcion{
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    padding:8px 10px; font-size:12.5px; cursor:pointer; border-bottom:1px solid var(--border);
+  }
+  .libro-opcion:last-child{ border-bottom:none; }
+  .libro-opcion:hover{ background:#F4F3EE; }
+  .libro-opcion.sin-resultado{ cursor:default; color:var(--text-soft); }
+  .libro-opcion.sin-resultado:hover{ background:none; }
+  .libro-estado{ font-size:10px; font-weight:700; padding:2px 7px; border-radius:99px; white-space:nowrap; }
+  .libro-estado.disp{ background:var(--green-bg); color:var(--green-text); }
+  .libro-estado.rent{ background:var(--amber-bg); color:var(--amber-text); }
+
   .filters{ display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
   .filters input, .filters select{
     font-size:13px; padding:8px 12px; border-radius:8px; border:1px solid var(--border);
@@ -819,7 +841,6 @@ function renderAtencion(){
     ? porVencerEst.map(p => cardPrestamo(p, "porvencer")).join("")
     : `<div class="footnote">Sin préstamos por vencer en los próximos 3 días.</div>`;
 
-  const librosDisponibles = FISICOS.filter(f => f.disponible);
   document.getElementById("prestPendientesGrid").innerHTML = prestPendientes.length
     ? prestPendientes.map(p => {
         const escrito = p.titulo || p.id_libro;
@@ -827,10 +848,12 @@ function renderAtencion(){
         <div class="gcard">
           <div class="gcard-head"><div><div class="gname">${p.nombre}</div><div class="glibro">compromiso: ${formatFechaCorta(parseFecha(p.fecha_compromiso))}</div></div></div>
           ${escrito ? `<div class="glibro">escribió en el form: "${escrito}"</div>` : ""}
-          <select id="selLibroPrest_${p._fila}" style="width:100%; font-size:12.5px; padding:7px 9px; border-radius:6px; border:1px solid var(--border); margin-top:4px; font-family:inherit;">
-            <option value="">— seleccionar título —</option>
-            ${librosDisponibles.map(f => `<option value="${f.idLibro}">${f.titulo}${f.autor ? " — " + f.autor : ""}</option>`).join("")}
-          </select>
+          <div class="libro-combo" data-fila="${p._fila}">
+            <input type="text" class="libro-search" placeholder="Buscar título…" autocomplete="off"
+              oninput="filtrarLibroCombo(${p._fila})" onfocus="filtrarLibroCombo(${p._fila})">
+            <input type="hidden" class="libro-id-selected">
+            <div class="libro-opciones" onmousedown="seleccionarLibroComboClick(event, ${p._fila})"></div>
+          </div>
           <button class="ext-btn" onclick="confirmarPrestamo(${p._fila}, this)">✓ Confirmar préstamo</button>
         </div>
       `;
@@ -987,12 +1010,56 @@ async function reportarPerdido(fila, btnEl){
 // Asigna el libro correcto (elegido de Fisicos) a un préstamo recién
 // capturado y lo saca de "Préstamos por confirmar" hacia atrasados/por
 // vencer/tabla como cualquier préstamo activo.
+// Combo buscable de título — reemplaza el <select> plano porque con ~80+
+// libros era imposible encontrar uno a simple vista, y el <select> además
+// solo listaba los "disponible" (no incluía los ya rentados, que Cecilia
+// también necesita poder ubicar por si el estado en Fisicos está desfasado).
+function filtrarLibroCombo(fila){
+  const wrap = document.querySelector(`.libro-combo[data-fila="${fila}"]`);
+  if(!wrap) return;
+  const q = wrap.querySelector(".libro-search").value.trim().toLowerCase();
+  const opcionesEl = wrap.querySelector(".libro-opciones");
+
+  const matches = FISICOS
+    .filter(f => !q || f.titulo.toLowerCase().includes(q) || (f.autor||"").toLowerCase().includes(q))
+    .sort((a,b) => (b.disponible - a.disponible) || a.titulo.localeCompare(b.titulo))
+    .slice(0, 25);
+
+  opcionesEl.innerHTML = matches.length
+    ? matches.map(f => `
+        <div class="libro-opcion" data-id="${f.idLibro}">
+          <span>${f.titulo}${f.autor ? " — " + f.autor : ""}</span>
+          <span class="libro-estado ${f.disponible ? 'disp' : 'rent'}">${f.disponible ? 'disponible' : 'rentado'}</span>
+        </div>
+      `).join("")
+    : `<div class="libro-opcion sin-resultado">Sin resultados</div>`;
+  opcionesEl.style.display = "block";
+}
+
+function seleccionarLibroComboClick(e, fila){
+  const opt = e.target.closest(".libro-opcion");
+  if(!opt || !opt.dataset.id) return;
+  e.preventDefault();
+  const wrap = document.querySelector(`.libro-combo[data-fila="${fila}"]`);
+  const libro = FISICOS.find(f => f.idLibro === opt.dataset.id);
+  wrap.querySelector(".libro-search").value = libro ? (libro.titulo + (libro.autor ? " — " + libro.autor : "")) : "";
+  wrap.querySelector(".libro-id-selected").value = opt.dataset.id;
+  wrap.querySelector(".libro-opciones").style.display = "none";
+}
+
+document.addEventListener("click", (e) => {
+  if(!e.target.closest(".libro-combo")){
+    document.querySelectorAll(".libro-opciones").forEach(el => el.style.display = "none");
+  }
+});
+
 async function confirmarPrestamo(fila, btnEl){
-  const sel = document.getElementById(`selLibroPrest_${fila}`);
-  const idLibro = sel ? sel.value : "";
-  if(!idLibro){ alert("Selecciona un título antes de confirmar."); return; }
+  const wrap = document.querySelector(`.libro-combo[data-fila="${fila}"]`);
+  const idLibro = wrap ? wrap.querySelector(".libro-id-selected").value : "";
+  if(!idLibro){ alert("Busca y selecciona un título antes de confirmar."); return; }
   const libro = FISICOS.find(f => f.idLibro === idLibro);
   const titulo = libro ? libro.titulo : "";
+  if(libro && !libro.disponible && !confirm(`"${titulo}" figura como rentado actualmente. ¿Confirmar de todas formas?`)) return;
 
   btnEl.disabled = true; btnEl.textContent = "Confirmando…";
   try{

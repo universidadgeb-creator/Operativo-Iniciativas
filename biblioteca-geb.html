@@ -776,6 +776,7 @@ function renderAtencion(){
   const atrasados = activos.filter(p => calcularEstadoPrestamo(p).estado === "atrasado");
   const porVencer = activos.filter(p => calcularEstadoPrestamo(p).estado === "porvencer");
   const donPendientes = DONACIONES.filter(d => !esSiBib(d.confirmado));
+  const prestPendientes = prestamosPendientesConfirmar();
 
   function cardPrestamo(p, tipo){
     const est = calcularEstadoPrestamo(p);

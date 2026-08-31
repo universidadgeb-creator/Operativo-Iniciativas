@@ -81,6 +81,8 @@
   .action-btn.baja:hover{background:#f8d8d8;}
   .action-btn.reactivar{color:var(--green-text);background:var(--green-bg);border-color:#bfe0a0;}
   .action-btn.reactivar:hover{background:#dcedc7;}
+  .action-btn.baja-empresa{color:#fff;background:#A32D2D;border-color:#A32D2D;}
+  .action-btn.baja-empresa:hover{background:#8a2525;}
   .reg-btn{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;color:var(--blue);background:var(--blue-bg);border:1px solid #c5d9f0;border-radius:7px;padding:6px 10px;cursor:pointer;}
   .reg-btn:hover{background:#d4e5f7;}
   .inline-form{background:#FAF9F5;border:1px solid var(--border);border-radius:10px;padding:14px;margin-top:10px;display:none;}
@@ -648,10 +650,11 @@ function renderTablaGeneral(filtered){
     var diag=diagnosticoInfo(d);
     var diagCell='<span class="pill '+diag.clase+'">'+diag.texto+'</span> '
       +'<button class="action-btn reg" onclick="abrirModalDiagnostico(\''+encodeURIComponent(d.Nombre)+'\',\''+encodeURIComponent(d.Diagnostico_Inicial||"")+'\',\''+encodeURIComponent(d.Diagnostico_Final||"")+'\')">✎</button>';
-    var accionesCell=esHistorico(d)
-      ?'<button class="action-btn reactivar" onclick="reactivarAp(\''+encodeURIComponent(d.Nombre)+'\')">↺ Reactivar</button>'
-      :'<button class="action-btn baja" onclick="marcarBaja(\''+encodeURIComponent(d.Nombre)+'\')">✕ Baja</button>';
     var bajaEmpresa=BAJA_EMPRESA_SET.has(normNombre(d.Nombre));
+    var accionesCell=(esHistorico(d)
+      ?'<button class="action-btn reactivar" onclick="reactivarAp(\''+encodeURIComponent(d.Nombre)+'\')">↺ Reactivar</button>'
+      :'<button class="action-btn baja" onclick="marcarBaja(\''+encodeURIComponent(d.Nombre)+'\')">✕ Baja</button>')
+      +(bajaEmpresa?'':' <button class="action-btn baja-empresa" onclick="marcarBajaEmpresa(\''+encodeURIComponent(d.Nombre)+'\')" title="Da de baja en TODAS las iniciativas de la empresa">🔴 Baja de empresa</button>');
     return'<tr'+((pendiente||bajaEmpresa)?' class="'+(pendiente?"seguimiento-row ":"")+(bajaEmpresa?"baja-empresa-row":"")+'"':"")+'>'
       +'<td><div class="name-cell">'+(pendiente?'<span class="dot-new" title="Pendiente de seguimiento"></span>':"")+'<div style="font-weight:600;">'+d.Nombre+'</div></div></td>'
       +'<td>'+servicioCell+'</td>'
@@ -861,6 +864,16 @@ async function marcarBaja(nombreEnc){
     if(r.ok||r.success)location.reload();
     else alert("Error: "+(r.error||"desconocido"));
   }catch(e){alert("No se pudo conectar.");}
+}
+
+async function marcarBajaEmpresa(nombreEnc){
+  var nombre=decodeURIComponent(nombreEnc);
+  if(!confirm("¿Marcar a "+nombre+" como baja de la empresa?\n\nEsto la/lo dará de baja automáticamente en TODAS las iniciativas restringidas (Atención Psicológica, Impulso, Convenios, Eco-Acción, Retiros/Camino de Santiago, Escuela y Reto Ahorro).\nSalvando Vidas y Biblioteca no se ven afectados.\n\nEsta acción no se puede deshacer desde el panel.")) return;
+  try{
+    var r=await fetch(WEBAPP_URL,{method:"POST",body:JSON.stringify({tipo:"baja_empresa",nombre:nombre})}).then(function(r){return r.json();});
+    if(r.ok)location.reload();
+    else alert("Error: "+(r.error||"desconocido"));
+  }catch(e){alert("No se pudo conectar con el servidor.");}
 }
 
 async function reactivarAp(nombreEnc){

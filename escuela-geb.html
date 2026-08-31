@@ -243,6 +243,8 @@
   .action-btn.baja:hover{ background:#f8d8d8; }
   .action-btn.reactivar{ color:var(--green-text); background:var(--green-bg); border-color:#bfe0a0; }
   .action-btn.reactivar:hover{ background:#dcedc7; }
+  .action-btn.baja-empresa{ color:#fff; background:#A32D2D; border-color:#A32D2D; }
+  .action-btn.baja-empresa:hover{ background:#8a2525; }
 
   /* histórico / prospectos — 2 columnas */
   .hp-grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
@@ -1313,6 +1315,7 @@ function renderTabla(filtered){
           ${estadoPill(d.Estado)}
           ${seg ? `<button class="atender-btn" onclick="marcarAtendido('${encodeURIComponent(d.Nombre)}')">✓ marcar atendido</button>` : `<button class="atender-btn" onclick="marcarSeguimientoEG('${encodeURIComponent(d.Nombre)}')">🏳 seguimiento</button>`}
           ${(d.Estado||"").toLowerCase() !== "baja" ? `<button class="action-btn baja" onclick="marcarBajaEG('${encodeURIComponent(d.Nombre)}')">✕ Baja</button>` : `<button class="action-btn reactivar" onclick="reactivarEG('${encodeURIComponent(d.Nombre)}')">↺ Reactivar</button>`}
+          ${bajaEmpresa?"":`<button class="action-btn baja-empresa" onclick="marcarBajaEmpresa('${encodeURIComponent(d.Nombre)}')" title="Da de baja en TODAS las iniciativas de la empresa">🔴 Baja de empresa</button>`}
         </td>
         <td><div style="display:flex;flex-wrap:wrap;gap:5px;">${btns||'<span style="color:var(--text-soft);font-size:12px;">—</span>'}</div></td>
       </tr>
@@ -1690,6 +1693,16 @@ async function marcarBajaEG(nombreEnc){
     if(r.ok) location.reload();
     else alert("Error: " + (r.error||"desconocido"));
   }catch(e){ alert("No se pudo conectar."); }
+}
+
+async function marcarBajaEmpresa(nombreEnc){
+  const nombre = decodeURIComponent(nombreEnc);
+  if(!confirm(`¿Marcar a ${nombre} como baja de la empresa?\n\nEsto la/lo dará de baja automáticamente en TODAS las iniciativas restringidas (Atención Psicológica, Impulso, Convenios, Eco-Acción, Retiros/Camino de Santiago, Escuela y Reto Ahorro).\nSalvando Vidas y Biblioteca no se ven afectados.\n\nEsta acción no se puede deshacer desde el panel.`)) return;
+  try{
+    const r = await postData({ tipo:"baja_empresa", nombre });
+    if(r.ok) location.reload();
+    else alert("Error: " + (r.error||"desconocido"));
+  }catch(e){ alert("No se pudo conectar con el servidor."); }
 }
 
 async function reactivarEG(nombreEnc){

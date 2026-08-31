@@ -77,6 +77,8 @@
   .baja-btn:hover{background:#f8d8d8;}
   .reactivar-btn{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:var(--green-text);background:var(--green-bg);border:1px solid #bfe0a0;border-radius:8px;padding:6px 10px;cursor:pointer;margin-top:4px;}
   .reactivar-btn:hover{background:#dcedc7;}
+  .baja-empresa-btn{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:#fff;background:#A32D2D;border:1px solid #A32D2D;border-radius:8px;padding:6px 10px;cursor:pointer;margin-top:4px;}
+  .baja-empresa-btn:hover{background:#8a2525;}
 
   .reg-btn{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;color:var(--blue);background:#E6F1FB;border:1px solid #c5d9f0;border-radius:7px;padding:6px 10px;cursor:pointer;}
   .reg-btn:hover{background:#d4e5f7;}
@@ -690,6 +692,27 @@ async function marcarBajaRA(nombreEnc, btnEl){
   }
 }
 
+async function marcarBajaEmpresa(nombreEnc, btnEl){
+  var nombre = decodeURIComponent(nombreEnc);
+  if(!confirm("¿Marcar a "+nombre+" como baja de la empresa?\n\nEsto la/lo dará de baja automáticamente en TODAS las iniciativas restringidas (Atención Psicológica, Impulso, Convenios, Eco-Acción, Retiros/Camino de Santiago, Escuela y Reto Ahorro).\nSalvando Vidas y Biblioteca no se ven afectados.\n\nEsta acción no se puede deshacer desde el panel.")) return;
+  if(btnEl){ btnEl.disabled = true; btnEl.textContent = "…"; }
+  try{
+    var r = await fetch(WEBAPP_URL, { method:"POST", body: JSON.stringify({ tipo:"baja_empresa", nombre:nombre }) }).then(function(r){ return r.json(); });
+    if(r.ok){
+      BAJA_EMPRESA_SET.add(normNombre(nombre));
+      var d = INSCRITOS.find(function(x){ return x.Nombre === nombre; });
+      if(d) d.Estado = "Baja";
+      renderMetrics(); renderCopyHighlight(); renderCards(); applyFilters();
+    } else {
+      alert("Error: "+(r.error||"desconocido"));
+      if(btnEl){ btnEl.disabled = false; btnEl.textContent = "🔴 Baja de empresa"; }
+    }
+  }catch(e){
+    alert("No se pudo conectar con el servidor.");
+    if(btnEl){ btnEl.disabled = false; btnEl.textContent = "🔴 Baja de empresa"; }
+  }
+}
+
 async function reactivarRA(nombreEnc, btnEl){
   var nombre = decodeURIComponent(nombreEnc);
   if(btnEl){ btnEl.disabled = true; btnEl.textContent = "…"; }
@@ -754,6 +777,7 @@ function renderTabla(filtered){
       + (esBajaRA(d)
           ? ' <button class="reactivar-btn" onclick="reactivarRA(\''+encodeURIComponent(d.Nombre)+'\', this)">↺ Reactivar</button>'
           : ' <button class="baja-btn" onclick="marcarBajaRA(\''+encodeURIComponent(d.Nombre)+'\', this)">✕ Baja</button>')
+      + (bajaEmpresa ? '' : ' <button class="baja-empresa-btn" onclick="marcarBajaEmpresa(\''+encodeURIComponent(d.Nombre)+'\', this)" title="Da de baja en TODAS las iniciativas de la empresa">🔴 Baja de empresa</button>')
       + '</td>'
       + '<td><div style="display:flex;flex-wrap:wrap;gap:5px;">'+(btns||'<span style="color:var(--text-soft);font-size:12px;">—</span>')+'</div></td>'
       + '</tr>'

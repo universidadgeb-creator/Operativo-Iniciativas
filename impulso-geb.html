@@ -67,6 +67,8 @@
   .action-btn.baja:hover{background:#f8d8d8;}
   .action-btn.reactivar{color:var(--green-text);background:var(--green-bg);border-color:#bfe0a0;}
   .action-btn.reactivar:hover{background:#dcedc7;}
+  .action-btn.baja-empresa{color:#fff;background:#A32D2D;border-color:#A32D2D;}
+  .action-btn.baja-empresa:hover{background:#8a2525;}
 
   .filters{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
   .filters input,.filters select{font-size:13px;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:inherit;}
@@ -405,6 +407,7 @@ function renderTablaGen1(filtered){
         ${seg?`<button class="action-btn atender" onclick="marcarAtendido('${encodeURIComponent(d.Nombre)}')">✓ atendido</button>`:`<button class="action-btn atender" onclick="marcarSeguimiento('${encodeURIComponent(d.Nombre)}')">🏳 seguimiento</button>`}
         ${!baja?`<button class="action-btn gen2" onclick="pasarGeneracion2('${encodeURIComponent(d.Nombre)}')">→ Gen. 2</button>`:""}
         ${!baja?`<button class="action-btn baja" onclick="marcarBaja('${encodeURIComponent(d.Nombre)}')">✕ Baja</button>`:`<button class="action-btn reactivar" onclick="reactivarIg('${encodeURIComponent(d.Nombre)}')">↺ Reactivar</button>`}
+        ${bajaEmpresa?"":`<button class="action-btn baja-empresa" onclick="marcarBajaEmpresa('${encodeURIComponent(d.Nombre)}')" title="Da de baja en TODAS las iniciativas de la empresa">🔴 Baja de empresa</button>`}
       </td>
     </tr>`;
   }).join("");
@@ -431,6 +434,7 @@ function renderTablaGen2(filtered){
       <td>
         ${seg?`<button class="action-btn atender" onclick="marcarAtendido('${encodeURIComponent(d.Nombre)}')">✓ atendido</button>`:`<button class="action-btn atender" onclick="marcarSeguimiento('${encodeURIComponent(d.Nombre)}')">🏳 seguimiento</button>`}
         ${!baja?`<button class="action-btn baja" onclick="marcarBaja('${encodeURIComponent(d.Nombre)}')">✕ Baja</button>`:`<button class="action-btn reactivar" onclick="reactivarIg('${encodeURIComponent(d.Nombre)}')">↺ Reactivar</button>`}
+        ${bajaEmpresa?"":`<button class="action-btn baja-empresa" onclick="marcarBajaEmpresa('${encodeURIComponent(d.Nombre)}')" title="Da de baja en TODAS las iniciativas de la empresa">🔴 Baja de empresa</button>`}
       </td>
     </tr>`;
   }).join("");
@@ -531,6 +535,20 @@ async function marcarBaja(nombreEnc){
   try{
     const r = await postData({ tipo:"ig_baja", nombre });
     if(r.ok){
+      const d = INSCRITOS.find(x => x.Nombre === nombre);
+      if(d){ d.Estado = "Baja"; d.Requiere_Seguimiento = "No"; }
+      renderTodo();
+    } else alert("Error: " + r.error);
+  } catch(e){ alert("No se pudo conectar con el servidor."); }
+}
+
+async function marcarBajaEmpresa(nombreEnc){
+  const nombre = decodeURIComponent(nombreEnc);
+  if(!confirm(`¿Marcar a ${nombre} como baja de la empresa?\n\nEsto la/lo dará de baja automáticamente en TODAS las iniciativas restringidas (Atención Psicológica, Impulso, Convenios, Eco-Acción, Retiros/Camino de Santiago, Escuela y Reto Ahorro).\nSalvando Vidas y Biblioteca no se ven afectados.\n\nEsta acción no se puede deshacer desde el panel.`)) return;
+  try{
+    const r = await postData({ tipo:"baja_empresa", nombre });
+    if(r.ok){
+      BAJA_EMPRESA_SET.add(normNombre(nombre));
       const d = INSCRITOS.find(x => x.Nombre === nombre);
       if(d){ d.Estado = "Baja"; d.Requiere_Seguimiento = "No"; }
       renderTodo();

@@ -73,6 +73,8 @@
   .reg-btn:hover{ background:#d4e5f7; }
   .reactivar-btn{ display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:600; color:var(--green-text); background:var(--green-bg); border:1px solid #bfe0a0; border-radius:7px; padding:6px 10px; cursor:pointer; }
   .reactivar-btn:hover{ background:#dcedc7; }
+  .baja-empresa-btn{ display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:600; color:#fff; background:#A32D2D; border:1px solid #A32D2D; border-radius:7px; padding:6px 10px; cursor:pointer; }
+  .baja-empresa-btn:hover{ background:#8a2525; }
   .pill.descartado{ background:var(--gray-bg); color:var(--gray-text); }
   .pill.baja{ background:var(--red-bg); color:var(--red-text); }
 
@@ -971,9 +973,20 @@ function renderInteresados(){
         ${descartado
           ? `<button class="reactivar-btn" onclick="reactivarInteresado('${encodeURIComponent(d.Nombre)}')">↺ Reactivar</button>`
           : `<button class="reg-btn" style="color:var(--red-text); background:var(--red-bg); border-color:#f0c7c7;" onclick="descartarInteresado('${encodeURIComponent(d.Nombre)}')">✕ descartar</button>`}
+        ${bajaEmpresa ? "" : `<button class="baja-empresa-btn" onclick="marcarBajaEmpresa('${encodeURIComponent(d.Nombre)}')" title="Da de baja en TODAS las iniciativas de la empresa">🔴 Baja de empresa</button>`}
       </td>
     </tr>`;
   }).join("");
+}
+
+async function marcarBajaEmpresa(nombreEnc){
+  const nombre = decodeURIComponent(nombreEnc);
+  if(!confirm(`¿Marcar a ${nombre} como baja de la empresa?\n\nEsto la/lo dará de baja automáticamente en TODAS las iniciativas restringidas (Atención Psicológica, Impulso, Convenios, Eco-Acción, Retiros/Camino de Santiago, Escuela y Reto Ahorro).\nSalvando Vidas y Biblioteca no se ven afectados.\n\nEsta acción no se puede deshacer desde el panel.`)) return;
+  try{
+    const r = await postData({ tipo:"baja_empresa", nombre });
+    if(r.ok) location.reload();
+    else alert("Error: " + r.error);
+  } catch(e){ alert("No se pudo conectar con el servidor."); }
 }
 
 async function marcarAtendidoInteresado(nombreEnc){
@@ -1092,6 +1105,7 @@ function renderCamino(){
         ${baja
           ? `<button class="reactivar-btn" onclick="reactivarCamino('${encodeURIComponent(d.Nombre)}')">↺ Reactivar</button>`
           : `<button class="reg-btn" style="color:var(--red-text); background:var(--red-bg); border-color:#f0c7c7;" onclick="bajaCamino('${encodeURIComponent(d.Nombre)}')">✕ baja</button>`}
+        ${bajaEmpresa ? "" : `<button class="baja-empresa-btn" onclick="marcarBajaEmpresa('${encodeURIComponent(d.Nombre)}')" title="Da de baja en TODAS las iniciativas de la empresa">🔴 Baja de empresa</button>`}
       </td>
     </tr>`;
   }).join("");

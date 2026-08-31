@@ -240,6 +240,7 @@ function doPost(e) {
     if (tipo === "sv_atendido")       return handleSvAtendido(payload);
     if (tipo === "sv_baja")           return handleSvBaja(payload);
     if (tipo === "sv_reactivar")      return handleSvReactivar(payload);
+    if (tipo === "sv_asignarGuardia") return handleSvAsignarGuardia(payload);
     if (tipo === "eg_marcarAtendido")   return handleEgMarcarAtendido(payload);
     if (tipo === "eg_marcarSeguimiento") return handleEgMarcarSeguimiento(payload);
     if (tipo === "eg_marcarHistoricoProspecto") return handleEgMarcarHistoricoProspecto(payload);
@@ -408,6 +409,27 @@ function handleSvBaja(p) {
 function handleSvReactivar(p) {
   var nombre = (p.nombre || "").trim();
   if (_marcarEstadoPorNombre("SV_Inscritos", nombre, "Activo", "")) return resp({ ok: true });
+  return resp({ ok: false, error: "No se encontró a " + nombre + " en SV_Inscritos" });
+}
+
+// ── Salvando Vidas: Asignar/cambiar mes de guardia ───────────────
+// Recibe: {tipo:"sv_asignarGuardia", nombre, mes}
+function handleSvAsignarGuardia(p) {
+  var ws = svSheetNuevo_();
+  if (!ws) return resp({ ok: false, error: "Pestaña SV_Inscritos no encontrada en el Sheet nuevo" });
+
+  var nombre = (p.nombre || "").trim();
+  var mes = (p.mes || "").trim();
+  if (!mes) return resp({ ok: false, error: "Falta el mes" });
+
+  var data = ws.getDataRange().getValues();
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
+      ws.getRange(i + 1, 9).setValue(mes); // Mes_Guardia (col I)
+      return resp({ ok: true });
+    }
+  }
+
   return resp({ ok: false, error: "No se encontró a " + nombre + " en SV_Inscritos" });
 }
 

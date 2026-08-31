@@ -801,7 +801,16 @@ function renderTabla(filtered){
       + '</div></td>'
       + '<td>'+(d.Sucursal||"")+'</td>'
       + '<td><span class="pill '+tc+'" style="margin:0;">'+(d.Tipo_Sangre||"—")+'</span></td>'
-      + '<td>'+(d.Mes_Guardia || '<span style="color:var(--text-soft); font-size:12px;">sin asignar</span>')+'</td>'
+      + '<td>'
+      + '<div>'+(d.Mes_Guardia || '<span style="color:var(--text-soft); font-size:12px;">sin asignar</span>')+'</div>'
+      + '<div style="display:flex; gap:4px; margin-top:4px;">'
+      + '<select id="mg_'+i+'" style="font-size:11px; padding:3px 4px; border-radius:5px; border:1px solid var(--border); max-width:98px;">'
+      + '<option value="">'+(d.Mes_Guardia ? 'cambiar…' : 'asignar…')+'</option>'
+      + tMesesOpts
+      + '</select>'
+      + '<button class="reg-btn" style="padding:3px 7px;" onclick="asignarGuardia(\''+encodeURIComponent(d.Nombre)+'\', document.getElementById(\'mg_'+i+'\').value, this)">✓</button>'
+      + '</div>'
+      + '</td>'
       + '<td>'
       + '<div style="display:flex; flex-wrap:wrap; gap:5px;">'+(btns || '<span style="color:var(--text-soft); font-size:12px;">—</span>')+'</div>'
       + '<button class="reg-btn" style="margin-top:6px;" onclick="toggleFormDonacion(\''+tFormId+'\')">+ Registrar donación</button>'
@@ -893,6 +902,26 @@ function applyFilters(){
 /* ============================================================
    FORMS INLINE — DONACIONES
    ============================================================ */
+async function asignarGuardia(nombreEncoded, mes, btnEl){
+  const nombre = decodeURIComponent(nombreEncoded);
+  if(!mes){ alert("Selecciona un mes antes de asignar."); return; }
+  btnEl.disabled = true; btnEl.textContent = "…";
+  try{
+    const r = await postData({ tipo:"sv_asignarGuardia", nombre, mes });
+    if(r.ok){
+      const d = DONADORES.find(x => x.Nombre === nombre);
+      if(d) d.Mes_Guardia = mes;
+      renderMetrics(); renderGuardias(); applyFilters();
+    } else {
+      alert("Error: " + r.error);
+      btnEl.disabled = false; btnEl.textContent = "✓";
+    }
+  } catch(e){
+    alert("No se pudo conectar con el servidor.");
+    btnEl.disabled = false; btnEl.textContent = "✓";
+  }
+}
+
 async function postData(payload){
   const res = await fetch(WEBAPP_URL, { method:"POST", body:JSON.stringify(payload) });
   return await res.json();

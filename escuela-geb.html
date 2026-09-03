@@ -679,12 +679,16 @@ const SCHEMA = {
     "Historico",           // K (10) — agregada para el panel de Históricos/Prospectos;
     "Prospecto"            // L (11) — independiente de Estado, una persona puede ser ambos
   ],
+  // Una fila = una clase completa, no una persona — col D trae la lista de
+  // quién asistió separada por comas. El encabezado real de la col A en el
+  // Sheet sigue diciendo "Nombre" (nunca se corrigió), pero su contenido real
+  // es la fecha en que se capturó el pase de lista.
   EG_Asistencias: [
-    "Nombre",       // A (0)
-    "Fecha_Clase",  // B (1)
-    "Tema",         // C (2)
-    "Asistio",      // D (3)
-    "Notas"         // E (4)
+    "Fecha_Captura",  // A (0)
+    "Fecha_Clase",    // B (1)
+    "Tema",           // C (2)
+    "Asistieron",     // D (3)
+    "Notas"           // E (4)
   ],
   EG_Examenes: [
     "Nombre",         // A (0)
@@ -1164,15 +1168,13 @@ function renderCards(containerId, modalidad){
     }).join("");
 
     const exams  = EXAMENES.filter(e => e.Nombre === d.Nombre);
-    const asists = ASISTENCIAS.filter(a => a.Nombre === d.Nombre);
     let detalle  = "";
     if(modUp === "INEA"){
-      // Cada fila de EG_Asistencias es una persona que asistió a una clase
-      // (no una lista de nombres separada por comas) — el total de clases es
-      // el número de combinaciones distintas Fecha_Clase+Tema, y las
-      // asistencias de esta persona son sus propias filas.
+      // Cada fila de EG_Asistencias es UNA CLASE completa, con la lista de
+      // quién asistió separada por comas en col D (Asistieron) — no una fila
+      // por persona.
       const totalClases = new Set(ASISTENCIAS.map(a => (a.Fecha_Clase||"")+"||"+(a.Tema||""))).size;
-      const asistio      = ASISTENCIAS.filter(a => a.Nombre === d.Nombre).length;
+      const asistio      = ASISTENCIAS.filter(a => estuvoEnClase(a, d.Nombre)).length;
       const ultimoExamen = exams.length > 0 ? exams[exams.length-1] : null;
       detalle = `<div class="icard-detail">
         Asistencias: <strong>${asistio}/${totalClases}</strong>
@@ -1401,6 +1403,12 @@ function toggleSeccion(sectionId, toggleId){
   }
 }
 
+function estuvoEnClase(a, nombre){
+  var buscado = (nombre||"").trim().toLowerCase();
+  if(!buscado) return false;
+  return (a.Asistieron||"").split(",").some(function(n){ return n.trim().toLowerCase() === buscado; });
+}
+
 function renderAsistenciasVisual(){
   var container = document.getElementById("asistVisual");
   if(!ASISTENCIAS || ASISTENCIAS.length === 0){
@@ -1412,8 +1420,8 @@ function renderAsistenciasVisual(){
     return (d.Modalidad||"").toUpperCase() === "INEA" && (d.Estado||"").toLowerCase() === "activo";
   }).map(function(d){ return d.Nombre; });
 
-  // Agrupar por Fecha_Clase + Tema — cada fila de EG_Asistencias es UNA
-  // persona que asistió a esa clase (col A = Nombre), no una lista en Asistio.
+  // Agrupar por Fecha_Clase + Tema — cada fila de EG_Asistencias ya ES una
+  // clase completa, con la lista de asistentes en col D (Asistieron).
   var clases = [];
   var claseMap = {};
   ASISTENCIAS.forEach(function(a){
@@ -1422,8 +1430,10 @@ function renderAsistenciasVisual(){
       claseMap[key] = { fecha: a.Fecha_Clase||"—", tema: a.Tema||"—", notas: a.Notas||"", asistieron: [] };
       clases.push(claseMap[key]);
     }
-    var n = (a.Nombre||"").trim();
-    if(n && claseMap[key].asistieron.indexOf(n) < 0) claseMap[key].asistieron.push(n);
+    (a.Asistieron||"").split(",").forEach(function(nRaw){
+      var n = nRaw.trim();
+      if(n && claseMap[key].asistieron.indexOf(n) < 0) claseMap[key].asistieron.push(n);
+    });
   });
 
   container.innerHTML = clases.map(function(c){
@@ -1793,7 +1803,7 @@ async function init(){
     ]);
 
     INSCRITOS     = inscritos.filter(d => d.Nombre && d.Nombre.trim() !== "");
-    ASISTENCIAS   = asistencias.filter(a => a.Nombre && a.Nombre.trim() !== "");
+    ASISTENCIAS   = asistencias.filter(a => a.Fecha_Clase && a.Fecha_Clase.trim() !== "");
     EXAMENES      = examenes.filter(e => e.Nombre && e.Nombre.trim() !== "");
     COPYS         = copys.filter(c => c.Momento && c.Momento.trim() !== "");
     COLABORADORES = colaboradores.filter(c => c.Nombre && c.Nombre.trim() !== "");

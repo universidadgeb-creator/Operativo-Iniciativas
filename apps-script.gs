@@ -303,20 +303,22 @@ function doPost(e) {
 }
 
 // ── Asistencia INEA ─────────────────────────────────────────────
-// Cols: A=Nombre, B=Fecha_Clase, C=Tema, D=Asistio, E=Notas
+// Cols: A=Fecha_Captura, B=Fecha_Clase, C=Tema, D=Asistieron (lista separada
+// por comas), E=Notas. Una sola fila por clase — antes escribía una fila por
+// alumno con el nombre en la col A (que en realidad es de fecha) y "Sí"
+// fijo en col D, sin coincidir con el formato ya usado por el historial real
+// de la pestaña. Ver [[project-geb-eg-asistencias-formato]] en memoria.
 function handleAsistencia(p) {
   const ws = SS.getSheetByName("EG_Asistencias");
   if (!ws) return resp({ ok: false, error: "Pestaña EG_Asistencias no encontrada" });
   const nombres = (p.asistentes || []);
-  nombres.forEach(function(nombre) {
-    ws.appendRow([
-      nombre,
-      p.fecha  || "",
-      p.tema   || "",
-      "Sí",
-      p.notas  || ""
-    ]);
-  });
+  ws.appendRow([
+    new Date(),
+    p.fecha ? new Date(p.fecha) : "",
+    p.tema  || "",
+    nombres.join(", "),
+    p.notas || ""
+  ]);
   revisarFaltasEG_();
   return resp({ ok: true });
 }
@@ -546,15 +548,20 @@ function revisarFaltasEG_() {
   if (!wsIns || !wsAsist) return;
 
   var asistData = wsAsist.getDataRange().getValues();
-  // Total de clases distintas registradas (Fecha_Clase + Tema, cols B y C)
+  // Una fila = una clase; col D trae la lista de asistentes separada por
+  // comas (formato ya usado por el historial real de la pestaña).
   var clasesSet = {};
   var asistPorNombre = {};
   for (var i = 1; i < asistData.length; i++) {
-    var nombreFila = String(asistData[i][0] || "").trim().toLowerCase();
-    var claseKey = String(asistData[i][1] || "") + "||" + String(asistData[i][2] || "");
-    if (!nombreFila || !claseKey) continue;
+    var fechaClase = String(asistData[i][1] || "");
+    var tema = String(asistData[i][2] || "");
+    if (!fechaClase && !tema) continue;
+    var claseKey = fechaClase + "||" + tema;
     clasesSet[claseKey] = true;
-    asistPorNombre[nombreFila] = (asistPorNombre[nombreFila] || 0) + 1;
+    String(asistData[i][3] || "").split(",").forEach(function(n) {
+      var nl = n.trim().toLowerCase();
+      if (nl) asistPorNombre[nl] = (asistPorNombre[nl] || 0) + 1;
+    });
   }
   var totalClases = Object.keys(clasesSet).length;
   if (totalClases === 0) return;

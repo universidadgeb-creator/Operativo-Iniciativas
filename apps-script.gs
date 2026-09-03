@@ -237,6 +237,7 @@ function doPost(e) {
     if (tipo === "ap_diagnostico")    return handleApDiagnostico(payload);
     if (tipo === "alta_unificada")    return handleAltaUnificada(payload);
     if (tipo === "baja_empresa")      return handleBajaEmpresa(payload);
+    if (tipo === "colab_setEscolaridad") return handleColabSetEscolaridad(payload);
     if (tipo === "sv_atendido")       return handleSvAtendido(payload);
     if (tipo === "sv_baja")           return handleSvBaja(payload);
     if (tipo === "sv_reactivar")      return handleSvReactivar(payload);
@@ -928,6 +929,33 @@ function handleBajaEmpresa(p) {
   });
 
   return resp({ ok: true, bajasAplicadas: bajasAplicadas });
+}
+
+// ── Escolaridad (censo general de colaboradores, no ligado a Escuela GEB) ──
+// Recibe: {tipo:"colab_setEscolaridad", nombre, escolaridad}
+// Escolaridad (col M, agregada 2026-08-20) es un dato de todos los
+// colaboradores, no de quién está inscrito en EG_Inscritos (INEA/UVL) — ver
+// [[project-geb-...]] en memoria. Valores esperados: primaria, secundaria,
+// preparatoria, carrera técnica, licenciatura, posgrado (mismo vocabulario
+// que Diagnostico_Edu en escuela-geb.html).
+function handleColabSetEscolaridad(p) {
+  var nombre = (p.nombre || "").trim();
+  var escolaridad = (p.escolaridad || "").trim();
+  if (!nombre) return resp({ ok: false, error: "Falta el nombre" });
+  if (!escolaridad) return resp({ ok: false, error: "Falta la escolaridad" });
+
+  var wsColab = SS.getSheetByName("Colaboradores");
+  if (!wsColab) return resp({ ok: false, error: "Pestaña Colaboradores no encontrada en el Sheet nuevo" });
+
+  var data = wsColab.getDataRange().getValues();
+  var nombreLower = nombre.toLowerCase();
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim().toLowerCase() === nombreLower) {
+      wsColab.getRange(i + 1, 13).setValue(escolaridad); // Escolaridad (col M)
+      return resp({ ok: true });
+    }
+  }
+  return resp({ ok: false, error: "No se encontró a " + nombre + " en Colaboradores" });
 }
 
 // ── Reto Ahorro (Sheet NUEVO desde 2026-07-04) ───────────────────

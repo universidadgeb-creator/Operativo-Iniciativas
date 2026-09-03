@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pase de lista INEA — GEB University</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#0B2545;
+    --gold:#C49B4C;
+    --bg:#F7F5F0;
+    --card:#FFFFFF;
+    --text:#1C2A3A;
+    --text-soft:#5C6B7A;
+    --border:#E3E1D9;
+    --green-bg:#EAF3DE; --green-text:#3B6D11;
+    --red-bg:#FCEBEB; --red-text:#A32D2D;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{ font-family:'DM Sans', sans-serif; background:var(--bg); color:var(--text); }
+  .wrap{ max-width:520px; margin:0 auto; padding:0 0 60px; }
+
+  .topbar{
+    background:var(--blue); color:#fff; padding:16px 20px;
+    display:flex; align-items:center; gap:10px;
+  }
+  .topbar .dot{ width:9px; height:9px; border-radius:50%; background:var(--gold); flex-shrink:0; }
+  .topbar-text{ font-family:'Cormorant Garamond', serif; font-size:18px; font-weight:600; letter-spacing:.01em; }
+
+  header.page-header{
+    padding:22px 20px 16px;
+    border-bottom:2px solid var(--gold);
+    margin-bottom:20px;
+  }
+  header.page-header h1{ font-family:'Cormorant Garamond', serif; font-size:26px; font-weight:600; color:var(--blue); }
+  header.page-header .sub{ color:var(--text-soft); font-size:13px; margin-top:4px; }
+
+  .card{ background:var(--card); border:1px solid var(--border); border-radius:14px; padding:20px; margin:0 16px 20px; }
+
+  .form-row{ margin-bottom:16px; }
+  .form-row label{ display:block; font-size:13px; font-weight:600; color:var(--text-soft); margin-bottom:6px; }
+  .form-row input[type=date], .form-row input[type=text], .form-row textarea{
+    width:100%; font-size:15px; font-family:inherit; padding:11px 12px;
+    border:1px solid var(--border); border-radius:8px; background:var(--bg); color:var(--text);
+  }
+  .form-row textarea{ resize:vertical; min-height:60px; }
+
+  .list-head{
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:10px;
+  }
+  .list-head span{ font-size:13px; font-weight:600; color:var(--text-soft); }
+  .toggle-all{
+    font-size:12px; font-weight:600; color:var(--blue); background:none; border:none; cursor:pointer;
+    text-decoration:underline;
+  }
+
+  .alumno-list{ border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+  .alumno-item{
+    display:flex; align-items:center; gap:12px; padding:13px 14px;
+    border-bottom:1px solid var(--border); cursor:pointer; -webkit-tap-highlight-color:transparent;
+  }
+  .alumno-item:last-child{ border-bottom:none; }
+  .alumno-item.checked{ background:var(--green-bg); }
+  .alumno-item input[type=checkbox]{ width:20px; height:20px; flex-shrink:0; accent-color:var(--blue); }
+  .alumno-item .nombre{ font-size:14.5px; font-weight:500; }
+
+  .btn-guardar{
+    width:100%; font-size:15px; font-weight:700; padding:14px; border-radius:10px;
+    background:var(--blue); color:#fff; border:none; cursor:pointer; margin-top:18px;
+  }
+  .btn-guardar:disabled{ opacity:.5; cursor:not-allowed; }
+  .btn-guardar:hover:not(:disabled){ background:#0d2f5e; }
+
+  .form-msg{ font-size:13.5px; padding:12px 14px; border-radius:8px; display:none; margin-top:14px; text-align:center; }
+  .form-msg.ok{ background:var(--green-bg); color:var(--green-text); display:block; }
+  .form-msg.err{ background:var(--red-bg); color:var(--red-text); display:block; }
+
+  .loading, .errorbox{ text-align:center; padding:60px 20px; color:var(--text-soft); font-size:14px; }
+  .errorbox{ color:var(--red-text); }
+
+  .footnote{ font-size:11.5px; color:var(--text-soft); text-align:center; padding:0 20px; }
+</style>
+</head>
+<body>
+
+  <div class="topbar">
+    <span class="dot"></span>
+    <span class="topbar-text">GEB University — Escuela GEB</span>
+  </div>
+
+  <div class="wrap">
+    <header class="page-header">
+      <h1>Pase de lista — Grupo INEA</h1>
+      <div class="sub">Marca quién asistió a la clase de hoy</div>
+    </header>
+
+    <div id="loadingMsg" class="loading">Cargando lista de alumnos…</div>
+    <div id="errorMsg" class="errorbox" style="display:none;"></div>
+
+    <div id="formCard" class="card" style="display:none;">
+      <div class="form-row">
+        <label>Fecha de la clase *</label>
+        <input type="date" id="fecha">
+      </div>
+      <div class="form-row">
+        <label>Tema *</label>
+        <input type="text" id="tema" placeholder="ej. Fracciones, Lectura de comprensión…">
+      </div>
+
+      <div class="list-head">
+        <span>Alumnos INEA activos</span>
+        <button class="toggle-all" id="btnToggleAll" onclick="toggleTodos()">marcar todos</button>
+      </div>
+      <div class="alumno-list" id="alumnoList"></div>
+
+      <div class="form-row" style="margin-top:16px;">
+        <label>Notas (opcional)</label>
+        <textarea id="notas" placeholder="Observaciones de la clase"></textarea>
+      </div>
+
+      <button class="btn-guardar" id="btnGuardar" onclick="guardarAsistencia()">Guardar asistencia</button>
+      <div class="form-msg" id="formMsg"></div>
+    </div>
+
+    <div class="footnote">GEB University — Iniciativas Humanas</div>
+  </div>
+
+<script>
+/* ============================================================
+   CONFIGURACIÓN — mismo Sheet/Web App que escuela-geb.html
+   ============================================================ */
+const SHEET_ID   = "1oaWADtW9SmqxuOoOM1bf65Ht_NkpE4l_o_DMutN_IbI";
+const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbypzabPFyTWszyc2-wIPjImOTIitz68R6_okV2yUgxSD6CpkEkfpFlXh8OzgaQWlZYe/exec";
+
+const SCHEMA_EG_INSCRITOS = [
+  "Nombre","Sucursal","Telefono_WA","Fecha_Inscripcion","Estado",
+  "Requiere_Seguimiento","Notas","Modalidad","Diagnostico_Edu","Nivel",
+  "Historico","Prospecto"
+];
+
+function gvizUrl(tabName){
+  return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(tabName)}`;
+}
+
+async function fetchSheetTab(tabName, headers){
+  const res  = await fetch(gvizUrl(tabName));
+  const text = await res.text();
+  const json = JSON.parse(text.substring(text.indexOf('{'), text.lastIndexOf('}')+1));
+
+  return json.table.rows
+    .filter(r => r && r.c && r.c.some(cell => cell && cell.v !== null && cell.v !== ""))
+    .filter(r => {
+      const firstVal = r.c && r.c[0] ? (r.c[0].v || "") : "";
+      return firstVal !== "Nombre";
+    })
+    .map(r => {
+      const obj = {};
+      headers.forEach((col, i) => {
+        const cell = r.c ? r.c[i] : null;
+        let val = cell ? (cell.f !== undefined && cell.f !== null ? cell.f : cell.v) : "";
+        if(val === null || val === undefined) val = "";
+        obj[col] = val;
+      });
+      return obj;
+    });
+}
+
+async function postData(payload){
+  const res = await fetch(WEBAPP_URL, { method:"POST", body: JSON.stringify(payload) });
+  return await res.json();
+}
+
+function showMsg(tipo, texto){
+  const el = document.getElementById("formMsg");
+  el.className = "form-msg " + tipo;
+  el.textContent = texto;
+  if(tipo === "ok") setTimeout(() => { el.className = "form-msg"; el.textContent = ""; }, 4000);
+}
+
+function toggleTodos(){
+  const items = document.querySelectorAll("#alumnoList .alumno-item");
+  const checks = document.querySelectorAll("#alumnoList input[type=checkbox]");
+  const algunoSinMarcar = Array.from(checks).some(c => !c.checked);
+  checks.forEach(c => { c.checked = algunoSinMarcar; });
+  items.forEach(it => it.classList.toggle("checked", algunoSinMarcar));
+  document.getElementById("btnToggleAll").textContent = algunoSinMarcar ? "quitar todos" : "marcar todos";
+}
+
+function toggleAlumno(item){
+  const chk = item.querySelector("input[type=checkbox]");
+  chk.checked = !chk.checked;
+  item.classList.toggle("checked", chk.checked);
+}
+
+async function guardarAsistencia(){
+  const fecha = document.getElementById("fecha").value;
+  const tema  = document.getElementById("tema").value.trim();
+  if(!fecha || !tema){ showMsg("err","Fecha y tema son obligatorios."); return; }
+
+  const checks = document.querySelectorAll("#alumnoList input[type=checkbox]:checked");
+  const asistentes = Array.from(checks).map(c => c.value);
+  if(asistentes.length === 0){ showMsg("err","Marca al menos un alumno."); return; }
+
+  const btn = document.getElementById("btnGuardar");
+  btn.disabled = true; btn.textContent = "Guardando…";
+
+  try{
+    const r = await postData({
+      tipo: "asistencia", fecha, tema, asistentes,
+      notas: document.getElementById("notas").value.trim()
+    });
+    if(r.ok){
+      showMsg("ok","✅ Asistencia registrada correctamente.");
+      document.getElementById("tema").value = "";
+      document.getElementById("notas").value = "";
+      document.querySelectorAll("#alumnoList .alumno-item").forEach(it => it.classList.remove("checked"));
+      checks.forEach(c => c.checked = false);
+      document.getElementById("btnToggleAll").textContent = "marcar todos";
+    } else {
+      showMsg("err","Error: " + r.error);
+    }
+  } catch(e){
+    showMsg("err","No se pudo conectar con el servidor. Revisa tu conexión e intenta de nuevo.");
+  } finally {
+    btn.disabled = false; btn.textContent = "Guardar asistencia";
+  }
+}
+
+async function init(){
+  try{
+    const inscritos = await fetchSheetTab("EG_Inscritos", SCHEMA_EG_INSCRITOS);
+    const ineaActivos = inscritos.filter(d =>
+      d.Nombre && d.Nombre.trim() !== "" &&
+      (d.Modalidad||"").toUpperCase() === "INEA" &&
+      (d.Estado||"").toLowerCase() === "activo"
+    ).sort((a,b) => a.Nombre.localeCompare(b.Nombre));
+
+    document.getElementById("alumnoList").innerHTML = ineaActivos.length
+      ? ineaActivos.map(d => `
+          <div class="alumno-item" onclick="toggleAlumno(this)">
+            <input type="checkbox" value="${d.Nombre.replace(/"/g,'&quot;')}" onclick="event.stopPropagation()">
+            <span class="nombre">${d.Nombre}</span>
+          </div>
+        `).join("")
+      : `<div class="alumno-item"><span class="nombre" style="color:var(--text-soft);">No hay alumnos INEA activos registrados.</span></div>`;
+
+    document.querySelectorAll("#alumnoList input[type=checkbox]").forEach(chk => {
+      chk.addEventListener("change", () => {
+        chk.closest(".alumno-item").classList.toggle("checked", chk.checked);
+      });
+    });
+
+    document.getElementById("fecha").value = new Date().toISOString().slice(0,10);
+
+    document.getElementById("loadingMsg").style.display = "none";
+    document.getElementById("formCard").style.display = "block";
+  } catch(err){
+    document.getElementById("loadingMsg").style.display = "none";
+    const eb = document.getElementById("errorMsg");
+    eb.style.display = "block";
+    eb.textContent = "No se pudo cargar la lista de alumnos. Verifica tu conexión a internet e intenta de nuevo.";
+    console.error(err);
+  }
+}
+
+init();
+</script>
+</body>
+</html>

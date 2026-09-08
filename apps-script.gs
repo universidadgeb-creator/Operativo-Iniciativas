@@ -500,6 +500,9 @@ function handleEgMarcarSeguimiento(p) {
 // Prospecto a la vez (por eso no se modela con el Estado, que es un solo valor).
 // Si el nombre no existe todavía en EG_Inscritos, crea una fila nueva con los
 // datos básicos tomados de Colaboradores (Sucursal, Telefono_WA).
+// Recibe también familiar (bool) y sucursal (string, solo para colaborador —
+// un familiar de colaborador no tiene Sucursal propia en GEB). Ver
+// [[project-geb-eg-prospectos-familiar]] en memoria.
 function handleEgMarcarHistoricoProspecto(p) {
   var ws = egSheetNuevo_();
   if (!ws) return resp({ ok: false, error: "Pestaña EG_Inscritos no encontrada en el Sheet nuevo" });
@@ -508,31 +511,37 @@ function handleEgMarcarHistoricoProspecto(p) {
   if (!nombre) return resp({ ok: false, error: "El nombre es obligatorio." });
   var historico = p.historico ? "Sí" : "No";
   var prospecto = p.prospecto ? "Sí" : "No";
+  var familiar = p.familiar ? "Sí" : "No";
 
   var data = ws.getDataRange().getValues();
   for (var i = 1; i < data.length; i++) {
     if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
       ws.getRange(i + 1, 11).setValue(historico); // Historico (col K)
       ws.getRange(i + 1, 12).setValue(prospecto);  // Prospecto (col L)
+      ws.getRange(i + 1, 13).setValue(familiar);   // Familiar (col M)
       return resp({ ok: true });
     }
   }
 
-  // No existe todavía: crear fila nueva, tomando Sucursal/Telefono de Colaboradores.
-  var sucursal = "", telefono = "";
-  var wsColab = SS.getSheetByName("Colaboradores");
-  if (wsColab) {
-    var colabData = wsColab.getDataRange().getValues();
-    for (var j = 1; j < colabData.length; j++) {
-      if (String(colabData[j][0]).trim().toLowerCase() === nombre.toLowerCase()) {
-        sucursal = colabData[j][1] || "";
-        telefono = colabData[j][6] || "";
-        break;
+  // No existe todavía: crear fila nueva. Si es familiar no tiene Sucursal ni
+  // fila propia en Colaboradores; si es colaborador, usa la Sucursal que
+  // capturaron en el form (o la busca en Colaboradores si no la mandaron).
+  var sucursal = (p.sucursal || "").trim(), telefono = "";
+  if (!familiar && !sucursal) {
+    var wsColab = SS.getSheetByName("Colaboradores");
+    if (wsColab) {
+      var colabData = wsColab.getDataRange().getValues();
+      for (var j = 1; j < colabData.length; j++) {
+        if (String(colabData[j][0]).trim().toLowerCase() === nombre.toLowerCase()) {
+          sucursal = colabData[j][1] || "";
+          telefono = colabData[j][6] || "";
+          break;
+        }
       }
     }
   }
 
-  ws.appendRow([nombre, sucursal, telefono, new Date(), "", "", "", "", "", "", historico, prospecto]);
+  ws.appendRow([nombre, sucursal, telefono, new Date(), "", "", "", "", "", "", historico, prospecto, familiar]);
   return resp({ ok: true, creado: true });
 }
 

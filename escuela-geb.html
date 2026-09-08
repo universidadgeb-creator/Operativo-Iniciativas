@@ -441,13 +441,22 @@
     <div class="section" style="margin-bottom:20px;">
       <div class="section-header">
         <div class="section-title" style="margin-bottom:0;">Históricos y Prospectos</div>
-        <button class="reg-btn" onclick="toggleHpForm()">+ Agregar desde Base madre</button>
+        <button class="reg-btn" onclick="toggleHpForm()">+ Agregar Histórico/Prospecto</button>
       </div>
       <div class="inline-form" id="hpForm">
         <div class="inline-form-title">Marcar Histórico y/o Prospecto</div>
-        <div class="form-row"><label>Colaborador (Base madre) *</label>
-          <input type="text" id="hp_nombre" list="hpListaColaboradores" placeholder="Escribe para buscar…">
+        <div class="form-row"><label>Tipo de persona *</label>
+          <div class="form-checkbox-group">
+            <label><input type="radio" name="hp_tipo" value="colaborador" checked onchange="toggleHpTipo()"> Colaborador</label>
+            <label><input type="radio" name="hp_tipo" value="familiar" onchange="toggleHpTipo()"> Familiar de colaborador</label>
+          </div>
+        </div>
+        <div class="form-row"><label>Nombre *</label>
+          <input type="text" id="hp_nombre" list="hpListaColaboradores" placeholder="Escribe o busca…">
           <datalist id="hpListaColaboradores"></datalist>
+        </div>
+        <div class="form-row" id="hp_sucursal_row"><label>Sucursal *</label>
+          <input type="text" id="hp_sucursal" placeholder="ej. NAC">
         </div>
         <div class="form-checkbox-group">
           <label><input type="checkbox" id="hp_historico"> Histórico</label>
@@ -677,7 +686,9 @@ const SCHEMA = {
     "Diagnostico_Edu",     // I (8)
     "Nivel",               // J (9)
     "Historico",           // K (10) — agregada para el panel de Históricos/Prospectos;
-    "Prospecto"            // L (11) — independiente de Estado, una persona puede ser ambos
+    "Prospecto",           // L (11) — independiente de Estado, una persona puede ser ambos
+    "Familiar"             // M (12) — agregada 2026-09-08: prospecto que es familiar de un
+                           // colaborador (no colaborador él mismo), por eso no lleva Sucursal
   ],
   // Una fila = una clase completa, no una persona — col D trae la lista de
   // quién asistió separada por comas. El encabezado real de la col A en el
@@ -930,29 +941,46 @@ function renderHistoricosProspectos(){
     : `<div class="empty-state">Sin históricos marcados.</div>`;
 
   document.getElementById("prospectosList").innerHTML = prospectos.length
-    ? prospectos.map(d => `<div class="hp-item"><div><strong>${d.Nombre}</strong><div class="hp-meta">${d.Sucursal||""}</div></div>${esSiEG(d.Historico)?'<span class="pill historico">también histórico</span>':''}</div>`).join("")
+    ? prospectos.map(d => {
+        const esFamiliar = esSiEG(d.Familiar);
+        return `<div class="hp-item"><div><strong>${d.Nombre}</strong><div class="hp-meta">${esFamiliar ? "Familiar de colaborador" : (d.Sucursal||"")}</div></div>${esFamiliar?'<span class="pill uvl-tag">Familiar</span>':''}${esSiEG(d.Historico)?'<span class="pill historico">también histórico</span>':''}</div>`;
+      }).join("")
     : `<div class="empty-state">Sin prospectos marcados.</div>`;
 }
 
 function toggleHpForm(){ document.getElementById("hpForm").classList.toggle("open"); }
 
+function toggleHpTipo(){
+  const esFamiliar = document.querySelector('input[name="hp_tipo"]:checked').value === "familiar";
+  document.getElementById("hp_sucursal_row").style.display = esFamiliar ? "none" : "";
+  const nombreInput = document.getElementById("hp_nombre");
+  if(esFamiliar){ nombreInput.removeAttribute("list"); }
+  else { nombreInput.setAttribute("list", "hpListaColaboradores"); }
+}
+
 async function guardarHistoricoProspecto(){
   const nombre = document.getElementById("hp_nombre").value.trim();
+  const familiar = document.querySelector('input[name="hp_tipo"]:checked').value === "familiar";
+  const sucursal = familiar ? "" : document.getElementById("hp_sucursal").value.trim();
   const historico = document.getElementById("hp_historico").checked;
   const prospecto = document.getElementById("hp_prospecto").checked;
-  if(!nombre){ showMsg("hpMsg","err","Selecciona un colaborador."); return; }
+  if(!nombre){ showMsg("hpMsg","err","Escribe un nombre."); return; }
+  if(!familiar && !sucursal){ showMsg("hpMsg","err","La sucursal es obligatoria para un colaborador."); return; }
   if(!historico && !prospecto){ showMsg("hpMsg","err","Marca al menos Histórico o Prospecto."); return; }
   const btn = document.querySelector("#hpForm .btn-guardar");
   btn.disabled = true; btn.textContent = "Guardando…";
   try{
-    const r = await postData({ tipo:"eg_marcarHistoricoProspecto", nombre, historico, prospecto });
+    const r = await postData({ tipo:"eg_marcarHistoricoProspecto", nombre, historico, prospecto, familiar, sucursal });
     if(r.ok){
       showMsg("hpMsg","ok","Guardado.");
       INSCRITOS = (await fetchSheetTab(TABS.inscritos)).filter(d => d.Nombre && d.Nombre.trim() !== "");
       renderHistoricosProspectos();
       document.getElementById("hp_nombre").value = "";
+      document.getElementById("hp_sucursal").value = "";
       document.getElementById("hp_historico").checked = false;
       document.getElementById("hp_prospecto").checked = false;
+      document.querySelector('input[name="hp_tipo"][value="colaborador"]').checked = true;
+      toggleHpTipo();
     } else {
       showMsg("hpMsg","err","Error: " + (r.error||"desconocido"));
     }

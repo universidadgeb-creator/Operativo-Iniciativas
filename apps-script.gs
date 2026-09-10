@@ -245,6 +245,7 @@ function doPost(e) {
     if (tipo === "eg_marcarAtendido")   return handleEgMarcarAtendido(payload);
     if (tipo === "eg_marcarSeguimiento") return handleEgMarcarSeguimiento(payload);
     if (tipo === "eg_marcarHistoricoProspecto") return handleEgMarcarHistoricoProspecto(payload);
+    if (tipo === "eg_pasarAInscrito")   return handleEgPasarAInscrito(payload);
     if (tipo === "eg_baja")             return handleEgBaja(payload);
     if (tipo === "eg_reactivar")        return handleEgReactivar(payload);
     if (tipo === "eg_diagnostico")      return handleEgDiagnostico(payload);
@@ -543,6 +544,35 @@ function handleEgMarcarHistoricoProspecto(p) {
 
   ws.appendRow([nombre, sucursal, telefono, new Date(), "", "", "", "", "", "", historico, prospecto, familiar]);
   return resp({ ok: true, creado: true });
+}
+
+// ── Escuela GEB: pasar un prospecto a inscrito real ──────────────
+// Recibe: {tipo:"eg_pasarAInscrito", nombre, modalidad}. Misma convención que
+// una alta nueva (handleAltaUnificada): Estado=Activo, Requiere_Seguimiento=Sí
+// (para que salga el WA de bienvenida). Prospecto pasa a "No" — ya no vive en
+// la lista de Prospectos, sino en la tabla general como cualquier inscrito.
+function handleEgPasarAInscrito(p) {
+  var ws = egSheetNuevo_();
+  if (!ws) return resp({ ok: false, error: "Pestaña EG_Inscritos no encontrada en el Sheet nuevo" });
+
+  var nombre = (p.nombre || "").trim();
+  var modalidad = (p.modalidad || "").trim().toUpperCase();
+  if (!nombre) return resp({ ok: false, error: "Falta el nombre" });
+  if (modalidad !== "INEA" && modalidad !== "UVL") return resp({ ok: false, error: "Modalidad inválida" });
+
+  var data = ws.getDataRange().getValues();
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
+      if (!data[i][3]) ws.getRange(i + 1, 4).setValue(new Date()); // Fecha_Inscripcion (col D), solo si no tenía
+      ws.getRange(i + 1, 5).setValue("Activo");     // Estado (col E)
+      ws.getRange(i + 1, 6).setValue("Sí");         // Requiere_Seguimiento (col F)
+      ws.getRange(i + 1, 8).setValue(modalidad);    // Modalidad (col H)
+      ws.getRange(i + 1, 12).setValue("No");        // Prospecto (col L)
+      return resp({ ok: true });
+    }
+  }
+
+  return resp({ ok: false, error: "No se encontró a " + nombre + " en EG_Inscritos" });
 }
 
 // ── Escuela GEB: contar faltas y marcar seguimiento automático ──────────

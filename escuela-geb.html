@@ -421,20 +421,25 @@
       </div>
     </div>
 
-    <!-- PERSONAS CLAVE PARA MOVER EL REZAGO EDUCATIVO -->
+    <!-- PERSONAS CLAVE PARA MOVER EL REZAGO EDUCATIVO (colapsable, cerrado por default) -->
     <div class="section" style="margin-bottom:20px;">
-      <div class="section-title" style="margin-bottom:10px;">Personas clave para mover el rezago educativo</div>
-      <div class="hp-grid">
-        <div class="hp-col">
-          <div class="hp-col-title">Confirmados en rezago <span style="font-size:11px;color:var(--text-soft);font-weight:400;" id="rezagoConfCount"></span></div>
-          <div id="rezagoConfirmados"></div>
-        </div>
-        <div class="hp-col">
-          <div class="hp-col-title">Sin diagnóstico capturado <span style="font-size:11px;color:var(--text-soft);font-weight:400;" id="rezagoSinDiagCount"></span></div>
-          <div id="rezagoSinDiagnostico"></div>
-        </div>
+      <div class="section-title" style="margin-bottom:10px; cursor:pointer; display:flex; align-items:center; gap:8px;" onclick="toggleSeccion('rezagoClaveSection','rezagoClaveToggle')">
+        Personas clave para mover el rezago educativo
+        <span id="rezagoClaveToggle" style="font-size:12px; color:var(--text-soft); font-weight:600;">▸ mostrar</span>
       </div>
-      <div class="footnote">📊 "Confirmados" sale de EG_Inscritos con diagnóstico ya capturado · "Sin diagnóstico" son colaboradores de la Base madre (Colaboradores) que aún no tienen registro en Escuela GEB — prioridad para evaluar y, si aplica, dar de alta.</div>
+      <div id="rezagoClaveSection" style="display:none;">
+        <div class="hp-grid">
+          <div class="hp-col">
+            <div class="hp-col-title">Confirmados en rezago <span style="font-size:11px;color:var(--text-soft);font-weight:400;" id="rezagoConfCount"></span></div>
+            <div id="rezagoConfirmados"></div>
+          </div>
+          <div class="hp-col">
+            <div class="hp-col-title">Sin diagnóstico capturado <span style="font-size:11px;color:var(--text-soft);font-weight:400;" id="rezagoSinDiagCount"></span></div>
+            <div id="rezagoSinDiagnostico"></div>
+          </div>
+        </div>
+        <div class="footnote">📊 "Confirmados" sale de EG_Inscritos con diagnóstico ya capturado · "Sin diagnóstico" son colaboradores de la Base madre (Colaboradores) que aún no tienen registro en Escuela GEB — prioridad para evaluar y, si aplica, dar de alta.</div>
+      </div>
     </div>
 
     <!-- HISTÓRICOS Y PROSPECTOS -->
@@ -943,9 +948,41 @@ function renderHistoricosProspectos(){
   document.getElementById("prospectosList").innerHTML = prospectos.length
     ? prospectos.map(d => {
         const esFamiliar = esSiEG(d.Familiar);
-        return `<div class="hp-item"><div><strong>${d.Nombre}</strong><div class="hp-meta">${esFamiliar ? "Familiar de colaborador" : (d.Sucursal||"")}</div></div>${esFamiliar?'<span class="pill uvl-tag">Familiar</span>':''}${esSiEG(d.Historico)?'<span class="pill historico">también histórico</span>':''}</div>`;
+        return `<div class="hp-item">
+          <div><strong>${d.Nombre}</strong><div class="hp-meta">${esFamiliar ? "Familiar de colaborador" : (d.Sucursal||"")}</div></div>
+          <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; justify-content:flex-end;">
+            ${esFamiliar?'<span class="pill uvl-tag">Familiar</span>':''}
+            ${esSiEG(d.Historico)?'<span class="pill historico">también histórico</span>':''}
+            <button class="atender-btn" style="margin-top:0;" onclick="pasarAInscrito('${encodeURIComponent(d.Nombre)}')">→ Pasar a inscrito</button>
+          </div>
+        </div>`;
       }).join("")
     : `<div class="empty-state">Sin prospectos marcados.</div>`;
+}
+
+// Convierte un prospecto en inscrito real: pide modalidad, pone Estado=Activo
+// y Requiere_Seguimiento=Sí (como cualquier alta nueva, ver handleAltaUnificada)
+// y deja de contar como prospecto — por eso sale de esta lista y aparece en la
+// tabla general de abajo.
+async function pasarAInscrito(nombreEnc){
+  const nombre = decodeURIComponent(nombreEnc);
+  const modalidad = prompt(`¿Modalidad de inscripción para ${nombre.split(" ")[0]}? Escribe INEA o UVL.`, "INEA");
+  if(!modalidad) return;
+  const modalidadNorm = modalidad.trim().toUpperCase();
+  if(modalidadNorm !== "INEA" && modalidadNorm !== "UVL"){
+    alert('Escribe exactamente "INEA" o "UVL".');
+    return;
+  }
+  try{
+    const r = await postData({ tipo:"eg_pasarAInscrito", nombre, modalidad: modalidadNorm });
+    if(r.ok){
+      location.reload();
+    } else {
+      alert("Error: " + (r.error||"desconocido"));
+    }
+  } catch(e){
+    alert("No se pudo conectar con el servidor.");
+  }
 }
 
 function toggleHpForm(){ document.getElementById("hpForm").classList.toggle("open"); }
@@ -991,9 +1028,14 @@ async function guardarHistoricoProspecto(){
   }
 }
 
+// Vacío significa "ya atendido / no aplica" (lo deja así marcarAtendido), NO
+// "pendiente" — la única forma de mostrar como pendiente es "Sí" explícito
+// (lo pone la alta nueva o marcarSeguimientoEG). Antes trataba vacío como
+// pendiente también, lo que hacía que "marcar atendido" se viera como que no
+// hacía nada (limpiaba a vacío, que seguía contando como pendiente).
 function isSeguimiento(d){
   const v = (d.Requiere_Seguimiento||"").trim().toLowerCase();
-  return v === "sí" || v === "si" || v === "";
+  return v === "sí" || v === "si";
 }
 
 function estadoPill(estado){
@@ -1556,6 +1598,7 @@ function applyFilters(){
   const seguimiento = document.getElementById("fSeguimiento").value;
 
   const filtered = INSCRITOS.filter(d => {
+    if(esSiEG(d.Prospecto)) return false; // los prospectos viven solo en su propia lista, no en esta tabla
     const matchQ   = !q || (d.Nombre||"").toLowerCase().includes(q) || (d.Sucursal||"").toLowerCase().includes(q);
     const matchM   = !modalidad || (d.Modalidad||"").toUpperCase() === modalidad.toUpperCase();
     const matchN   = !nivel || d.Nivel === nivel;

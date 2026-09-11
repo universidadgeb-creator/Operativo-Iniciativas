@@ -249,8 +249,11 @@ const TABS = { inscritos: "IG_Inscritos" };
 // (botón "→ Gen. 2"); "No" si se dio de alta directo en Generación 2.
 // Ruta_GEB / Impulso_GEB: los 2 pasos de seguimiento de Generación 2, en ese
 // orden — Impulso_GEB se bloquea en el panel hasta que Ruta_GEB sea "Sí".
+// "Lider" (col C) se agregó a mano en el Sheet sin avisar — el código estuvo
+// leyendo todo lo de D en adelante corrido una columna hasta 2026-09-11.
+// Ver [[project-geb-ig-lider-column-drift]] en memoria.
 const SCHEMA = {
-  IG_Inscritos: ["Nombre","Sucursal","Telefono_WA","Fecha_Alta","Estado","Requiere_Seguimiento","Notas","Plan_Vida","Presupuesto","Ahorro","Movilidad_Social","Generacion","Vino_De_Gen1","Ruta_GEB","Impulso_GEB"],
+  IG_Inscritos: ["Nombre","Sucursal","Lider","Telefono_WA","Fecha_Alta","Estado","Requiere_Seguimiento","Notas","Plan_Vida","Presupuesto","Ahorro","Movilidad_Social","Generacion","Vino_De_Gen1","Ruta_GEB","Impulso_GEB"],
   Colaboradores: ["Nombre","Sucursal","Unidad","Correo","FechaNac","Genero","Telefono_WA","Turno","Rol","Fecha_Alta_Empresa","Baja_Empresa","Fecha_Baja_Empresa"]
 };
 

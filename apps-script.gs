@@ -31,15 +31,19 @@ const HOJAS_RESTRINGIDAS_BAJA_EMPRESA = [
 // encuentra, pone Estado (col E) y Requiere_Seguimiento (col F). Reutilizado
 // por los handlers "Reactivar" y por la cascada de baja de empresa — mismo
 // patrón que ya usaban handleSvBaja/handleEgBaja/etc. antes de este cambio.
-function _marcarEstadoPorNombre(sheetName, nombre, estado, seguimiento) {
+// colEstado/colSeguimiento son opcionales (default 5/6, ciertas para la
+// mayoría de las iniciativas) — IG_Inscritos pasa 6/7 porque su columna
+// Líder (C) corre todo lo demás una posición. Ver
+// [[project-geb-ig-lider-column-drift]] en memoria.
+function _marcarEstadoPorNombre(sheetName, nombre, estado, seguimiento, colEstado, colSeguimiento) {
   var ws = SS.getSheetByName(sheetName);
   if (!ws) return false;
   var data = ws.getDataRange().getValues();
   var nombreLower = nombre.trim().toLowerCase();
   for (var i = 1; i < data.length; i++) {
     if (String(data[i][0]).trim().toLowerCase() === nombreLower) {
-      ws.getRange(i + 1, 5).setValue(estado);
-      ws.getRange(i + 1, 6).setValue(seguimiento);
+      ws.getRange(i + 1, colEstado || 5).setValue(estado);
+      ws.getRange(i + 1, colSeguimiento || 6).setValue(seguimiento);
       return true;
     }
   }
@@ -1032,6 +1036,10 @@ function handleAltaUnificada(p) {
     if (yaExiste) { omitidas.push(cfg.sheet); return; }
 
     var base = [nombre, ini.sucursal || p.sucursal || "", p.telefono || "", new Date(), ini.estado || "Activo", "Sí", ini.notas || ""];
+    // IG_Inscritos tiene una columna Líder (C) que el resto de las iniciativas
+    // no tiene y el alta unificada no captura — se deja vacía, se llena a
+    // mano después. Ver [[project-geb-ig-lider-column-drift]] en memoria.
+    if (ini.tipo === "IG") base.splice(2, 0, "");
     ws.appendRow(base.concat(cfg.campos(ini)));
     creadas.push(cfg.sheet);
   });
@@ -1068,7 +1076,10 @@ function handleBajaEmpresa(p) {
 
   var bajasAplicadas = [];
   HOJAS_RESTRINGIDAS_BAJA_EMPRESA.forEach(function (sheetName) {
-    if (_marcarEstadoPorNombre(sheetName, nombre, "Baja", "No")) bajasAplicadas.push(sheetName);
+    // IG_Inscritos: Estado/Requiere_Seguimiento están en las cols F/G (6/7),
+    // no E/F (5/6), por la columna Líder (C) agregada a mano en el Sheet.
+    var cols = sheetName === "IG_Inscritos" ? [6, 7] : [5, 6];
+    if (_marcarEstadoPorNombre(sheetName, nombre, "Baja", "No", cols[0], cols[1])) bajasAplicadas.push(sheetName);
   });
 
   return resp({ ok: true, bajasAplicadas: bajasAplicadas });
@@ -2348,16 +2359,19 @@ function enviarResumenDiarioBiblioteca_() {
 // ================================================================
 // IMPULSO GEB (Generación 1) — Sheet nuevo
 // ================================================================
-// Cols IG_Inscritos: A=Nombre, B=Sucursal, C=Telefono_WA, D=Fecha_Alta,
-// E=Estado (Activo | Baja — el valor histórico "Generación 2" en filas viejas
-// también se trata como activo, ver perteneceGen2() en el HTML), F=Requiere_Seguimiento,
-// G=Notas, H=Plan_Vida, I=Presupuesto, J=Ahorro, K=Movilidad_Social (evidencias
-// de Generación 1, todas Sí/No), L=Generacion ("1" o "2" — cohorte actual,
-// independiente de Estado), M=Vino_De_Gen1 (Sí/No — si llegó a Gen. 2
-// transicionando desde Gen. 1 o se dio de alta directo ahí), N=Ruta_GEB,
-// O=Impulso_GEB (los 2 pasos de seguimiento de Generación 2, en ese orden,
-// Sí/No).
-const IG_CAMPOS_EVIDENCIA = { Plan_Vida: 8, Presupuesto: 9, Ahorro: 10, Movilidad_Social: 11, Ruta_GEB: 14, Impulso_GEB: 15 };
+// Cols IG_Inscritos: A=Nombre, B=Sucursal, C=Líder (agregada a mano en el
+// Sheet en algún momento sin avisar — el código no la contemplaba y estuvo
+// leyendo/escribiendo todo lo de D en adelante una columna corrida hasta
+// 2026-09-11, ver [[project-geb-ig-lider-column-drift]] en memoria),
+// D=Telefono_WA, E=Fecha_Alta, F=Estado (Activo | Baja — el valor histórico
+// "Generación 2" en filas viejas también se trata como activo, ver
+// perteneceGen2() en el HTML), G=Requiere_Seguimiento, H=Notas, I=Plan_Vida,
+// J=Presupuesto, K=Ahorro, L=Movilidad_Social (evidencias de Generación 1,
+// todas Sí/No), M=Generacion ("1" o "2" — cohorte actual, independiente de
+// Estado), N=Vino_De_Gen1 (Sí/No — si llegó a Gen. 2 transicionando desde
+// Gen. 1 o se dio de alta directo ahí), O=Ruta_GEB, P=Impulso_GEB (los 2
+// pasos de seguimiento de Generación 2, en ese orden, Sí/No).
+const IG_CAMPOS_EVIDENCIA = { Plan_Vida: 9, Presupuesto: 10, Ahorro: 11, Movilidad_Social: 12, Ruta_GEB: 15, Impulso_GEB: 16 };
 
 function igSheetNuevo_() { return SpreadsheetApp.openById(SHEET_NUEVO_ID).getSheetByName("IG_Inscritos"); }
 
@@ -2372,7 +2386,7 @@ function handleIgActualizarCampo(p) {
   for (let i = 1; i < data.length; i++) {
     if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
       ws.getRange(i + 1, col).setValue(p.valor || "");
-      ws.getRange(i + 1, 6).setValue(""); // Requiere_Seguimiento: ya se dio seguimiento
+      ws.getRange(i + 1, 7).setValue(""); // Requiere_Seguimiento: ya se dio seguimiento
       return resp({ ok: true });
     }
   }
@@ -2386,7 +2400,7 @@ function handleIgMarcarAtendido(p) {
   const data = ws.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
     if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
-      ws.getRange(i + 1, 6).setValue("");
+      ws.getRange(i + 1, 7).setValue("");
       return resp({ ok: true });
     }
   }
@@ -2400,30 +2414,51 @@ function handleIgBaja(p) {
   const data = ws.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
     if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
-      ws.getRange(i + 1, 5).setValue("Baja");
-      ws.getRange(i + 1, 6).setValue("No");
+      ws.getRange(i + 1, 6).setValue("Baja"); // Estado (col F)
+      ws.getRange(i + 1, 7).setValue("No");   // Requiere_Seguimiento (col G)
       return resp({ ok: true });
     }
   }
   return resp({ ok: false, error: "No se encontró a " + nombre + " en IG_Inscritos" });
 }
 
+// No usa el helper genérico _marcarEstadoPorNombre porque ese asume
+// Estado/Requiere_Seguimiento en las columnas 5/6 — ciertas en el resto de
+// las iniciativas, pero corridas una posición aquí por la columna Líder (C).
 function handleIgReactivar(p) {
+  const ws = igSheetNuevo_();
+  if (!ws) return resp({ ok: false, error: "Pestaña IG_Inscritos no encontrada en el Sheet nuevo" });
   const nombre = (p.nombre || "").trim();
-  if (_marcarEstadoPorNombre("IG_Inscritos", nombre, "Activo", "")) return resp({ ok: true });
+  const data = ws.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
+      ws.getRange(i + 1, 6).setValue("Activo"); // Estado (col F)
+      ws.getRange(i + 1, 7).setValue("");       // Requiere_Seguimiento (col G)
+      return resp({ ok: true });
+    }
+  }
   return resp({ ok: false, error: "No se encontró a " + nombre + " en IG_Inscritos" });
 }
 
 // ── Impulso GEB: marcar seguimiento manualmente ──────────────────
+// Tampoco usa el helper genérico — mismo motivo que handleIgReactivar.
 function handleIgMarcarSeguimiento(p) {
+  const ws = igSheetNuevo_();
+  if (!ws) return resp({ ok: false, error: "Pestaña IG_Inscritos no encontrada en el Sheet nuevo" });
   const nombre = (p.nombre || "").trim();
-  if (_marcarSeguimientoPorNombre("IG_Inscritos", nombre, "Sí")) return resp({ ok: true });
+  const data = ws.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
+      ws.getRange(i + 1, 7).setValue("Sí"); // Requiere_Seguimiento (col G)
+      return resp({ ok: true });
+    }
+  }
   return resp({ ok: false, error: "No se encontró a " + nombre + " en IG_Inscritos" });
 }
 
 // Marca que la persona termina Generación 1 y continúa en Generación 2.
-// Estado (col E) NO cambia (sigue "Activo") — lo que cambia es la cohorte:
-// Generacion (col L) pasa a "2" y Vino_De_Gen1 (col M) a "Sí", para
+// Estado (col F) NO cambia (sigue "Activo") — lo que cambia es la cohorte:
+// Generacion (col M) pasa a "2" y Vino_De_Gen1 (col N) a "Sí", para
 // distinguirla de alguien dado de alta directo en Generación 2.
 function handleIgPasarGeneracion2(p) {
   const ws = igSheetNuevo_();
@@ -2432,9 +2467,9 @@ function handleIgPasarGeneracion2(p) {
   const data = ws.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
     if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
-      ws.getRange(i + 1, 12).setValue("2");  // Generacion
-      ws.getRange(i + 1, 13).setValue("Sí"); // Vino_De_Gen1
-      ws.getRange(i + 1, 6).setValue("No");  // Requiere_Seguimiento
+      ws.getRange(i + 1, 13).setValue("2");  // Generacion
+      ws.getRange(i + 1, 14).setValue("Sí"); // Vino_De_Gen1
+      ws.getRange(i + 1, 7).setValue("No");  // Requiere_Seguimiento
       return resp({ ok: true });
     }
   }

@@ -242,6 +242,9 @@ function doPost(e) {
     if (tipo === "sv_baja")           return handleSvBaja(payload);
     if (tipo === "sv_reactivar")      return handleSvReactivar(payload);
     if (tipo === "sv_asignarGuardia") return handleSvAsignarGuardia(payload);
+    if (tipo === "sv_pausar")             return handleSvPausar(payload);
+    if (tipo === "sv_editarTipoSangre")   return handleSvEditarTipoSangre(payload);
+    if (tipo === "sv_editarComentarios")  return handleSvEditarComentarios(payload);
     if (tipo === "eg_marcarAtendido")   return handleEgMarcarAtendido(payload);
     if (tipo === "eg_marcarSeguimiento") return handleEgMarcarSeguimiento(payload);
     if (tipo === "eg_marcarHistoricoProspecto") return handleEgMarcarHistoricoProspecto(payload);
@@ -344,6 +347,10 @@ function handleExamen(p) {
 
 // ── Donación ────────────────────────────────────────────────────
 // Cols: A=Nombre, B=Mes, C=Año, D=Dono, E=Fecha_Donacion, F=Talon_Recibido, G=Notas
+// Si sí donó, pausa automáticamente al donador 3 meses en SV_Inscritos (con
+// Pausado_Hasta puesta, para que el disparador diario lo reactive solo —
+// distinto de una pausa manual, que se queda pausada hasta que Cecilia la
+// quite a mano). Ver [[project-geb-sv-pausas-y-alertas]] en memoria.
 function handleDonacion(p) {
   const ws = SS.getSheetByName("SV_Historial");
   if (!ws) return resp({ ok: false, error: "Pestaña SV_Historial no encontrada" });
@@ -356,13 +363,33 @@ function handleDonacion(p) {
     p.talon         || "",
     p.notas         || ""
   ]);
+
+  if (p.dono === "Sí") {
+    const wsIns = svSheetNuevo_();
+    if (wsIns) {
+      const nombre = (p.nombre || "").trim().toLowerCase();
+      const data = wsIns.getDataRange().getValues();
+      for (let i = 1; i < data.length; i++) {
+        if (String(data[i][0]).trim().toLowerCase() === nombre) {
+          const base = p.fechaDonacion ? new Date(p.fechaDonacion) : new Date();
+          const pausadoHasta = new Date(base.getFullYear(), base.getMonth() + 3, base.getDate());
+          wsIns.getRange(i + 1, 5).setValue("Pausado");     // Estado (col E)
+          wsIns.getRange(i + 1, 10).setValue(pausadoHasta); // Pausado_Hasta (col J)
+          break;
+        }
+      }
+    }
+  }
+
   return resp({ ok: true });
 }
 
 // ── Salvando Vidas (Sheet NUEVO desde 2026-07-04) ────────────────
 // Cols SV_Inscritos en SHEET_NUEVO_ID: A=Nombre, B=Sucursal, C=Telefono_WA,
 // D=Fecha_Alta, E=Estado, F=Requiere_Seguimiento, G=Notas, H=Tipo_Sangre,
-// I=Mes_Guardia. El Sheet histórico (SS) ya NO se toca para esta iniciativa.
+// I=Mes_Guardia, J=Pausado_Hasta (agregada 2026-09-11 — solo se llena en
+// pausa automática tras donar; vacía en pausa manual, así nunca se reactiva
+// sola). El Sheet histórico (SS) ya NO se toca para esta iniciativa.
 function svSheetNuevo_() {
   return SpreadsheetApp.openById(SHEET_NUEVO_ID).getSheetByName("SV_Inscritos");
 }
@@ -409,10 +436,80 @@ function handleSvBaja(p) {
   return resp({ ok: false, error: "No se encontró a " + nombre + " en SV_Inscritos" });
 }
 
-// ── Salvando Vidas: Reactivar (deshace una baja individual) ──────
+// ── Salvando Vidas: Reactivar (deshace una baja o una pausa individual) ──
+// También limpia Pausado_Hasta (col J) — si no, quedaría una fecha vieja
+// colgada que no significa nada una vez reactivado a mano.
 function handleSvReactivar(p) {
+  var ws = svSheetNuevo_();
+  if (!ws) return resp({ ok: false, error: "Pestaña SV_Inscritos no encontrada en el Sheet nuevo" });
+
   var nombre = (p.nombre || "").trim();
-  if (_marcarEstadoPorNombre("SV_Inscritos", nombre, "Activo", "")) return resp({ ok: true });
+  var data = ws.getDataRange().getValues();
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
+      ws.getRange(i + 1, 5).setValue("Activo"); // Estado (col E)
+      ws.getRange(i + 1, 6).setValue("");       // Requiere_Seguimiento (col F)
+      ws.getRange(i + 1, 10).setValue("");      // Pausado_Hasta (col J)
+      return resp({ ok: true });
+    }
+  }
+  return resp({ ok: false, error: "No se encontró a " + nombre + " en SV_Inscritos" });
+}
+
+// ── Salvando Vidas: Pausar participación (manual) ────────────────
+// Recibe: {tipo:"sv_pausar", nombre}. A diferencia de la pausa automática
+// tras donar (ver handleDonacion), esta deja Pausado_Hasta vacío a
+// propósito — el disparador diario solo reactiva pausas con fecha.
+function handleSvPausar(p) {
+  var ws = svSheetNuevo_();
+  if (!ws) return resp({ ok: false, error: "Pestaña SV_Inscritos no encontrada en el Sheet nuevo" });
+
+  var nombre = (p.nombre || "").trim();
+  var data = ws.getDataRange().getValues();
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
+      ws.getRange(i + 1, 5).setValue("Pausado"); // Estado (col E)
+      ws.getRange(i + 1, 10).setValue("");       // Pausado_Hasta (col J) — pausa manual, sin fecha
+      return resp({ ok: true });
+    }
+  }
+  return resp({ ok: false, error: "No se encontró a " + nombre + " en SV_Inscritos" });
+}
+
+// ── Salvando Vidas: Editar tipo de sangre ────────────────────────
+// Recibe: {tipo:"sv_editarTipoSangre", nombre, tipoSangre}
+function handleSvEditarTipoSangre(p) {
+  var ws = svSheetNuevo_();
+  if (!ws) return resp({ ok: false, error: "Pestaña SV_Inscritos no encontrada en el Sheet nuevo" });
+
+  var nombre = (p.nombre || "").trim();
+  var tipoSangre = (p.tipoSangre || "").trim();
+  if (!tipoSangre) return resp({ ok: false, error: "Falta el tipo de sangre" });
+
+  var data = ws.getDataRange().getValues();
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
+      ws.getRange(i + 1, 8).setValue(tipoSangre); // Tipo_Sangre (col H)
+      return resp({ ok: true });
+    }
+  }
+  return resp({ ok: false, error: "No se encontró a " + nombre + " en SV_Inscritos" });
+}
+
+// ── Salvando Vidas: Editar comentarios ───────────────────────────
+// Recibe: {tipo:"sv_editarComentarios", nombre, comentarios}
+function handleSvEditarComentarios(p) {
+  var ws = svSheetNuevo_();
+  if (!ws) return resp({ ok: false, error: "Pestaña SV_Inscritos no encontrada en el Sheet nuevo" });
+
+  var nombre = (p.nombre || "").trim();
+  var data = ws.getDataRange().getValues();
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
+      ws.getRange(i + 1, 7).setValue(p.comentarios || ""); // Notas (col G)
+      return resp({ ok: true });
+    }
+  }
   return resp({ ok: false, error: "No se encontró a " + nombre + " en SV_Inscritos" });
 }
 
@@ -2084,6 +2181,168 @@ function handleBibGenerarEtiqueta(p) {
   } catch (err) {
     return resp({ ok: false, error: err.message });
   }
+}
+
+// ================================================================
+// TAREAS DIARIAS (disparador programado)
+// ================================================================
+// ejecutarTareasDiarias() es el punto de entrada — Cecilia debe agregar UN
+// disparador de tiempo en el editor de Apps Script apuntando a esta función
+// (Triggers → Agregar disparador → ejecutarTareasDiarias → basado en tiempo →
+// temporizador de día → la hora que prefiera). No hace nada por sí sola sin
+// ese disparador — copiar este archivo al editor no lo crea automáticamente.
+// Ver [[project-geb-sv-pausas-y-alertas]] en memoria.
+function ejecutarTareasDiarias() {
+  reactivarPausasVencidasSV_();
+  enviarResumenDiarioBiblioteca_();
+}
+
+// Reactiva solo las pausas AUTOMÁTICAS (Pausado_Hasta con fecha) que ya se
+// cumplieron. Las pausas manuales (Pausado_Hasta vacío) nunca las toca esta
+// función — esas las reactiva Cecilia a mano desde el panel.
+function reactivarPausasVencidasSV_() {
+  var ws = svSheetNuevo_();
+  if (!ws) return;
+  var data = ws.getDataRange().getValues();
+  var hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  for (var i = 1; i < data.length; i++) {
+    var estado = String(data[i][4] || "").trim().toLowerCase();
+    var pausadoHasta = data[i][9];
+    if (estado !== "pausado" || !pausadoHasta) continue;
+    var fechaLimite = new Date(pausadoHasta);
+    fechaLimite.setHours(0, 0, 0, 0);
+    if (fechaLimite <= hoy) {
+      ws.getRange(i + 1, 5).setValue("Activo");
+      ws.getRange(i + 1, 10).setValue("");
+    }
+  }
+}
+
+// Correo resumen diario de Biblioteca a universidadgeb@gmail.com. No manda
+// nada si no hay absolutamente nada que reportar ese día (evita acumular
+// correos vacíos). Reusa COLS_BIB / bibSheetNuevo_ / obtenerIndicesBib_ ya
+// definidos para el resto de Biblioteca, mismo criterio que biblioteca-geb.html.
+function enviarResumenDiarioBiblioteca_() {
+  var DESTINATARIO = "universidadgeb@gmail.com";
+  var hoyStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+
+  var esSi_ = function (v) {
+    var s = String(v || "").trim().toLowerCase();
+    return s === "sí" || s === "si" || s === "true";
+  };
+
+  var hojaPrestamos = bibSheetNuevo_("BIB_Prestamos");
+  var hojaDonaciones = bibSheetNuevo_("BIB_Donaciones");
+  var hojaDevoluciones = bibSheetNuevo_("BIB_Devoluciones");
+  if (!hojaPrestamos || !hojaDonaciones || !hojaDevoluciones) return;
+
+  var datosP = hojaPrestamos.getDataRange().getValues();
+  var idxP = obtenerIndicesBib_(datosP[0], COLS_BIB.prestamos);
+  var datosD = hojaDonaciones.getDataRange().getValues();
+  var idxD = obtenerIndicesBib_(datosD[0], COLS_BIB.donaciones);
+  var datosDev = hojaDevoluciones.getDataRange().getValues();
+  var idxDev = obtenerIndicesBib_(datosDev[0], COLS_BIB.devoluciones);
+
+  var hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+
+  var atrasados = [], porVencer = [], prestamosPendientes = [], devueltosHoy = [];
+  for (var i = 1; i < datosP.length; i++) {
+    var fila = datosP[i];
+    var nombre = idxP.nombre >= 0 ? fila[idxP.nombre] : "";
+    if (!nombre) continue;
+    var devuelto = idxP.devuelto >= 0 ? esSi_(fila[idxP.devuelto]) : false;
+    var confirmado = idxP.confirmado >= 0 ? esSi_(fila[idxP.confirmado]) : false;
+    var titulo = idxP.titulo >= 0 ? fila[idxP.titulo] : "";
+
+    if (devuelto) {
+      var fDevReal = idxP.fechaDevolucionReal >= 0 ? fila[idxP.fechaDevolucionReal] : null;
+      if (fDevReal && Utilities.formatDate(new Date(fDevReal), Session.getScriptTimeZone(), "yyyy-MM-dd") === hoyStr) {
+        devueltosHoy.push(nombre + ' — "' + titulo + '"');
+      }
+      continue;
+    }
+
+    if (!confirmado) {
+      prestamosPendientes.push(nombre + (titulo ? ' — "' + titulo + '"' : ""));
+      continue;
+    }
+
+    var fComp = idxP.fechaCompromiso >= 0 ? fila[idxP.fechaCompromiso] : null;
+    if (!fComp) continue;
+    var fCompDate = new Date(fComp); fCompDate.setHours(0, 0, 0, 0);
+    var dias = Math.floor((fCompDate - hoy) / 86400000);
+    if (dias < 0) atrasados.push(nombre + ' — "' + titulo + '" (' + Math.abs(dias) + ' día(s) de atraso)');
+    else if (dias <= 3) porVencer.push(nombre + ' — "' + titulo + '" (vence en ' + dias + ' día(s))');
+  }
+
+  var donacionesPendientes = [];
+  for (var j = 1; j < datosD.length; j++) {
+    var filaD = datosD[j];
+    var donante = idxD.donante >= 0 ? filaD[idxD.donante] : "";
+    if (!donante) continue;
+    var confD = idxD.confirmado >= 0 ? esSi_(filaD[idxD.confirmado]) : false;
+    if (!confD) donacionesPendientes.push(donante + ' — "' + (idxD.titulo >= 0 ? filaD[idxD.titulo] : "") + '"');
+  }
+
+  var devolucionesPendientes = [];
+  for (var k = 1; k < datosDev.length; k++) {
+    var filaDev = datosDev[k];
+    var nombreDev = idxDev.nombre >= 0 ? filaDev[idxDev.nombre] : "";
+    if (!nombreDev) continue;
+    var procesado = idxDev.procesado >= 0 ? filaDev[idxDev.procesado] : "";
+    if (!procesado) devolucionesPendientes.push(nombreDev + ' — "' + (idxDev.titulo >= 0 ? filaDev[idxDev.titulo] : "") + '"');
+  }
+
+  // Préstamos nuevos confirmados hoy: se detectan por Fisicos (Biblioteca
+  // Virtual externa), col J = fecha_prestamo, puesta por
+  // handleBibConfirmarPrestamo al momento de confirmar. Columnas por
+  // posición: 1=titulo, 3=id_libro, 6=disponible, 7=prestado_a, 9=fecha_prestamo.
+  var nuevosRentadosHoy = [];
+  try {
+    var hojaFisicos = SpreadsheetApp.openById(SHEET_BIBLIOTECA_ID).getSheetByName("Fisicos");
+    if (hojaFisicos) {
+      var datosF = hojaFisicos.getDataRange().getValues();
+      for (var f = 1; f < datosF.length; f++) {
+        var filaF = datosF[f];
+        var disponible = filaF[6];
+        var fechaPrestamo = filaF[9];
+        if (disponible === false && fechaPrestamo &&
+            Utilities.formatDate(new Date(fechaPrestamo), Session.getScriptTimeZone(), "yyyy-MM-dd") === hoyStr) {
+          nuevosRentadosHoy.push((filaF[7] || "—") + ' — "' + (filaF[1] || "") + '"');
+        }
+      }
+    }
+  } catch (e) {
+    // Si la Biblioteca Virtual externa no responde, el resto del correo se
+    // manda igual — no se bloquea todo el resumen por esto.
+  }
+
+  var totalItems = atrasados.length + porVencer.length + prestamosPendientes.length +
+    donacionesPendientes.length + devolucionesPendientes.length + nuevosRentadosHoy.length + devueltosHoy.length;
+  if (totalItems === 0) return;
+
+  function seccion(titulo, items) {
+    if (!items.length) return "";
+    return "<h3 style='margin:18px 0 6px;color:#0B2545;'>" + titulo + " (" + items.length + ")</h3><ul>" +
+      items.map(function (t) { return "<li>" + t + "</li>"; }).join("") + "</ul>";
+  }
+
+  var html = "<div style='font-family:Arial,sans-serif;font-size:14px;color:#1C2A3A;'>" +
+    "<p>Resumen de Biblioteca Comunitaria — " + formatearFechaBib_(new Date()) + "</p>" +
+    seccion("⚠️ Atrasados", atrasados) +
+    seccion("📅 Por vencer (próximos 3 días)", porVencer) +
+    seccion("📚 Préstamos nuevos confirmados hoy", nuevosRentadosHoy) +
+    seccion("↩️ Devueltos hoy", devueltosHoy) +
+    seccion("🕐 Préstamos pendientes de confirmar", prestamosPendientes) +
+    seccion("🕐 Donaciones pendientes de confirmar", donacionesPendientes) +
+    seccion("🕐 Devoluciones pendientes de confirmar", devolucionesPendientes) +
+    "</div>";
+
+  MailApp.sendEmail({
+    to: DESTINATARIO,
+    subject: "Biblioteca GEB — resumen del " + formatearFechaCortaBib_(new Date()) + " (" + totalItems + " pendiente(s))",
+    htmlBody: html
+  });
 }
 
 // ================================================================

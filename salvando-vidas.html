@@ -357,8 +357,9 @@
           <option>B+</option><option>B-</option><option>AB+</option><option>AB-</option>
         </select>
         <select id="fEstado">
-          <option value="">activos y dados de baja</option>
+          <option value="">todos los estados</option>
           <option value="Activo">solo activos</option>
+          <option value="Pausado">solo pausados</option>
           <option value="Baja">solo dados de baja</option>
         </select>
         <select id="fSeguimiento">
@@ -440,6 +441,7 @@ const TABS = {
 };
 const TAB_SHEET = { SV_Inscritos: SHEET_ID, SV_Historial: SHEET_ID, SV_Copys: SHEET_ID, Colaboradores: SHEET_ID };
 const MESES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+const TIPOS_SANGRE = ["O+","O-","A+","A-","B+","B-","AB+","AB-"];
 const MES_ACTUAL = MESES[new Date().getMonth()];
 
 /* ============================================================
@@ -453,7 +455,11 @@ function gvizUrl(tabName){
 // Esquema unificado: 7 columnas base (Nombre..Notas) iguales en las 4
 // iniciativas de "inscritos", luego las específicas de Donadores.
 const SCHEMA = {
-  SV_Inscritos: ["Nombre","Sucursal","Telefono_WA","Fecha_Alta","Estado","Requiere_Seguimiento","Notas","Tipo_Sangre","Mes_Guardia"],
+  // Pausado_Hasta (col J, agregada 2026-09-11): solo se llena cuando la
+  // pausa es automática (tras registrar una donación) — la usa el disparador
+  // diario para reactivar sola a esa persona. Una pausa manual (botón
+  // "Pausar") la deja vacía a propósito, así nunca se reactiva sola.
+  SV_Inscritos: ["Nombre","Sucursal","Telefono_WA","Fecha_Alta","Estado","Requiere_Seguimiento","Notas","Tipo_Sangre","Mes_Guardia","Pausado_Hasta"],
   SV_Historial: ["Nombre","Mes","Año","Dono","Fecha_Donacion","Talon_Recibido","Notas"],
   SV_Copys:     ["Momento","Copy_Texto","Numero_WA","Activo"],
   Colaboradores: ["Nombre","Sucursal","Unidad","Correo","FechaNac","Genero","Telefono_WA","Turno","Rol","Fecha_Alta_Empresa","Baja_Empresa","Fecha_Baja_Empresa"],
@@ -557,6 +563,10 @@ function esBaja(d){
   return (d.Estado || "").trim().toLowerCase() === "baja";
 }
 
+function esPausado(d){
+  return (d.Estado || "").trim().toLowerCase() === "pausado";
+}
+
 function getMomentosDisponibles(d, historial){
   if(esPendienteSeguimiento(d)){
     return ["Bienvenida"];
@@ -641,6 +651,7 @@ function buildCopyMap(){
 function renderMetrics(){
   const total = DONADORES.length;
   const activos = DONADORES.filter(d => (d.Estado||"").toLowerCase() === "activo").length;
+  const pausados = DONADORES.filter(esPausado).length;
   const guardiaMes = DONADORES.filter(d => (d.Mes_Guardia||"").toLowerCase() === MES_ACTUAL).length;
   const donacionesCiclo = HISTORIAL.filter(h => h.Dono === "Sí").length;
   const seguimiento = DONADORES.filter(esPendienteSeguimiento).length;
@@ -648,6 +659,7 @@ function renderMetrics(){
   const metrics = [
     { val: total, lbl: "donadores registrados" },
     { val: activos, lbl: "activos" },
+    { val: pausados, lbl: "pausados" },
     { val: guardiaMes, lbl: `de guardia en ${MES_ACTUAL}` },
     { val: donacionesCiclo, lbl: "donaciones (historial)" },
   ];
@@ -786,15 +798,22 @@ function renderTabla(filtered){
       ? `<span class="origen-tag">nuevo — requiere seguimiento</span>`
       : baja ? `<span class="origen-tag">dado de baja</span>` : "";
 
+    const pausado = esPausado(d);
     let segCell;
     if(baja){
       segCell = `<span class="pill inactivo">Dado de baja</span> `
         + `<button class="reactivar-btn" onclick="reactivarSv('${encodeURIComponent(d.Nombre)}', this)">↺ Reactivar</button>`;
+    } else if(pausado){
+      const hastaTxt = d.Pausado_Hasta ? ` — hasta ${d.Pausado_Hasta}` : ` — manual`;
+      segCell = `<span class="pill seguimiento-tag">⏸ Pausado${hastaTxt}</span> `
+        + `<button class="reactivar-btn" onclick="reactivarSv('${encodeURIComponent(d.Nombre)}', this)">↺ Reactivar</button>`;
     } else if(isSeg){
       segCell = `<span class="pill seguimiento-tag">Pendiente</span> `
-        + `<button class="atender-btn" onclick="marcarAtendido('${encodeURIComponent(d.Nombre)}', this)">✓ marcar atendido</button>`;
+        + `<button class="atender-btn" onclick="marcarAtendido('${encodeURIComponent(d.Nombre)}', this)">✓ marcar atendido</button>`
+        + ` <button class="atender-btn" onclick="pausarSv('${encodeURIComponent(d.Nombre)}', this)">⏸ Pausar</button>`;
     } else {
-      segCell = `<button class="atender-btn" style="color:var(--red-text); background:var(--red-bg); border-color:#f0c7c7;" onclick="marcarBaja('${encodeURIComponent(d.Nombre)}', this)">✕ dar de baja</button>`;
+      segCell = `<button class="atender-btn" style="color:var(--red-text); background:var(--red-bg); border-color:#f0c7c7;" onclick="marcarBaja('${encodeURIComponent(d.Nombre)}', this)">✕ dar de baja</button>`
+        + ` <button class="atender-btn" onclick="pausarSv('${encodeURIComponent(d.Nombre)}', this)">⏸ Pausar</button>`;
     }
 
     const tFormId = 'form-tbl-' + i;
@@ -803,13 +822,25 @@ function renderTabla(filtered){
       segCell += ' <button class="baja-empresa-btn" onclick="marcarBajaEmpresa(\''+encodeURIComponent(d.Nombre)+'\', this)" title="Da de baja en TODAS las iniciativas de la empresa (Salvando Vidas no se ve afectado)">🔴 Baja de empresa</button>';
     }
     const tMesesOpts = MESES.map(function(m){ return '<option value="'+m+'">'+m.charAt(0).toUpperCase()+m.slice(1)+'</option>'; }).join("");
+    const tTiposOpts = TIPOS_SANGRE.map(function(t){ return '<option value="'+t+'"'+(t===d.Tipo_Sangre?' selected':'')+'>'+t+'</option>'; }).join("");
     html += '<tr class="'+(isSeg ? 'seguimiento-row' : '')+' '+(bajaEmpresa ? 'baja-empresa-row' : '')+'">'
       + '<td><div class="name-cell">'
       + (isSeg ? '<span class="dot-new"></span>' : '')
-      + '<div><div style="font-weight:600;">'+d.Nombre+'</div>'+origenTag+'</div>'
+      + '<div><div style="font-weight:600;">'+d.Nombre+'</div>'+origenTag
+      + '<button class="reg-btn" style="margin-top:4px;padding:3px 7px;font-size:11px;" onclick="editarComentarios(\''+encodeURIComponent(d.Nombre)+'\',\''+encodeURIComponent(d.Notas||"")+'\')">💬'+(d.Notas?' comentario':' agregar comentario')+'</button>'
+      + '</div>'
       + '</div></td>'
       + '<td>'+(d.Sucursal||"")+'</td>'
-      + '<td><span class="pill '+tc+'" style="margin:0;">'+(d.Tipo_Sangre||"—")+'</span></td>'
+      + '<td>'
+      + '<span class="pill '+tc+'" style="margin:0;">'+(d.Tipo_Sangre||"—")+'</span>'
+      + '<div style="display:flex; gap:4px; margin-top:4px;">'
+      + '<select id="ts_'+i+'" style="font-size:11px; padding:3px 4px; border-radius:5px; border:1px solid var(--border); max-width:70px;">'
+      + '<option value="">cambiar…</option>'
+      + tTiposOpts
+      + '</select>'
+      + '<button class="reg-btn" style="padding:3px 7px;" onclick="editarTipoSangre(\''+encodeURIComponent(d.Nombre)+'\', document.getElementById(\'ts_'+i+'\').value, this)">✓</button>'
+      + '</div>'
+      + '</td>'
       + '<td>'
       + '<div>'+(d.Mes_Guardia || '<span style="color:var(--text-soft); font-size:12px;">sin asignar</span>')+'</div>'
       + '<div style="display:flex; gap:4px; margin-top:4px;">'
@@ -980,6 +1011,14 @@ async function guardarDonacion(formId, nombreEnc){
         HISTORIAL = h.filter(x => x.Nombre && x.Nombre.trim() !== "");
         renderGuardias();
       });
+      if(dono === "Sí"){
+        // Si donó, el servidor lo pausa 3 meses automático — refresca para
+        // que se vea de una vez sin tener que recargar la página entera.
+        fetchSheetTab(TABS.donadores).then(donadores => {
+          DONADORES = donadores.filter(d => d.Nombre && d.Nombre.trim() !== "");
+          renderMetrics(); applyFilters();
+        });
+      }
     } else {
       showMsg(formId+"_msg","err","Error: " + r.error);
     }
@@ -1064,6 +1103,67 @@ async function reactivarSv(nombreEnc, btnEl){
   } catch(e){
     alert("No se pudo conectar con el servidor.");
     if(btnEl){ btnEl.disabled = false; btnEl.textContent = "↺ Reactivar"; }
+  }
+}
+
+// Pausa manual (nunca se reactiva sola — a diferencia de la pausa automática
+// tras registrar una donación, que sí la reactiva el disparador diario).
+async function pausarSv(nombreEnc, btnEl){
+  const nombre = decodeURIComponent(nombreEnc);
+  if(!confirm(`¿Pausar la participación de ${nombre}? No se le va a asignar guardia ni se le va a pedir donar hasta que la reactive a mano.`)) return;
+  if(btnEl){ btnEl.disabled = true; btnEl.textContent = "…"; }
+  try{
+    const r = await postData({ tipo: "sv_pausar", nombre });
+    if(r.ok){
+      const d = DONADORES.find(x => x.Nombre === nombre);
+      if(d){ d.Estado = "Pausado"; d.Pausado_Hasta = ""; }
+      renderMetrics(); renderGuardias(); applyFilters();
+    } else {
+      alert("Error: " + r.error);
+      if(btnEl){ btnEl.disabled = false; btnEl.textContent = "⏸ Pausar"; }
+    }
+  } catch(e){
+    alert("No se pudo conectar con el servidor.");
+    if(btnEl){ btnEl.disabled = false; btnEl.textContent = "⏸ Pausar"; }
+  }
+}
+
+async function editarTipoSangre(nombreEnc, tipo, btnEl){
+  if(!tipo){ alert("Selecciona un tipo antes de confirmar."); return; }
+  const nombre = decodeURIComponent(nombreEnc);
+  btnEl.disabled = true; btnEl.textContent = "…";
+  try{
+    const r = await postData({ tipo: "sv_editarTipoSangre", nombre, tipoSangre: tipo });
+    if(r.ok){
+      const d = DONADORES.find(x => x.Nombre === nombre);
+      if(d) d.Tipo_Sangre = tipo;
+      renderMetrics(); applyFilters();
+    } else {
+      alert("Error: " + r.error);
+      btnEl.disabled = false; btnEl.textContent = "✓";
+    }
+  } catch(e){
+    alert("No se pudo conectar con el servidor.");
+    btnEl.disabled = false; btnEl.textContent = "✓";
+  }
+}
+
+async function editarComentarios(nombreEnc, comentarioActualEnc){
+  const nombre = decodeURIComponent(nombreEnc);
+  const actual = decodeURIComponent(comentarioActualEnc);
+  const nuevo = prompt(`Comentario sobre ${nombre.split(" ")[0]}:`, actual);
+  if(nuevo === null) return; // canceló
+  try{
+    const r = await postData({ tipo: "sv_editarComentarios", nombre, comentarios: nuevo.trim() });
+    if(r.ok){
+      const d = DONADORES.find(x => x.Nombre === nombre);
+      if(d) d.Notas = nuevo.trim();
+      applyFilters();
+    } else {
+      alert("Error: " + r.error);
+    }
+  } catch(e){
+    alert("No se pudo conectar con el servidor.");
   }
 }
 

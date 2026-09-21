@@ -463,6 +463,9 @@
         <div class="form-row" id="hp_sucursal_row"><label>Sucursal *</label>
           <input type="text" id="hp_sucursal" placeholder="ej. NAC">
         </div>
+        <div class="form-row" id="hp_familiarde_row" style="display:none;"><label>Nombre del colaborador (de quién es familiar) *</label>
+          <input type="text" id="hp_familiar_de" list="hpListaColaboradores" placeholder="Escribe o busca…">
+        </div>
         <div class="form-checkbox-group">
           <label><input type="checkbox" id="hp_historico"> Histórico</label>
           <label><input type="checkbox" id="hp_prospecto"> Prospecto</label>
@@ -692,8 +695,10 @@ const SCHEMA = {
     "Nivel",               // J (9)
     "Historico",           // K (10) — agregada para el panel de Históricos/Prospectos;
     "Prospecto",           // L (11) — independiente de Estado, una persona puede ser ambos
-    "Familiar"             // M (12) — agregada 2026-09-08: prospecto que es familiar de un
+    "Familiar",            // M (12) — agregada 2026-09-08: prospecto que es familiar de un
                            // colaborador (no colaborador él mismo), por eso no lleva Sucursal
+    "Familiar_De"          // N (13) — agregada 2026-09-21: nombre del colaborador del que es
+                           // familiar. Ni Familiar ni Familiar_De se borran al pasar a inscrito.
   ],
   // Una fila = una clase completa, no una persona — col D trae la lista de
   // quién asistió separada por comas. El encabezado real de la col A en el
@@ -949,7 +954,7 @@ function renderHistoricosProspectos(){
     ? prospectos.map(d => {
         const esFamiliar = esSiEG(d.Familiar);
         return `<div class="hp-item">
-          <div><strong>${d.Nombre}</strong><div class="hp-meta">${esFamiliar ? "Familiar de colaborador" : (d.Sucursal||"")}</div></div>
+          <div><strong>${d.Nombre}</strong><div class="hp-meta">${esFamiliar ? "Familiar de " + (d.Familiar_De || "colaborador") : (d.Sucursal||"")}</div></div>
           <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; justify-content:flex-end;">
             ${esFamiliar?'<span class="pill uvl-tag">Familiar</span>':''}
             ${esSiEG(d.Historico)?'<span class="pill historico">también histórico</span>':''}
@@ -987,9 +992,19 @@ async function pasarAInscrito(nombreEnc){
 
 function toggleHpForm(){ document.getElementById("hpForm").classList.toggle("open"); }
 
+// El tag de Familiar vive en las columnas Familiar/Familiar_De de EG_Inscritos
+// y NO se borra al pasar a inscrito (handleEgPasarAInscrito no las toca), así
+// que se muestra en cualquier lista — prospectos, tarjetas y tabla general.
+function familiarTag(d){
+  if(!esSiEG(d.Familiar)) return "";
+  const de = (d.Familiar_De||"").trim();
+  return `<span class="pill uvl-tag" title="${de ? "Familiar de " + de : "Familiar de colaborador"}">Familiar${de ? " de " + de : ""}</span>`;
+}
+
 function toggleHpTipo(){
   const esFamiliar = document.querySelector('input[name="hp_tipo"]:checked').value === "familiar";
   document.getElementById("hp_sucursal_row").style.display = esFamiliar ? "none" : "";
+  document.getElementById("hp_familiarde_row").style.display = esFamiliar ? "" : "none";
   const nombreInput = document.getElementById("hp_nombre");
   if(esFamiliar){ nombreInput.removeAttribute("list"); }
   else { nombreInput.setAttribute("list", "hpListaColaboradores"); }
@@ -999,21 +1014,24 @@ async function guardarHistoricoProspecto(){
   const nombre = document.getElementById("hp_nombre").value.trim();
   const familiar = document.querySelector('input[name="hp_tipo"]:checked').value === "familiar";
   const sucursal = familiar ? "" : document.getElementById("hp_sucursal").value.trim();
+  const familiarDe = familiar ? document.getElementById("hp_familiar_de").value.trim() : "";
   const historico = document.getElementById("hp_historico").checked;
   const prospecto = document.getElementById("hp_prospecto").checked;
   if(!nombre){ showMsg("hpMsg","err","Escribe un nombre."); return; }
   if(!familiar && !sucursal){ showMsg("hpMsg","err","La sucursal es obligatoria para un colaborador."); return; }
+  if(familiar && !familiarDe){ showMsg("hpMsg","err","Escribe el nombre del colaborador del que es familiar."); return; }
   if(!historico && !prospecto){ showMsg("hpMsg","err","Marca al menos Histórico o Prospecto."); return; }
   const btn = document.querySelector("#hpForm .btn-guardar");
   btn.disabled = true; btn.textContent = "Guardando…";
   try{
-    const r = await postData({ tipo:"eg_marcarHistoricoProspecto", nombre, historico, prospecto, familiar, sucursal });
+    const r = await postData({ tipo:"eg_marcarHistoricoProspecto", nombre, historico, prospecto, familiar, sucursal, familiarDe });
     if(r.ok){
       showMsg("hpMsg","ok","Guardado.");
       INSCRITOS = (await fetchSheetTab(TABS.inscritos)).filter(d => d.Nombre && d.Nombre.trim() !== "");
       renderHistoricosProspectos();
       document.getElementById("hp_nombre").value = "";
       document.getElementById("hp_sucursal").value = "";
+      document.getElementById("hp_familiar_de").value = "";
       document.getElementById("hp_historico").checked = false;
       document.getElementById("hp_prospecto").checked = false;
       document.querySelector('input[name="hp_tipo"][value="colaborador"]').checked = true;
@@ -1279,6 +1297,7 @@ function renderCards(containerId, modalidad){
         ${d.Nivel ? `<span class="pill nivel">${d.Nivel}</span>` : ""}
         ${d.Diagnostico_Edu ? `<span class="pill diag">${d.Diagnostico_Edu}</span>` : ""}
         ${esRezago ? `<span class="pill rezago" title="Concluir su nivel actual la sacaría de rezago educativo">🎯 Clave rezago</span>` : ""}
+        ${familiarTag(d)}
         ${modPill}
         ${seg
           ? `<span class="pill seguimiento-tag">🏳 seguimiento</span>`
@@ -1369,6 +1388,7 @@ function renderTabla(filtered){
             ${seg ? `<span class="dot-new"></span>` : ""}
             <div>
               <div style="font-weight:600;">${d.Nombre}</div>
+              ${familiarTag(d)}
               ${seg ? `<span style="font-size:11px;color:var(--text-soft);">nuevo — requiere seguimiento</span>` : ""}
             </div>
           </div>

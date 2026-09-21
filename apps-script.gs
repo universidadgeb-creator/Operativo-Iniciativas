@@ -610,6 +610,8 @@ function handleEgMarcarHistoricoProspecto(p) {
   var historico = p.historico ? "Sí" : "No";
   var prospecto = p.prospecto ? "Sí" : "No";
   var familiar = p.familiar ? "Sí" : "No";
+  var familiarDe = p.familiar ? (p.familiarDe || "").trim() : "";
+  if (p.familiar && !familiarDe) return resp({ ok: false, error: "Falta el nombre del colaborador del que es familiar." });
 
   var data = ws.getDataRange().getValues();
   for (var i = 1; i < data.length; i++) {
@@ -617,6 +619,7 @@ function handleEgMarcarHistoricoProspecto(p) {
       ws.getRange(i + 1, 11).setValue(historico); // Historico (col K)
       ws.getRange(i + 1, 12).setValue(prospecto);  // Prospecto (col L)
       ws.getRange(i + 1, 13).setValue(familiar);   // Familiar (col M)
+      ws.getRange(i + 1, 14).setValue(familiarDe); // Familiar_De (col N)
       return resp({ ok: true });
     }
   }
@@ -639,7 +642,7 @@ function handleEgMarcarHistoricoProspecto(p) {
     }
   }
 
-  ws.appendRow([nombre, sucursal, telefono, new Date(), "", "", "", "", "", "", historico, prospecto, familiar]);
+  ws.appendRow([nombre, sucursal, telefono, new Date(), "", "", "", "", "", "", historico, prospecto, familiar, familiarDe]);
   return resp({ ok: true, creado: true });
 }
 
@@ -648,6 +651,8 @@ function handleEgMarcarHistoricoProspecto(p) {
 // una alta nueva (handleAltaUnificada): Estado=Activo, Requiere_Seguimiento=Sí
 // (para que salga el WA de bienvenida). Prospecto pasa a "No" — ya no vive en
 // la lista de Prospectos, sino en la tabla general como cualquier inscrito.
+// A propósito NO toca Familiar (col M) ni Familiar_De (col N): el tag de
+// familiar se conserva después de pasar a inscrito.
 function handleEgPasarAInscrito(p) {
   var ws = egSheetNuevo_();
   if (!ws) return resp({ ok: false, error: "Pestaña EG_Inscritos no encontrada en el Sheet nuevo" });

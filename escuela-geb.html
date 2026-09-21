@@ -1532,7 +1532,7 @@ function renderAsistenciasVisual(){
   function tiempoClase(txt){
     var s = String(txt||"").trim(), m;
     if((m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/))) return new Date(+m[1], +m[2]-1, +m[3]).getTime();
-    if((m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/))){
+    if((m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?:\s.*)?$/))){ // puede traer hora: "17/9/2026 18:00:00"
       var y = +m[3]; if(y < 100) y += 2000;
       return new Date(y, +m[2]-1, +m[1]).getTime();
     }

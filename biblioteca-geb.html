@@ -884,10 +884,17 @@ function renderAtencion(){
 
   const devSinMatch = devolucionesSinMatch();
   document.getElementById("devSinMatchWrap").innerHTML = devSinMatch.length
-    ? `<div class="footnote" style="color:var(--red-text);">⚠️ ${devSinMatch.length} devolución(es) confirmada(s) físicamente pero sin préstamo activo que coincida — revisar a mano en BIB_Prestamos, o reintentar si ya se corrigió el dato ahí:</div>
+    ? `<div class="footnote" style="color:var(--red-text);">⚠️ ${devSinMatch.length} devolución(es) confirmada(s) físicamente pero sin préstamo activo que coincida — elige a qué préstamo corresponde, o reintenta el match si ya se corrigió el dato:</div>
        <div class="gcard-grid">` + devSinMatch.map(d => `
         <div class="gcard" style="border-color:#f0c7c7;background:#FFF8F8;">
           <div class="gcard-head"><div><div class="gname">${d.nombre}</div><div class="glibro">"${d.titulo || d.id_libro || "sin título"}" · código ${d.id_libro || "—"}</div></div></div>
+          <div class="libro-combo" data-dev="${d._fila}">
+            <input type="text" class="libro-search" placeholder="Buscar préstamo activo (nombre o libro)…" autocomplete="off"
+              oninput="filtrarPrestamoCombo(${d._fila})" onfocus="filtrarPrestamoCombo(${d._fila})">
+            <input type="hidden" class="libro-id-selected">
+            <div class="libro-opciones" onmousedown="seleccionarPrestamoComboClick(event, ${d._fila})"></div>
+          </div>
+          <button class="ext-btn" onclick="asignarDevolucion(${d._fila}, this)">✓ Asignar a este préstamo</button>
           <button class="ext-btn" onclick="confirmarDevolucionFisica(${d._fila}, this)">🔁 Reintentar match</button>
         </div>
       `).join("") + `</div>`
@@ -1313,6 +1320,69 @@ async function extenderPrestamo(fila, btnEl){
   }
 }
 
+// Asignación manual de una devolución sin match automático: se elige de la lista
+// de préstamos activos (mismo patrón que el combo de libros de "por confirmar").
+function filtrarPrestamoCombo(filaDev){
+  const wrap = document.querySelector(`.libro-combo[data-dev="${filaDev}"]`);
+  if(!wrap) return;
+  const q = wrap.querySelector(".libro-search").value.trim().toLowerCase();
+  const opcionesEl = wrap.querySelector(".libro-opciones");
+  const matches = PRESTAMOS
+    .filter(p => !esSiBib(p.devuelto))
+    .filter(p => !q || (p.nombre||"").toLowerCase().includes(q) || (p.titulo||"").toLowerCase().includes(q) || (p.id_libro||"").toLowerCase().includes(q))
+    .slice(0, 25);
+  opcionesEl.innerHTML = matches.length
+    ? matches.map(p => `
+        <div class="libro-opcion" data-id="${p._fila}">
+          <span>${p.nombre} — "${p.titulo || p.id_libro || "sin libro"}"</span>
+          <span class="libro-estado rent">${p.id_libro || "sin código"}</span>
+        </div>`).join("")
+    : `<div class="libro-opcion sin-resultado">Sin préstamos activos que coincidan</div>`;
+  opcionesEl.style.display = "block";
+}
+
+function seleccionarPrestamoComboClick(e, filaDev){
+  const opt = e.target.closest(".libro-opcion");
+  if(!opt || !opt.dataset.id) return;
+  e.preventDefault();
+  const wrap = document.querySelector(`.libro-combo[data-dev="${filaDev}"]`);
+  const p = PRESTAMOS.find(x => String(x._fila) === opt.dataset.id);
+  wrap.querySelector(".libro-search").value = p ? `${p.nombre} — "${p.titulo || p.id_libro || ""}"` : "";
+  wrap.querySelector(".libro-id-selected").value = opt.dataset.id;
+  wrap.querySelector(".libro-opciones").style.display = "none";
+}
+
+async function asignarDevolucion(filaDev, btnEl){
+  const wrap = document.querySelector(`.libro-combo[data-dev="${filaDev}"]`);
+  const filaPrestamo = wrap ? wrap.querySelector(".libro-id-selected").value : "";
+  if(!filaPrestamo){ alert("Busca y selecciona el préstamo al que corresponde esta devolución."); return; }
+  btnEl.disabled = true; btnEl.textContent = "Asignando…";
+  try{
+    const r = await postData({ tipo:"bib_asignarDevolucion", filaDevolucion: filaDev, filaPrestamo: parseInt(filaPrestamo, 10) });
+    if(r.ok){
+      await recargarTrasDevolucion();
+    } else {
+      btnEl.disabled = false; btnEl.textContent = "✓ Asignar a este préstamo";
+      alert("Error: " + r.error);
+    }
+  } catch(e){
+    btnEl.disabled = false; btnEl.textContent = "✓ Asignar a este préstamo";
+    alert("No se pudo conectar con el servidor.");
+  }
+}
+
+async function recargarTrasDevolucion(){
+  const [devoluciones, prestamos, fisicos] = await Promise.all([
+    fetchSheetTab(TABS.devoluciones),
+    fetchSheetTab(TABS.prestamos),
+    fetchFisicos().catch(() => FISICOS)
+  ]);
+  DEVOLUCIONES = devoluciones.filter(d => d.nombre && d.nombre.trim() !== "");
+  PRESTAMOS = prestamos.filter(p => p.nombre && p.nombre.trim() !== "");
+  FISICOS = fisicos;
+  renderMetrics(); renderAtencion(); applyFiltersAmbasUbicaciones(); applyHistorialPrestamosFilters();
+}
+
 // Confirma que el libro se recibió físicamente de vuelta: llama al backend
 // (handleBibProcesarDevolucion), que busca el préstamo activo que coincide
 // primero por código de libro (id_libro, más confiable que el nombre escrito
@@ -1326,13 +1396,8 @@ async function confirmarDevolucionFisica(fila, btnEl){
   try{
     const r = await postData({ tipo:"bib_procesarDevolucion", filaDevolucion: fila });
     if(r.ok){
-      const [devoluciones, prestamos] = await Promise.all([
-        fetchSheetTab(TABS.devoluciones),
-        fetchSheetTab(TABS.prestamos)
-      ]);
-      DEVOLUCIONES = devoluciones.filter(d => d.nombre && d.nombre.trim() !== "");
-      PRESTAMOS = prestamos.filter(p => p.nombre && p.nombre.trim() !== "");
-      renderMetrics(); renderAtencion(); applyFiltersAmbasUbicaciones(); applyHistorialPrestamosFilters();
+      await recargarTrasDevolucion();
+      if(r.match === false) alert("No se encontró un préstamo que coincida. Quedó en 'sin préstamo que coincida' más abajo: ahí puedes elegir el préstamo a mano.");
     } else {
       btnEl.disabled = false; btnEl.textContent = "✓ Confirmar recepción física";
       alert("Error: " + r.error);

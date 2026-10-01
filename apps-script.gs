@@ -291,6 +291,7 @@ function doPost(e) {
     if (tipo === "ea_reactivar")          return handleEaReactivar(payload);
     if (tipo === "bib_altaDonacion")        return handleBibAltaDonacion(payload);
     if (tipo === "bib_procesarDevolucion")  return handleBibProcesarDevolucion(payload);
+    if (tipo === "bib_asignarDevolucion")   return handleBibAsignarDevolucion(payload);
     if (tipo === "bib_extenderPrestamo")    return handleBibExtenderPrestamo(payload);
     if (tipo === "bib_generarRecibo")       return handleBibGenerarRecibo(payload);
     if (tipo === "bib_generarEtiqueta")     return handleBibGenerarEtiqueta(payload);
@@ -1721,7 +1722,10 @@ function normalizarNombreBib_(s) {
 // id_libro), se cae al match anterior por nombre normalizado + título.
 function matchearYProcesarDevolucionBib_(hojaDev, hojaPre, idxD, idxP, datosPre, filaDev, filaDevNum) {
   const nombreBuscado = normalizarNombreBib_(filaDev[idxD.nombre]);
-  const idBuscado = String(filaDev[idxD.idLibro] || "").trim().toLowerCase();
+  let idBuscado = String(filaDev[idxD.idLibro] || "").trim().toLowerCase();
+  // La gente escribe "No tiene", "n/a", etc. en el campo de código — no es un código.
+  if (/^(no tiene|no se|n\/?a|ninguno|sin codigo|sin código|-+)$/.test(idBuscado)) idBuscado = "";
+  const tituloBuscado = idxD.titulo >= 0 ? normalizarNombreBib_(filaDev[idxD.titulo]) : "";
   const fechaDevolucion = filaDev[idxD.timestamp];
   const condicion = idxD.condicion >= 0 ? filaDev[idxD.condicion] : "";
 
@@ -1750,32 +1754,59 @@ function matchearYProcesarDevolucionBib_(hojaDev, hojaPre, idxD, idxP, datosPre,
     if (porCodigo.length) mejorMatch = elegirMasReciente_(porCodigo);
   }
 
+  // Respaldo: nombre + título (sin acentos ni mayúsculas). Antes esta rama comparaba
+  // el título del préstamo contra el CÓDIGO escrito en el form, así que cualquier
+  // devolución sin código válido caía siempre en "Revisar manualmente".
   if (mejorMatch < 0 && nombreBuscado) {
     const porNombreTitulo = activos.filter(c => {
-      const nombrePre = normalizarNombreBib_(c.fila[idxP.nombre]);
-      if (nombrePre !== nombreBuscado) return false;
-      const tituloPre = String(c.fila[idxP.titulo] || "").trim().toLowerCase();
-      return (tituloPre && idBuscado && tituloPre.includes(idBuscado)) ||
-             (idBuscado && tituloPre && idBuscado.includes(tituloPre) && tituloPre.length > 3) ||
-             (!idBuscado && nombrePre === nombreBuscado);
+      if (normalizarNombreBib_(c.fila[idxP.nombre]) !== nombreBuscado) return false;
+      if (!tituloBuscado) return true;
+      const tituloPre = normalizarNombreBib_(c.fila[idxP.titulo]);
+      return tituloPre.length > 3 && (tituloPre.includes(tituloBuscado) || tituloBuscado.includes(tituloPre));
     });
     if (porNombreTitulo.length) mejorMatch = elegirMasReciente_(porNombreTitulo);
   }
 
   if (mejorMatch > 0) {
-    if (idxP.devuelto >= 0) hojaPre.getRange(mejorMatch, idxP.devuelto + 1).setValue("Sí");
-    if (idxP.fechaDevolucionReal >= 0 && fechaDevolucion)
-      hojaPre.getRange(mejorMatch, idxP.fechaDevolucionReal + 1).setValue(new Date(fechaDevolucion));
-    if (idxP.condicionDevolucion >= 0 && condicion)
-      hojaPre.getRange(mejorMatch, idxP.condicionDevolucion + 1).setValue(condicion);
-    if (idxD.procesado >= 0)
-      hojaDev.getRange(filaDevNum, idxD.procesado + 1).setValue("✓ Cerrado " + formatearFechaBib_(new Date()));
+    cerrarPrestamoDevueltoBib_(hojaDev, hojaPre, idxD, idxP, datosPre, filaDevNum, mejorMatch, fechaDevolucion, condicion);
     return { match: true, intentado: true, filaPrestamo: mejorMatch };
   } else {
     if (idxD.procesado >= 0)
       hojaDev.getRange(filaDevNum, idxD.procesado + 1).setValue("⚠️ Revisar manualmente");
     return { match: false, intentado: true };
   }
+}
+
+// Marca un préstamo como devuelto, cierra la fila de BIB_Devoluciones y libera el
+// libro en Fisicos (antes nunca se liberaba y el panel lo seguía mostrando "rentado").
+function cerrarPrestamoDevueltoBib_(hojaDev, hojaPre, idxD, idxP, datosPre, filaDevNum, filaPreNum, fechaDevolucion, condicion) {
+  if (idxP.devuelto >= 0) hojaPre.getRange(filaPreNum, idxP.devuelto + 1).setValue("Sí");
+  if (idxP.fechaDevolucionReal >= 0 && fechaDevolucion)
+    hojaPre.getRange(filaPreNum, idxP.fechaDevolucionReal + 1).setValue(new Date(fechaDevolucion));
+  if (idxP.condicionDevolucion >= 0 && condicion)
+    hojaPre.getRange(filaPreNum, idxP.condicionDevolucion + 1).setValue(condicion);
+  if (idxD.procesado >= 0)
+    hojaDev.getRange(filaDevNum, idxD.procesado + 1).setValue("✓ Cerrado " + formatearFechaBib_(new Date()));
+  const idLibro = String((datosPre[filaPreNum - 1] || [])[idxP.idLibro] || "").trim();
+  if (idLibro) liberarLibroFisicosBib_(idLibro);
+}
+
+// Fisicos: 3=id_libro, 6=disponible, 7=rentadoPor, 9=fecha (mismas posiciones que
+// handleBibConfirmarPrestamo). Si falla no bloquea el cierre de la devolución.
+function liberarLibroFisicosBib_(idLibro) {
+  try {
+    const hojaFisicos = SpreadsheetApp.openById(SHEET_BIBLIOTECA_ID).getSheetByName("Fisicos");
+    if (!hojaFisicos) return;
+    const filas = hojaFisicos.getDataRange().getValues();
+    for (let j = 1; j < filas.length; j++) {
+      if (String(filas[j][3] || "").trim().toLowerCase() === String(idLibro).trim().toLowerCase()) {
+        hojaFisicos.getRange(j + 1, 7).setValue(true);
+        hojaFisicos.getRange(j + 1, 8).setValue("");
+        hojaFisicos.getRange(j + 1, 10).setValue("");
+        break;
+      }
+    }
+  } catch (e) {}
 }
 
 // Barrido completo de devoluciones no procesadas (respaldo manual desde el editor de Apps Script).
@@ -2093,6 +2124,31 @@ function handleBibProcesarDevolucion(p) {
   } else {
     return resp({ ok: true, match: false, mensaje: "No se encontró préstamo abierto que coincida — revisar manualmente" });
   }
+}
+
+// ── Biblioteca: Asignar a mano una devolución a un préstamo ─────
+// Para devoluciones que el match automático no pudo resolver ("Revisar manualmente").
+// Recibe: {tipo:"bib_asignarDevolucion", filaDevolucion, filaPrestamo}
+function handleBibAsignarDevolucion(p) {
+  const hojaDev = bibSheetNuevo_("BIB_Devoluciones");
+  const hojaPre = bibSheetNuevo_("BIB_Prestamos");
+  if (!hojaDev || !hojaPre) return resp({ ok: false, error: "Pestañas BIB_Devoluciones/BIB_Prestamos no encontradas" });
+
+  const filaDevNum = parseInt(p.filaDevolucion, 10);
+  const filaPreNum = parseInt(p.filaPrestamo, 10);
+  if (!filaDevNum || filaDevNum < 2) return resp({ ok: false, error: "filaDevolucion inválida" });
+  if (!filaPreNum || filaPreNum < 2) return resp({ ok: false, error: "filaPrestamo inválida" });
+
+  const headersDev = hojaDev.getRange(1, 1, 1, hojaDev.getLastColumn()).getValues()[0];
+  const idxD = obtenerIndicesBib_(headersDev, COLS_BIB.devoluciones);
+  const datosPre = hojaPre.getDataRange().getValues();
+  if (filaPreNum > datosPre.length) return resp({ ok: false, error: "filaPrestamo fuera de rango" });
+  const idxP = obtenerIndicesBib_(datosPre[0], COLS_BIB.prestamos);
+
+  const filaDev = hojaDev.getRange(filaDevNum, 1, 1, hojaDev.getLastColumn()).getValues()[0];
+  const condicion = idxD.condicion >= 0 ? filaDev[idxD.condicion] : "";
+  cerrarPrestamoDevueltoBib_(hojaDev, hojaPre, idxD, idxP, datosPre, filaDevNum, filaPreNum, filaDev[idxD.timestamp], condicion);
+  return resp({ ok: true });
 }
 
 // ── Biblioteca: Extender préstamo +14 días ──────────────────────

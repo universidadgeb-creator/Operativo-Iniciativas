@@ -73,6 +73,7 @@ function onOpen() {
     .createMenu("GEB CRM")
     .addItem("🔧 Configurar alertas de atraso Reto Ahorro (1 vez)", "configurarAlertasAtrasoRA")
     .addItem("🔧 Configurar columnas faltantes de Biblioteca (1 vez)", "configurarColumnasFaltantesBiblioteca")
+    .addItem("🔄 Sincronizar hoja Fisicos con BIB_Donaciones", "sincronizarFisicosBiblioteca")
     .addItem("🗑️ Borrar TODOS los datos de prueba (PRUEBA...)", "borrarDatosPruebaTodos")
     .addItem("🧹 Quitar emojis de todos los Copys (1 vez)", "limpiarEmojisCopys")
     .addToUi();
@@ -1787,26 +1788,117 @@ function cerrarPrestamoDevueltoBib_(hojaDev, hojaPre, idxD, idxP, datosPre, fila
     hojaPre.getRange(filaPreNum, idxP.condicionDevolucion + 1).setValue(condicion);
   if (idxD.procesado >= 0)
     hojaDev.getRange(filaDevNum, idxD.procesado + 1).setValue("✓ Cerrado " + formatearFechaBib_(new Date()));
-  const idLibro = String((datosPre[filaPreNum - 1] || [])[idxP.idLibro] || "").trim();
-  if (idLibro) liberarLibroFisicosBib_(idLibro);
+  sincronizarFisicosBib_();
 }
 
-// Fisicos: 3=id_libro, 6=disponible, 7=rentadoPor, 9=fecha (mismas posiciones que
-// handleBibConfirmarPrestamo). Si falla no bloquea el cierre de la devolución.
-function liberarLibroFisicosBib_(idLibro) {
+// ── Biblioteca: espejo de BIB_Donaciones hacia la hoja externa "Fisicos" ──
+// "Fisicos" (Sheet de Biblioteca Virtual) alimenta la página pública de la biblioteca
+// y es SOLO una copia: la fuente de verdad es BIB_Donaciones + BIB_Prestamos del
+// Sheet maestro. Esta función la deja igual que el panel: corrige título/autor/código,
+// agrega los libros que falten y marca disponible / rentado por.
+// Posiciones en Fisicos: 0=num, 1=titulo, 2=autor, 3=id_libro, 6=disponible,
+// 7=rentadoPor, 9=fecha. No toca portada, descripción ni sucursal (cols 4, 5, 8).
+// Nunca borra filas. Si falla no bloquea la acción del panel.
+function sincronizarFisicosBib_() {
   try {
-    const hojaFisicos = SpreadsheetApp.openById(SHEET_BIBLIOTECA_ID).getSheetByName("Fisicos");
-    if (!hojaFisicos) return;
-    const filas = hojaFisicos.getDataRange().getValues();
-    for (let j = 1; j < filas.length; j++) {
-      if (String(filas[j][3] || "").trim().toLowerCase() === String(idLibro).trim().toLowerCase()) {
-        hojaFisicos.getRange(j + 1, 7).setValue(true);
-        hojaFisicos.getRange(j + 1, 8).setValue("");
-        hojaFisicos.getRange(j + 1, 10).setValue("");
-        break;
-      }
+    SpreadsheetApp.flush();
+    const hojaDon = bibSheetNuevo_("BIB_Donaciones");
+    const hojaPre = bibSheetNuevo_("BIB_Prestamos");
+    const hojaFis = SpreadsheetApp.openById(SHEET_BIBLIOTECA_ID).getSheetByName("Fisicos");
+    if (!hojaDon || !hojaPre || !hojaFis) return { ok: false, error: "Falta una pestaña (BIB_Donaciones, BIB_Prestamos o Fisicos)" };
+
+    const datosDon = hojaDon.getDataRange().getValues();
+    const idxN = obtenerIndicesBib_(datosDon[0], COLS_BIB.donaciones);
+    const datosPre = hojaPre.getDataRange().getValues();
+    const idxP = obtenerIndicesBib_(datosPre[0], COLS_BIB.prestamos);
+
+    // Préstamo activo más reciente por libro (confirmado y sin devolver)
+    const rentadoPor = {};
+    for (let i = 1; i < datosPre.length; i++) {
+      const f = datosPre[i];
+      const dev = f[idxP.devuelto];
+      if (dev === "Sí" || dev === "SI" || dev === true) continue;
+      if (idxP.confirmado < 0 || String(f[idxP.confirmado] || "").trim().toLowerCase() !== "sí") continue;
+      const id = String(f[idxP.idLibro] || "").trim().toLowerCase();
+      if (!id) continue;
+      const ts = f[idxP.timestamp] ? new Date(f[idxP.timestamp]) : new Date(0);
+      if (!rentadoPor[id] || ts > rentadoPor[id].ts) rentadoPor[id] = { nombre: String(f[idxP.nombre] || "").trim(), ts: ts };
     }
-  } catch (e) {}
+
+    const libros = [];
+    for (let i = 1; i < datosDon.length; i++) {
+      const f = datosDon[i];
+      const id = idxN.idLibro >= 0 ? String(f[idxN.idLibro] || "").trim() : "";
+      const titulo = idxN.titulo >= 0 ? String(f[idxN.titulo] || "").trim() : "";
+      if (!id || !titulo) continue;
+      const perdido = idxN.estadoLibro >= 0 && String(f[idxN.estadoLibro] || "").trim().toLowerCase() === "perdido";
+      const r = rentadoPor[id.toLowerCase()];
+      libros.push({
+        id: id, titulo: titulo,
+        autor: idxN.autor >= 0 ? String(f[idxN.autor] || "").trim() : "",
+        disponible: !r && !perdido,
+        rentadoPor: r ? r.nombre : "",
+        fecha: ""
+      });
+    }
+
+    const ultimaFila = hojaFis.getLastRow();
+    const filas = ultimaFila >= 2 ? hojaFis.getRange(2, 1, ultimaFila - 1, 10).getValues() : [];
+    const porId = {};
+    filas.forEach((f, k) => { const id = String(f[3] || "").trim().toLowerCase(); if (id) porId[id] = k; });
+
+    // Filas con código provisional (DON-0001...) se enlazan por título al libro real
+    const normT = t => normalizarNombreBib_(t);
+    libros.forEach(l => {
+      if (porId[l.id.toLowerCase()] !== undefined) return;
+      const k = filas.findIndex(f => !/^Ld+$/i.test(String(f[3] || "").trim()) && normT(f[1]) === normT(l.titulo));
+      if (k >= 0 && !Object.keys(porId).some(x => porId[x] === k && /^ld+$/i.test(x))) {
+        filas[k][3] = l.id;
+        porId[l.id.toLowerCase()] = k;
+      }
+    });
+
+    const hoyStr = Utilities.formatDate(new Date(), "GMT-6", "yyyy-MM-dd");
+    let nuevos = 0, maxNum = 0;
+    filas.forEach(f => { const n = parseInt(f[0], 10); if (n > maxNum) maxNum = n; });
+    const nuevasFilas = [];
+    libros.forEach(l => {
+      const k = porId[l.id.toLowerCase()];
+      if (k === undefined) {
+        maxNum++; nuevos++;
+        nuevasFilas.push([maxNum, l.titulo, l.autor, l.id, "", "", l.disponible, l.rentadoPor, "", l.rentadoPor ? hoyStr : ""]);
+      } else {
+        filas[k][1] = l.titulo;
+        if (l.autor) filas[k][2] = l.autor;
+        filas[k][6] = l.disponible;
+        // La fecha en Fisicos es el día en que se CONFIRMÓ el préstamo (el resumen diario
+        // por correo la usa para "confirmados hoy"): se conserva si sigue rentado a la
+        // misma persona, y se estrena con la fecha de hoy cuando cambia.
+        const mismaPersona = l.rentadoPor && String(filas[k][7] || "").trim() === l.rentadoPor;
+        filas[k][9] = !l.rentadoPor ? "" : (mismaPersona && filas[k][9] ? filas[k][9] : hoyStr);
+        filas[k][7] = l.rentadoPor;
+      }
+    });
+
+    if (filas.length) {
+      const n = filas.length;
+      hojaFis.getRange(2, 2, n, 3).setValues(filas.map(f => [f[1], f[2], f[3]]));
+      hojaFis.getRange(2, 7, n, 2).setValues(filas.map(f => [f[6], f[7]]));
+      hojaFis.getRange(2, 10, n, 1).setValues(filas.map(f => [f[9]]));
+    }
+    if (nuevasFilas.length) hojaFis.getRange(ultimaFila + 1, 1, nuevasFilas.length, 10).setValues(nuevasFilas);
+    return { ok: true, total: libros.length, nuevos: nuevos };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+// Para correrla a mano desde el menú "GEB CRM" del Sheet (primera vez / después de editar a mano).
+function sincronizarFisicosBiblioteca() {
+  const r = sincronizarFisicosBib_();
+  SpreadsheetApp.getUi().alert(r.ok
+    ? "Fisicos sincronizada con BIB_Donaciones: " + r.total + " libros (" + r.nuevos + " agregados)."
+    : "No se pudo sincronizar: " + r.error);
 }
 
 // Barrido completo de devoluciones no procesadas (respaldo manual desde el editor de Apps Script).
@@ -2041,6 +2133,7 @@ function handleBibAltaDonacion(p) {
   if (idx.ubicacion >= 0)    fila[idx.ubicacion]    = (p.ubicacion === "Estancia") ? "Estancia" : "Naciones";
 
   ws.appendRow(fila);
+  sincronizarFisicosBib_();
 
   return resp({ ok: true, idAsignado: nuevoId, fila: ws.getLastRow() });
 }
@@ -2061,6 +2154,7 @@ function handleBibConfirmarDonacion(p) {
   if (idx.confirmado < 0) return resp({ ok: false, error: "Columna confirmado no encontrada en BIB_Donaciones" });
 
   ws.getRange(filaNum, idx.confirmado + 1).setValue("Sí");
+  sincronizarFisicosBib_();
   return resp({ ok: true });
 }
 
@@ -2076,6 +2170,7 @@ function handleBibConfirmarDonacionLote(p) {
 
   const filas = (p.filas || []).map(f => parseInt(f, 10)).filter(f => f >= 2);
   filas.forEach(f => ws.getRange(f, idx.confirmado + 1).setValue("Sí"));
+  sincronizarFisicosBib_();
 
   return resp({ ok: true, confirmadas: filas.length });
 }
@@ -2097,6 +2192,7 @@ function handleBibReportarPerdido(p) {
   if (idx.estadoLibro < 0) return resp({ ok: false, error: "Columna estado_libro no encontrada en BIB_Donaciones" });
 
   ws.getRange(filaNum, idx.estadoLibro + 1).setValue("Perdido");
+  sincronizarFisicosBib_();
   return resp({ ok: true });
 }
 
@@ -2200,22 +2296,7 @@ function handleBibConfirmarPrestamo(p) {
   if (idx.titulo >= 0) ws.getRange(fila, idx.titulo + 1).setValue(p.titulo || "");
   if (idx.confirmado >= 0) ws.getRange(fila, idx.confirmado + 1).setValue("Sí");
 
-  try {
-    const hojaFisicos = SpreadsheetApp.openById(SHEET_BIBLIOTECA_ID).getSheetByName("Fisicos");
-    if (hojaFisicos) {
-      const filasFisicos = hojaFisicos.getDataRange().getValues();
-      for (let j = 1; j < filasFisicos.length; j++) {
-        if (String(filasFisicos[j][3] || "").trim() === String(p.idLibro).trim()) {
-          hojaFisicos.getRange(j + 1, 7).setValue(false);
-          hojaFisicos.getRange(j + 1, 8).setValue(nombre);
-          hojaFisicos.getRange(j + 1, 10).setValue(Utilities.formatDate(new Date(), "GMT-6", "yyyy-MM-dd"));
-          break;
-        }
-      }
-    }
-  } catch (e) {
-    // Si falla el update de Fisicos no se bloquea la confirmación del préstamo.
-  }
+  sincronizarFisicosBib_();
 
   return resp({ ok: true });
 }

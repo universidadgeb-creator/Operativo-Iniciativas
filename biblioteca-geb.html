@@ -502,9 +502,6 @@
 // Devoluciones/Copys tenían datos reales de producción; se copiaron tal cual,
 // no se perdió nada. El Sheet histórico queda como respaldo, sin usarse ya.
 const SHEET_ID = "1oaWADtW9SmqxuOoOM1bf65Ht_NkpE4l_o_DMutN_IbI";
-// Biblioteca Virtual externa — solo la pestaña "Fisicos" (columnas por
-// posición, no por encabezado; ver nota en fetchFisicos()).
-const SHEET_BIBLIOTECA_ID = "1FDZB3aR-YAyVMsiAjo92PuUdH0iTfBmreCWv5DvCpdM";
 const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbypzabPFyTWszyc2-wIPjImOTIitz68R6_okV2yUgxSD6CpkEkfpFlXh8OzgaQWlZYe/exec";
 const TABS = {
   prestamos: "BIB_Prestamos",
@@ -603,26 +600,23 @@ async function fetchSheetTab(tabName){
     });
 }
 
-// Fisicos (Biblioteca Virtual externa) se lee por posición, no por
-// encabezado — es la única pestaña del proyecto sin SCHEMA propio (ver
-// nota en CLAUDE.md). Columnas verificadas contra handleBibConfirmarPrestamo()
-// en apps-script.gs: 0=id, 1=titulo, 2=autor, 3=id_libro, 6=disponible(bool),
-// 7=prestado_a, 9=fecha_prestamo.
-async function fetchFisicos(){
-  const url = `https://docs.google.com/spreadsheets/d/${SHEET_BIBLIOTECA_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent("Fisicos")}`;
-  const res = await fetch(url);
-  const text = await res.text();
-  const jsonStr = text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1);
-  const data = JSON.parse(jsonStr);
-  return data.table.rows
-    .map(r => r.c || [])
-    .map(c => ({
-      idLibro: c[3] ? String(c[3].v || "").trim() : "",
-      titulo: c[1] ? String(c[1].v || "").trim() : "",
-      autor: c[2] ? String(c[2].v || "").trim() : "",
-      disponible: c[6] ? (c[6].v === true || String(c[6].v).toLowerCase() === "true") : false
-    }))
-    .filter(f => f.idLibro && f.titulo);
+// Catálogo de libros para asignar préstamos: sale de BIB_Donaciones (la fuente
+// de verdad en el Sheet maestro). La hoja externa "Fisicos" es solo una copia
+// y puede estar desfasada (títulos mal, libros nuevos que faltan), así que ya
+// no se lee. Un libro está "disponible" si no tiene un préstamo confirmado sin
+// devolver y no está reportado como perdido.
+function recalcularFisicos(){
+  const rentados = new Set(PRESTAMOS
+    .filter(p => !esSiBib(p.devuelto) && esSiBib(p.confirmado) && (p.id_libro||"").trim())
+    .map(p => p.id_libro.trim().toLowerCase()));
+  FISICOS = DONACIONES
+    .filter(d => (d.id_libro||"").trim() && (d.titulo||"").trim())
+    .map(d => ({
+      idLibro: d.id_libro.trim(),
+      titulo: d.titulo.trim(),
+      autor: (d.autor||"").trim(),
+      disponible: !rentados.has(d.id_libro.trim().toLowerCase()) && !esPerdido(d)
+    }));
 }
 
 /* ============================================================
@@ -1028,14 +1022,14 @@ function filtrarLibroCombo(fila){
   const opcionesEl = wrap.querySelector(".libro-opciones");
 
   const matches = FISICOS
-    .filter(f => !q || f.titulo.toLowerCase().includes(q) || (f.autor||"").toLowerCase().includes(q))
+    .filter(f => !q || f.titulo.toLowerCase().includes(q) || (f.autor||"").toLowerCase().includes(q) || f.idLibro.toLowerCase().includes(q))
     .sort((a,b) => (b.disponible - a.disponible) || a.titulo.localeCompare(b.titulo))
     .slice(0, 25);
 
   opcionesEl.innerHTML = matches.length
     ? matches.map(f => `
         <div class="libro-opcion" data-id="${f.idLibro}">
-          <span>${f.titulo}${f.autor ? " — " + f.autor : ""}</span>
+          <span>${f.titulo}${f.autor ? " — " + f.autor : ""} · ${f.idLibro}</span>
           <span class="libro-estado ${f.disponible ? 'disp' : 'rent'}">${f.disponible ? 'disponible' : 'rentado'}</span>
         </div>
       `).join("")
@@ -1074,7 +1068,7 @@ async function confirmarPrestamo(fila, btnEl){
     if(r.ok){
       const p = PRESTAMOS.find(x => x._fila === fila);
       if(p){ p.id_libro = idLibro; p.titulo = titulo; p.confirmado = "Sí"; }
-      if(libro) libro.disponible = false;
+      recalcularFisicos();
       renderMetrics();
       renderAtencion();
       applyFiltersAmbasUbicaciones();
@@ -1372,14 +1366,13 @@ async function asignarDevolucion(filaDev, btnEl){
 }
 
 async function recargarTrasDevolucion(){
-  const [devoluciones, prestamos, fisicos] = await Promise.all([
+  const [devoluciones, prestamos] = await Promise.all([
     fetchSheetTab(TABS.devoluciones),
-    fetchSheetTab(TABS.prestamos),
-    fetchFisicos().catch(() => FISICOS)
+    fetchSheetTab(TABS.prestamos)
   ]);
   DEVOLUCIONES = devoluciones.filter(d => d.nombre && d.nombre.trim() !== "");
   PRESTAMOS = prestamos.filter(p => p.nombre && p.nombre.trim() !== "");
-  FISICOS = fisicos;
+  recalcularFisicos();
   renderMetrics(); renderAtencion(); applyFiltersAmbasUbicaciones(); applyHistorialPrestamosFilters();
 }
 
@@ -1491,20 +1484,19 @@ function enviarWaBienvenidaAlta(){
    ============================================================ */
 async function init(){
   try{
-    const [prestamos, donaciones, devoluciones, copys, colaboradores, fisicos] = await Promise.all([
+    const [prestamos, donaciones, devoluciones, copys, colaboradores] = await Promise.all([
       fetchSheetTab(TABS.prestamos),
       fetchSheetTab(TABS.donaciones),
       fetchSheetTab(TABS.devoluciones),
       fetchSheetTab(TABS.copys),
-      fetchSheetTab("Colaboradores").catch(() => []),
-      fetchFisicos().catch(() => [])
+      fetchSheetTab("Colaboradores").catch(() => [])
     ]);
 
     PRESTAMOS = prestamos.filter(p => p.nombre && p.nombre.trim() !== "");
     DONACIONES = donaciones.filter(d => d.donante && d.donante.trim() !== "");
     DEVOLUCIONES = devoluciones.filter(d => d.nombre && d.nombre.trim() !== "");
     COPYS = copys.filter(c => c.Momento && c.Momento.trim() !== "");
-    FISICOS = fisicos;
+    recalcularFisicos();
     BAJA_EMPRESA_SET = new Set(colaboradores.filter(c => esSiBib(c.Baja_Empresa)).map(c => normNombre(c.Nombre)));
 
     document.getElementById("loadingMsg").style.display = "none";

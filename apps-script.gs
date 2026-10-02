@@ -1843,7 +1843,13 @@ function sincronizarFisicosBib_() {
     }
 
     const ultimaFila = hojaFis.getLastRow();
-    const filas = ultimaFila >= 2 ? hojaFis.getRange(2, 1, ultimaFila - 1, 10).getValues() : [];
+    // Se leen solo las columnas necesarias: la 6 (portada) guarda imágenes en base64 y
+    // leerla vuelve lentísima la sincronización.
+    const nFis = Math.max(ultimaFila - 1, 0);
+    const bloqueAD = nFis ? hojaFis.getRange(2, 1, nFis, 4).getValues() : [];
+    const bloqueGH = nFis ? hojaFis.getRange(2, 7, nFis, 2).getValues() : [];
+    const bloqueJ = nFis ? hojaFis.getRange(2, 10, nFis, 1).getValues() : [];
+    const filas = bloqueAD.map((f, k) => [f[0], f[1], f[2], f[3], "", "", bloqueGH[k][0], bloqueGH[k][1], "", bloqueJ[k][0]]);
     const porId = {};
     filas.forEach((f, k) => { const id = String(f[3] || "").trim().toLowerCase(); if (id) porId[id] = k; });
 
@@ -1886,7 +1892,12 @@ function sincronizarFisicosBib_() {
       hojaFis.getRange(2, 7, n, 2).setValues(filas.map(f => [f[6], f[7]]));
       hojaFis.getRange(2, 10, n, 1).setValues(filas.map(f => [f[9]]));
     }
-    if (nuevasFilas.length) hojaFis.getRange(ultimaFila + 1, 1, nuevasFilas.length, 10).setValues(nuevasFilas);
+    if (nuevasFilas.length) {
+      const base = ultimaFila + 1;
+      hojaFis.getRange(base, 1, nuevasFilas.length, 4).setValues(nuevasFilas.map(f => f.slice(0, 4)));
+      hojaFis.getRange(base, 7, nuevasFilas.length, 2).setValues(nuevasFilas.map(f => f.slice(6, 8)));
+      hojaFis.getRange(base, 10, nuevasFilas.length, 1).setValues(nuevasFilas.map(f => [f[9]]));
+    }
     return { ok: true, total: libros.length, nuevos: nuevos };
   } catch (e) {
     return { ok: false, error: e.message };

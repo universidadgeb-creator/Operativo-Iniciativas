@@ -1838,7 +1838,7 @@ function sincronizarFisicosBib_() {
         autor: idxN.autor >= 0 ? String(f[idxN.autor] || "").trim() : "",
         disponible: !r && !perdido,
         rentadoPor: r ? r.nombre : "",
-        fecha: ""
+        fecha: r ? new Date(r.ts.getFullYear(), r.ts.getMonth(), r.ts.getDate()) : ""
       });
     }
 
@@ -1864,7 +1864,6 @@ function sincronizarFisicosBib_() {
       }
     });
 
-    const hoyStr = Utilities.formatDate(new Date(), "GMT-6", "yyyy-MM-dd");
     let nuevos = 0, maxNum = 0;
     filas.forEach(f => { const n = parseInt(f[0], 10); if (n > maxNum) maxNum = n; });
     const nuevasFilas = [];
@@ -1872,16 +1871,15 @@ function sincronizarFisicosBib_() {
       const k = porId[l.id.toLowerCase()];
       if (k === undefined) {
         maxNum++; nuevos++;
-        nuevasFilas.push([maxNum, l.titulo, l.autor, l.id, "", "", l.disponible, l.rentadoPor, "", l.rentadoPor ? hoyStr : ""]);
+        nuevasFilas.push([maxNum, l.titulo, l.autor, l.id, "", "", l.disponible, l.rentadoPor, "", l.fecha]);
       } else {
         filas[k][1] = l.titulo;
         if (l.autor) filas[k][2] = l.autor;
         filas[k][6] = l.disponible;
-        // La fecha en Fisicos es el día en que se CONFIRMÓ el préstamo (el resumen diario
-        // por correo la usa para "confirmados hoy"): se conserva si sigue rentado a la
-        // misma persona, y se estrena con la fecha de hoy cuando cambia.
+        // La fecha en Fisicos es la del préstamo (cuando se capturó en el Form). Se conserva
+        // si ya había una para la misma persona, y se estrena con la del préstamo si cambia.
         const mismaPersona = l.rentadoPor && String(filas[k][7] || "").trim() === l.rentadoPor;
-        filas[k][9] = !l.rentadoPor ? "" : (mismaPersona && filas[k][9] ? filas[k][9] : hoyStr);
+        filas[k][9] = !l.rentadoPor ? "" : (mismaPersona && filas[k][9] ? filas[k][9] : l.fecha);
         filas[k][7] = l.rentadoPor;
       }
     });

@@ -1893,11 +1893,24 @@ function sincronizarFisicosBib_() {
   }
 }
 
-// Para correrla a mano desde el menú "GEB CRM" del Sheet (primera vez / después de editar a mano).
+// Trigger diario (6 am): cubre ediciones hechas a mano en BIB_Donaciones/BIB_Prestamos,
+// que no pasan por el panel y por eso no disparan la sincronización.
+function sincronizarFisicosDiaria() {
+  sincronizarFisicosBib_();
+}
+
+function asegurarTriggerFisicosDiario_() {
+  const yaExiste = ScriptApp.getProjectTriggers().some(t => t.getHandlerFunction() === "sincronizarFisicosDiaria");
+  if (!yaExiste) ScriptApp.newTrigger("sincronizarFisicosDiaria").timeBased().everyDays(1).atHour(6).create();
+}
+
+// Para correrla desde el menú "GEB CRM" del Sheet. Además de sincronizar ahora, deja
+// programada la sincronización diaria (si ya existe no la duplica) — basta correrla una vez.
 function sincronizarFisicosBiblioteca() {
   const r = sincronizarFisicosBib_();
+  asegurarTriggerFisicosDiario_();
   SpreadsheetApp.getUi().alert(r.ok
-    ? "Fisicos sincronizada con BIB_Donaciones: " + r.total + " libros (" + r.nuevos + " agregados)."
+    ? "Fisicos sincronizada con BIB_Donaciones: " + r.total + " libros (" + r.nuevos + " agregados).\n\nQuedó programada la sincronización diaria automática (6 am)."
     : "No se pudo sincronizar: " + r.error);
 }
 

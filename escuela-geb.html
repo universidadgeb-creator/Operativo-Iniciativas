@@ -23,6 +23,7 @@
     --purple-bg:#EEEDFE; --purple-text:#3C3489;
     --inea-bg:#E6F1FB; --inea-text:#185FA5; --inea-border:#185FA5;
     --uvl-bg:#EEEDFE; --uvl-text:#3C3489; --uvl-border:#3C3489;
+    --prepa-bg:#FDE8E8; --prepa-text:#9B1C1C; --prepa-border:#C62828;
     --remedial-bg:#FAEEDA; --remedial-text:#854F0B;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
@@ -72,6 +73,7 @@
   }
   .modalidad-badge.inea{ background:var(--inea-bg); color:var(--inea-text); }
   .modalidad-badge.uvl{ background:var(--uvl-bg); color:var(--uvl-text); }
+  .modalidad-badge.prepa{ background:var(--prepa-bg); color:var(--prepa-text); }
 
   /* cards de inscritos */
   .inscritos-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:12px; }
@@ -81,6 +83,7 @@
   .icard.seguimiento{ border-color:var(--gold); background:#FFFBF1; }
   .icard.inea{ border-left:3px solid var(--inea-border); }
   .icard.uvl{ border-left:3px solid var(--uvl-border); }
+  .icard.prepa{ border-left:3px solid var(--prepa-border); }
   .icard-head{ display:flex; align-items:flex-start; gap:10px; margin-bottom:10px; }
   .avatar{
     width:36px; height:36px; border-radius:50%; flex-shrink:0;
@@ -89,6 +92,7 @@
   }
   .avatar.inea{ background:var(--inea-bg); color:var(--inea-text); }
   .avatar.uvl{ background:var(--uvl-bg); color:var(--uvl-text); }
+  .avatar.prepa{ background:var(--prepa-bg); color:var(--prepa-text); }
   .iname{ font-weight:600; font-size:14px; color:var(--text); }
   .isuc{ font-size:12px; color:var(--text-soft); }
 
@@ -102,6 +106,7 @@
   .pill.nivel{ background:var(--gray-bg); color:var(--text); }
   .pill.inea-tag{ background:var(--inea-bg); color:var(--inea-text); }
   .pill.uvl-tag{ background:var(--uvl-bg); color:var(--uvl-text); }
+  .pill.prepa-tag{ background:var(--prepa-bg); color:var(--prepa-text); }
   .pill.diag{ background:#F3EEF8; color:#5B2D8E; font-size:10px; }
 
   .icard-detail{ font-size:12px; color:var(--text-soft); margin-bottom:8px; line-height:1.5; }
@@ -377,7 +382,7 @@
         <div class="form-row"><label>Sucursal</label><input type="text" id="na_sucursal"></div>
         <div class="form-row"><label>Teléfono (WhatsApp)</label><input type="text" id="na_telefono" placeholder="10 dígitos"></div>
         <div class="form-row"><label>Modalidad</label>
-          <select id="na_modalidad"><option value="INEA">INEA</option><option value="UVL">UVL</option><option value="Ambas">Ambas</option></select>
+          <select id="na_modalidad"><option value="INEA">INEA</option><option value="UVL">UVL</option><option value="PREPA">Mi Prepa Santander</option><option value="Ambas">Ambas</option></select>
         </div>
         <div class="form-row"><label>Diagnóstico educativo</label>
           <select id="na_diagnosticoEdu">
@@ -544,6 +549,20 @@
       <div class="inscritos-grid" id="uvlGrid"></div>
     </div>
 
+    <!-- ===== SECCIÓN MI PREPA SANTANDER ===== -->
+    <div class="section-divider">
+      <span class="divider-label">Modalidad Mi Prepa Santander</span>
+      <span class="divider-line"></span>
+      <span class="modalidad-badge prepa">Preparatoria en línea · Santander</span>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title" style="margin-bottom:0;">Inscritos activos</div>
+      </div>
+      <div class="inscritos-grid" id="prepaGrid"></div>
+    </div>
+
     <!-- ===== TABLA COMPLETA ===== -->
     <div class="section-divider">
       <span class="divider-label">Todos los inscritos</span>
@@ -557,6 +576,7 @@
           <option value="">todas las modalidades</option>
           <option value="INEA">INEA</option>
           <option value="UVL">UVL</option>
+          <option value="PREPA">Mi Prepa Santander</option>
           <option value="Prospecto">Prospecto</option>
         </select>
         <select id="fNivel">
@@ -971,11 +991,11 @@ function renderHistoricosProspectos(){
 // tabla general de abajo.
 async function pasarAInscrito(nombreEnc){
   const nombre = decodeURIComponent(nombreEnc);
-  const modalidad = prompt(`¿Modalidad de inscripción para ${nombre.split(" ")[0]}? Escribe INEA o UVL.`, "INEA");
+  const modalidad = prompt(`¿Modalidad de inscripción para ${nombre.split(" ")[0]}? Escribe INEA, UVL o PREPA (Mi Prepa Santander).`, "INEA");
   if(!modalidad) return;
   const modalidadNorm = modalidad.trim().toUpperCase();
-  if(modalidadNorm !== "INEA" && modalidadNorm !== "UVL"){
-    alert('Escribe exactamente "INEA" o "UVL".');
+  if(modalidadNorm !== "INEA" && modalidadNorm !== "UVL" && modalidadNorm !== "PREPA"){
+    alert('Escribe exactamente "INEA", "UVL" o "PREPA".');
     return;
   }
   try{
@@ -1069,6 +1089,7 @@ function estadoPill(estado){
 function modalidadClass(m){
   const mu = (m||"").toUpperCase();
   if(mu === "UVL" || mu === "PROSPECTO") return "uvl";
+  if(mu === "PREPA") return "prepa";
   return "inea";
 }
 
@@ -1193,6 +1214,7 @@ function renderMetrics(){
   const activos     = INSCRITOS.filter(d => (d.Estado||"").toLowerCase() === "activo").length;
   const inea        = INSCRITOS.filter(d => (d.Modalidad||"").toUpperCase() === "INEA").length;
   const uvl         = INSCRITOS.filter(d => (d.Modalidad||"").toUpperCase() === "UVL").length;
+  const prepa       = INSCRITOS.filter(d => (d.Modalidad||"").toUpperCase() === "PREPA").length;
   const seguimiento = INSCRITOS.filter(isSeguimiento).length;
 
   const grid = document.getElementById("metricsGrid");
@@ -1201,6 +1223,7 @@ function renderMetrics(){
     { val: activos,    lbl: "activos",                    alert: false },
     { val: inea,       lbl: "modalidad INEA",             alert: false },
     { val: uvl,        lbl: "modalidad UVL",              alert: false },
+    { val: prepa,      lbl: "Mi Prepa Santander",         alert: false },
     { val: seguimiento,lbl: "pendientes de seguimiento",  alert: seguimiento > 0 },
   ].map(m => `
     <div class="metric ${m.alert ? 'alert' : ''}">
@@ -1223,6 +1246,11 @@ function renderCards(containerId, modalidad){
     // INEA activos — excluir históricos
     candidatos = INSCRITOS.filter(d =>
       (d.Modalidad||"").toUpperCase() === "INEA" &&
+      (d.Estado||"").toLowerCase() === "activo"
+    );
+  } else if(mc === "PREPA"){
+    candidatos = INSCRITOS.filter(d =>
+      (d.Modalidad||"").toUpperCase() === "PREPA" &&
       (d.Estado||"").toLowerCase() === "activo"
     );
   } else {
@@ -1274,6 +1302,11 @@ function renderCards(containerId, modalidad){
         Examen admisión: <strong>${ultimoExamen.Resultado||"Pendiente"}</strong>
         ${ultimoExamen.Fecha_Examen ? `· ${ultimoExamen.Fecha_Examen}` : ""}
       </div>` : "";
+    } else if(modUp === "PREPA"){
+      const ultimoExamen = exams.length > 0 ? exams[exams.length-1] : null;
+      detalle = ultimoExamen ? `<div class="icard-detail">
+        Último registro: <strong>${ultimoExamen.Tema_Materia||"—"}</strong> (${ultimoExamen.Resultado||"—"})
+      </div>` : "";
     }
 
     // Pill de modalidad para prospectos
@@ -1307,6 +1340,7 @@ function renderCards(containerId, modalidad){
         ${detalle}
         <div class="iactions">${btns}</div>
         ${modUp !== "PROSPECTO" ? `<button class="reg-btn" style="margin-top:8px;" onclick="toggleFormExamen('${formId}')">+ Registrar examen</button>` : ""}
+        ${modUp === "UVL" ? `<button class="reg-btn" style="margin-top:8px;" onclick="regresarAInteresados('${encodeURIComponent(d.Nombre)}')" title="No pasó el examen: vuelve a la lista de prospectos">↩ Regresar a interesados</button>` : ""}
         <div class="inline-form" id="${formId}">
           <div class="inline-form-title">Registrar examen — ${d.Nombre.split(' ')[0]}</div>
           <div class="form-row">
@@ -1315,6 +1349,7 @@ function renderCards(containerId, modalidad){
               <option value="">— selecciona —</option>
               <option value="Tema">Tema (INEA)</option>
               <option value="Admisión">Admisión (UVL)</option>
+              <option value="Mi Prepa">Mi Prepa Santander</option>
             </select>
           </div>
           <div class="form-row">
@@ -1406,6 +1441,7 @@ function renderTabla(filtered){
         <td>
           ${estadoPill(d.Estado)}
           ${seg ? `<button class="atender-btn" onclick="marcarAtendido('${encodeURIComponent(d.Nombre)}')">✓ marcar atendido</button>` : `<button class="atender-btn" onclick="marcarSeguimientoEG('${encodeURIComponent(d.Nombre)}')">🏳 seguimiento</button>`}
+          ${(d.Modalidad||"").toUpperCase() === "UVL" ? `<button class="action-btn" onclick="regresarAInteresados('${encodeURIComponent(d.Nombre)}')" title="No pasó el examen: vuelve a la lista de prospectos">↩ Regresar a interesados</button>` : ""}
           ${(d.Estado||"").toLowerCase() !== "baja" ? `<button class="action-btn baja" onclick="marcarBajaEG('${encodeURIComponent(d.Nombre)}')">✕ Baja</button>` : `<button class="action-btn reactivar" onclick="reactivarEG('${encodeURIComponent(d.Nombre)}')">↺ Reactivar</button>`}
           ${bajaEmpresa?"":`<button class="action-btn baja-empresa" onclick="marcarBajaEmpresa('${encodeURIComponent(d.Nombre)}')" title="Da de baja en TODAS las iniciativas de la empresa">🔴 Baja de empresa</button>`}
         </td>
@@ -1763,6 +1799,7 @@ async function guardarExamen(formId, nombreEnc, modalidad){
         EXAMENES = e.filter(x => x.Nombre && x.Nombre.trim() !== "");
         renderCards("ineaGrid","INEA");
         renderCards("uvlGrid","UVL");
+        renderCards("prepaGrid","PREPA");
       });
     } else {
       showMsg(formId+"_msg","err","Error: " + r.error);
@@ -1796,6 +1833,18 @@ async function marcarSeguimientoEG(nombreEnc){
   const nombre = decodeURIComponent(nombreEnc);
   try{
     const r = await postData({ tipo:"eg_marcarSeguimiento", nombre });
+    if(r.ok) location.reload();
+    else alert("Error: " + (r.error||"desconocido"));
+  }catch(e){ alert("No se pudo conectar."); }
+}
+
+// Para quien no pasó el examen de UVL: sale de UVL y vuelve a Prospectos (interesados).
+// Su examen queda registrado; desde ahí se le puede pasar a INEA, UVL otra vez o Mi Prepa.
+async function regresarAInteresados(nombreEnc){
+  const nombre = decodeURIComponent(nombreEnc);
+  if(!confirm("¿Regresar a " + nombre + " a interesados?\n\nSaldrá de UVL y volverá a la lista de Prospectos. Su examen queda registrado y después puedes pasarla/o a otra modalidad.")) return;
+  try{
+    const r = await postData({ tipo:"eg_regresarAProspecto", nombre });
     if(r.ok) location.reload();
     else alert("Error: " + (r.error||"desconocido"));
   }catch(e){ alert("No se pudo conectar."); }
@@ -1881,7 +1930,7 @@ async function guardarAlta(){
       BAJA_EMPRESA_SET = new Set(COLABORADORES.filter(c => { const v=(c.Baja_Empresa||"").trim().toLowerCase(); return v==="sí"||v==="si"; }).map(c => normNombre(c.Nombre)));
       renderMetrics(); renderStats();
       renderRezagoClave(); renderHistoricosProspectos();
-      renderCards("ineaGrid", "INEA"); renderCards("uvlGrid", "UVL");
+      renderCards("ineaGrid", "INEA"); renderCards("uvlGrid", "UVL"); renderCards("prepaGrid", "PREPA");
       applyFilters();
       toggleAlta();
       ["na_nombre","na_sucursal","na_telefono","na_diagnosticoEdu"].forEach(id => { document.getElementById(id).value=""; });
@@ -1929,6 +1978,7 @@ async function init(){
 
     renderCards("ineaGrid", "INEA");
     renderCards("uvlGrid",  "UVL");
+    renderCards("prepaGrid", "PREPA");
     applyFilters();
 
     document.getElementById("fSearch").addEventListener("input", applyFilters);

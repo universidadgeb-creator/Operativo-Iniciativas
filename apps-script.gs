@@ -74,6 +74,7 @@ function onOpen() {
     .addItem("🔧 Configurar alertas de atraso Reto Ahorro (1 vez)", "configurarAlertasAtrasoRA")
     .addItem("🔧 Configurar columnas faltantes de Biblioteca (1 vez)", "configurarColumnasFaltantesBiblioteca")
     .addItem("🔄 Sincronizar hoja Fisicos con BIB_Donaciones", "sincronizarFisicosBiblioteca")
+    .addItem("✏️ Corregir nombre: Gabriela Meza Ramírez (1 vez)", "corregirNombreGabrielaMeza")
     .addItem("🗑️ Borrar TODOS los datos de prueba (PRUEBA...)", "borrarDatosPruebaTodos")
     .addItem("🧹 Quitar emojis de todos los Copys (1 vez)", "limpiarEmojisCopys")
     .addToUi();
@@ -250,6 +251,7 @@ function doPost(e) {
     if (tipo === "eg_marcarSeguimiento") return handleEgMarcarSeguimiento(payload);
     if (tipo === "eg_marcarHistoricoProspecto") return handleEgMarcarHistoricoProspecto(payload);
     if (tipo === "eg_pasarAInscrito")   return handleEgPasarAInscrito(payload);
+    if (tipo === "eg_regresarAProspecto") return handleEgRegresarAProspecto(payload);
     if (tipo === "eg_baja")             return handleEgBaja(payload);
     if (tipo === "eg_reactivar")        return handleEgReactivar(payload);
     if (tipo === "eg_diagnostico")      return handleEgDiagnostico(payload);
@@ -649,7 +651,7 @@ function handleEgMarcarHistoricoProspecto(p) {
 }
 
 // ── Escuela GEB: pasar un prospecto a inscrito real ──────────────
-// Recibe: {tipo:"eg_pasarAInscrito", nombre, modalidad}. Misma convención que
+// Recibe: {tipo:"eg_pasarAInscrito", nombre, modalidad} (INEA, UVL o PREPA = Mi Prepa Santander). Misma convención que
 // una alta nueva (handleAltaUnificada): Estado=Activo, Requiere_Seguimiento=Sí
 // (para que salga el WA de bienvenida). Prospecto pasa a "No" — ya no vive en
 // la lista de Prospectos, sino en la tabla general como cualquier inscrito.
@@ -662,7 +664,7 @@ function handleEgPasarAInscrito(p) {
   var nombre = (p.nombre || "").trim();
   var modalidad = (p.modalidad || "").trim().toUpperCase();
   if (!nombre) return resp({ ok: false, error: "Falta el nombre" });
-  if (modalidad !== "INEA" && modalidad !== "UVL") return resp({ ok: false, error: "Modalidad inválida" });
+  if (modalidad !== "INEA" && modalidad !== "UVL" && modalidad !== "PREPA") return resp({ ok: false, error: "Modalidad inválida" });
 
   var data = ws.getDataRange().getValues();
   for (var i = 1; i < data.length; i++) {
@@ -680,34 +682,51 @@ function handleEgPasarAInscrito(p) {
 }
 
 // ── Escuela GEB: contar faltas y marcar seguimiento automático ──────────
-// Se corre cada vez que se guarda un pase de lista (handleAsistencia). Para
-// cada inscrito INEA activo que NO esté en la lista de asistentes de esta
-// clase, cuenta cuántas clases totales lleva faltando (comparando el total de
-// clases registradas contra sus asistencias reales en EG_Asistencias) y, si
-// llega a 3 o más, marca Requiere_Seguimiento="Sí" (si no lo estaba ya).
+// Se corre cada vez que se guarda un pase de lista (handleAsistencia). Marca
+// Requiere_Seguimiento="Sí" a un inscrito INEA activo que lleva faltando 3 clases
+// SEGUIDAS (o 6, 9...: cada 3 más). Reglas, para que "marcar atendido" no se
+// deshaga solo (antes contaba TODAS las clases del historial desde marzo, aunque
+// la persona se hubiera inscrito en septiembre, y reponía el seguimiento en cada
+// pase de lista):
+//   • solo cuentan las clases desde su Fecha_Inscripcion;
+//   • cuenta la racha de faltas seguidas hasta la última clase; asistir la reinicia;
+//   • se marca solo al cruzar 3, 6, 9... faltas seguidas — si ya la atendiste y
+//     sigue faltando (racha 4, 5), no vuelve a salir hasta completar otras 3.
+// Los nombres se comparan sin acentos ni mayúsculas.
+function _fechaEG_(v) {
+  if (!v) return null;
+  if (v instanceof Date) return isNaN(v.getTime()) ? null : v;
+  var t = String(v).trim();
+  var m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (!m) { var d = new Date(t); return isNaN(d.getTime()) ? null : d; }
+  var y = parseInt(m[3], 10); if (y < 100) y += 2000;
+  return new Date(y, parseInt(m[2], 10) - 1, parseInt(m[1], 10), parseInt(m[4] || 0, 10), parseInt(m[5] || 0, 10), parseInt(m[6] || 0, 10));
+}
+
+function _diaEG_(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(); }
+
 function revisarFaltasEG_() {
   var wsIns = egSheetNuevo_();
   var wsAsist = SS.getSheetByName("EG_Asistencias");
   if (!wsIns || !wsAsist) return;
 
   var asistData = wsAsist.getDataRange().getValues();
-  // Una fila = una clase; col D trae la lista de asistentes separada por
-  // comas (formato ya usado por el historial real de la pestaña).
-  var clasesSet = {};
-  var asistPorNombre = {};
+  // Una fila = una clase; col D trae la lista de asistentes separada por comas.
+  var clasesPorClave = {};
   for (var i = 1; i < asistData.length; i++) {
-    var fechaClase = String(asistData[i][1] || "");
-    var tema = String(asistData[i][2] || "");
-    if (!fechaClase && !tema) continue;
-    var claseKey = fechaClase + "||" + tema;
-    clasesSet[claseKey] = true;
-    String(asistData[i][3] || "").split(",").forEach(function(n) {
-      var nl = n.trim().toLowerCase();
-      if (nl) asistPorNombre[nl] = (asistPorNombre[nl] || 0) + 1;
+    var fecha = _fechaEG_(asistData[i][1]);
+    if (!fecha) continue;
+    var tema = normalizarNombreBib_(asistData[i][2]);
+    var clave = _diaEG_(fecha) + "||" + tema;
+    var c = clasesPorClave[clave] || (clasesPorClave[clave] = { dia: _diaEG_(fecha), asist: {} });
+    String(asistData[i][3] || "").split(",").forEach(function (n) {
+      var nl = normalizarNombreBib_(n);
+      if (nl) c.asist[nl] = true;
     });
   }
-  var totalClases = Object.keys(clasesSet).length;
-  if (totalClases === 0) return;
+  var clases = Object.keys(clasesPorClave).map(function (k) { return clasesPorClave[k]; })
+    .sort(function (x, y) { return x.dia - y.dia; });
+  if (clases.length === 0) return;
 
   var insData = wsIns.getDataRange().getValues();
   for (var k = 1; k < insData.length; k++) {
@@ -715,15 +734,91 @@ function revisarFaltasEG_() {
     var modalidad = String(insData[k][7] || "").trim().toUpperCase();  // Modalidad (H)
     if (estado !== "activo" || modalidad !== "INEA") continue;
 
-    var nombreLower = String(insData[k][0] || "").trim().toLowerCase();
-    var asistio = asistPorNombre[nombreLower] || 0;
-    var faltas = totalClases - asistio;
-
     var yaMarcado = String(insData[k][5] || "").trim().toLowerCase() === "sí"; // Requiere_Seguimiento (F)
-    if (!yaMarcado && faltas >= 3) {
-      wsIns.getRange(k + 1, 6).setValue("Sí");
+    if (yaMarcado) continue;
+
+    var nombreNorm = normalizarNombreBib_(insData[k][0]);
+    var fIns = _fechaEG_(insData[k][3]);                               // Fecha_Inscripcion (D)
+    var diaIns = fIns ? _diaEG_(fIns) : null;
+
+    var racha = 0;
+    for (var j = clases.length - 1; j >= 0; j--) {
+      if (diaIns !== null && clases[j].dia < diaIns) break;
+      if (clases[j].asist[nombreNorm]) break;
+      racha++;
+    }
+    if (racha >= 3 && racha % 3 === 0) wsIns.getRange(k + 1, 6).setValue("Sí");
+  }
+}
+
+// ── Escuela GEB: regresar un inscrito UVL a interesados (prospectos) ──────────
+// Para quien no pasó el examen de UVL: sale de UVL y vuelve a la lista de
+// Prospectos/interesados para ofrecerle otra opción (INEA, Mi Prepa Santander...).
+// Su examen sigue registrado en EG_Examenes. Deja constancia en Notas (col G).
+// Recibe: {tipo:"eg_regresarAProspecto", nombre}
+function handleEgRegresarAProspecto(p) {
+  var ws = egSheetNuevo_();
+  if (!ws) return resp({ ok: false, error: "Pestaña EG_Inscritos no encontrada en el Sheet nuevo" });
+
+  var nombre = (p.nombre || "").trim();
+  if (!nombre) return resp({ ok: false, error: "Falta el nombre" });
+
+  var data = ws.getDataRange().getValues();
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
+      var modAnterior = String(data[i][7] || "").trim();
+      var nota = "Regresó a interesados el " + formatearFechaBib_(new Date()) + (modAnterior ? " (venía de " + modAnterior + ")" : "");
+      var notasPrev = String(data[i][6] || "").trim();
+      ws.getRange(i + 1, 5).setValue("");          // Estado (col E)
+      ws.getRange(i + 1, 6).setValue("");          // Requiere_Seguimiento (col F)
+      ws.getRange(i + 1, 7).setValue(notasPrev ? notasPrev + " | " + nota : nota); // Notas (col G)
+      ws.getRange(i + 1, 8).setValue("");          // Modalidad (col H)
+      ws.getRange(i + 1, 12).setValue("Sí");       // Prospecto (col L)
+      return resp({ ok: true });
     }
   }
+  return resp({ ok: false, error: "No se encontró a " + nombre + " en EG_Inscritos" });
+}
+
+// ── Corrección de nombre en Escuela GEB ──────────────────────────
+// Cambia un nombre en EG_Inscritos, EG_Examenes, Colaboradores (celda del nombre) y
+// dentro de las listas de asistentes de EG_Asistencias. Compara sin acentos ni
+// mayúsculas y reporta cuántas celdas cambió por pestaña.
+function renombrarPersonaEG_(viejo, nuevo) {
+  var nv = normalizarNombreBib_(viejo);
+  var res = [];
+  ["EG_Inscritos", "EG_Examenes", "Colaboradores"].forEach(function (tab) {
+    var ws = SS.getSheetByName(tab);
+    if (!ws) { res.push(tab + ": pestaña no encontrada"); return; }
+    var data = ws.getDataRange().getValues(), n = 0;
+    for (var i = 1; i < data.length; i++) {
+      if (normalizarNombreBib_(data[i][0]) === nv) { ws.getRange(i + 1, 1).setValue(nuevo); n++; }
+    }
+    res.push(tab + ": " + n + " celda(s)");
+  });
+  var wsA = SS.getSheetByName("EG_Asistencias");
+  if (wsA) {
+    var dA = wsA.getDataRange().getValues(), nA = 0;
+    for (var r = 1; r < dA.length; r++) {
+      var partes = String(dA[r][3] || "").split(",");
+      var cambio = false;
+      var nuevas = partes.map(function (x) {
+        if (normalizarNombreBib_(x) === nv) { cambio = true; return nuevo; }
+        return x.trim();
+      });
+      if (cambio) { wsA.getRange(r + 1, 4).setValue(nuevas.join(", ")); nA++; }
+    }
+    res.push("EG_Asistencias: " + nA + " clase(s)");
+  } else {
+    res.push("EG_Asistencias: pestaña no encontrada");
+  }
+  return res;
+}
+
+// Corrección puntual pedida 2026-10-14. Correr una vez desde el menú "GEB CRM".
+function corregirNombreGabrielaMeza() {
+  var res = renombrarPersonaEG_("Gabriela Maza Ramírez", "Gabriela Meza Ramírez");
+  SpreadsheetApp.getUi().alert("Nombre corregido a «Gabriela Meza Ramírez»:\n\n" + res.join("\n"));
 }
 
 // Diagnóstico educativo (col I): se captura al alta (altas.html) pero también se

@@ -657,8 +657,14 @@
 
 <div class="modal-overlay" id="modalDiagnostico">
   <div class="modal-box">
-    <div class="modal-title" id="modalDiagnosticoTitle">Diagnóstico educativo</div>
-    <div class="form-row"><label>Diagnóstico educativo</label>
+    <div class="modal-title" id="modalDiagnosticoTitle">Nivel y diagnóstico educativo</div>
+    <div class="form-row"><label>Nivel que está cursando</label>
+      <select id="mNivelValor">
+        <option value="">— selecciona —</option>
+        <option>Primaria</option><option>Secundaria</option><option>Preparatoria</option>
+      </select>
+    </div>
+    <div class="form-row"><label>Diagnóstico educativo (último nivel concluido)</label>
       <select id="mDiagValor">
         <option value="">— selecciona —</option>
         <option>Primaria</option><option>Secundaria</option><option>Preparatoria</option>
@@ -1432,11 +1438,11 @@ function renderTabla(filtered){
         <td>
           <span class="pill ${mc2}-tag">${d.Modalidad||"—"}</span>
         </td>
-        <td>${d.Nivel||"—"}</td>
+        <td>${d.Nivel||"—"} <button class="atender-btn" style="margin-top:0;" title="Editar nivel y diagnóstico" onclick="abrirModalDiagnostico('${encodeURIComponent(d.Nombre)}','${encodeURIComponent(d.Diagnostico_Edu||"")}','${encodeURIComponent(d.Nivel||"")}')">✎</button></td>
         <td>
           ${d.Diagnostico_Edu ? `<span class="pill diag">${d.Diagnostico_Edu}</span>` : '<span style="color:var(--text-soft);font-size:12px;">—</span>'}
           ${esRezago ? `<span class="pill rezago" title="Concluir su nivel actual la sacaría de rezago educativo">🎯 Clave rezago</span>` : ""}
-          <button class="atender-btn" style="margin-top:4px;" onclick="abrirModalDiagnostico('${encodeURIComponent(d.Nombre)}','${encodeURIComponent(d.Diagnostico_Edu||"")}')">✎</button>
+          <button class="atender-btn" style="margin-top:4px;" title="Editar nivel y diagnóstico" onclick="abrirModalDiagnostico('${encodeURIComponent(d.Nombre)}','${encodeURIComponent(d.Diagnostico_Edu||"")}','${encodeURIComponent(d.Nivel||"")}')">✎</button>
         </td>
         <td>
           ${estadoPill(d.Estado)}
@@ -1879,11 +1885,12 @@ async function reactivarEG(nombreEnc){
   }catch(e){ alert("No se pudo conectar."); }
 }
 
-function abrirModalDiagnostico(nombreEnc, diagEnc){
+function abrirModalDiagnostico(nombreEnc, diagEnc, nivelEnc){
   const nombre = decodeURIComponent(nombreEnc);
-  document.getElementById("modalDiagnosticoTitle").textContent = "Diagnóstico — " + nombre.split(" ")[0];
+  document.getElementById("modalDiagnosticoTitle").textContent = "Nivel y diagnóstico — " + nombre.split(" ")[0];
   document.getElementById("mDiagNombre").value = nombre;
   document.getElementById("mDiagValor").value = decodeURIComponent(diagEnc||"");
+  document.getElementById("mNivelValor").value = decodeURIComponent(nivelEnc||"");
   document.getElementById("mDiagMsg").className = "modal-msg";
   document.getElementById("modalDiagnostico").classList.add("open");
 }
@@ -1891,10 +1898,11 @@ function abrirModalDiagnostico(nombreEnc, diagEnc){
 async function guardarDiagnostico(){
   const nombre = document.getElementById("mDiagNombre").value;
   const diagnosticoEdu = document.getElementById("mDiagValor").value;
+  const nivel = document.getElementById("mNivelValor").value;
   const btn = document.getElementById("mDiagSave");
   btn.disabled = true; btn.textContent = "Guardando…";
   try{
-    const r = await postData({ tipo:"eg_diagnostico", nombre, diagnosticoEdu });
+    const r = await postData({ tipo:"eg_diagnostico", nombre, diagnosticoEdu, nivel });
     if(r.ok){
       showModalMsg("mDiagMsg","ok","Guardado.");
       setTimeout(() => { cerrarModal("modalDiagnostico"); location.reload(); }, 1200);

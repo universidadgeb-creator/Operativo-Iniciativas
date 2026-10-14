@@ -334,6 +334,11 @@
     </div>
     <div class="gcard-grid" id="devPendientesGrid"></div>
     <div id="devSinMatchWrap" style="margin-top:10px;"></div>
+
+    <div class="panel-row" style="margin:20px 0 8px;">
+      <span style="font-size:12.5px; color:var(--text-soft);">Sugerencias de libros por revisar (vienen de la Biblioteca Virtual)</span>
+    </div>
+    <div class="gcard-grid" id="sugerenciasGrid"></div>
   </div>
 
   <!-- TABLA DE PRÉSTAMOS ACTIVOS -->
@@ -502,6 +507,9 @@
 // Devoluciones/Copys tenían datos reales de producción; se copiaron tal cual,
 // no se perdió nada. El Sheet histórico queda como respaldo, sin usarse ya.
 const SHEET_ID = "1oaWADtW9SmqxuOoOM1bf65Ht_NkpE4l_o_DMutN_IbI";
+// Hoja de la Biblioteca Virtual pública: de aquí se leen las sugerencias de libros
+// que manda la gente desde la página de la biblioteca (pestaña "Sugerencias").
+const SHEET_BIBLIOTECA_ID = "1FDZB3aR-YAyVMsiAjo92PuUdH0iTfBmreCWv5DvCpdM";
 const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbypzabPFyTWszyc2-wIPjImOTIitz68R6_okV2yUgxSD6CpkEkfpFlXh8OzgaQWlZYe/exec";
 const TABS = {
   prestamos: "BIB_Prestamos",
@@ -619,6 +627,38 @@ function recalcularFisicos(){
     }));
 }
 
+// Sugerencias de libros (página pública de la Biblioteca Virtual). Columnas por
+// posición, igual que Fisicos: 0=id, 1=nombre, 2=titulo, 3=autor, 4=cat, 5=nota,
+// 6=fecha, 7=aprobada, 8=descartada. Solo se traen las que siguen pendientes.
+async function fetchSugerencias(){
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_BIBLIOTECA_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent("Sugerencias")}`;
+  const res = await fetch(url);
+  const text = await res.text();
+  const data = JSON.parse(text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1));
+  const val = (c, i) => { const x = c[i]; return x ? (x.f !== undefined && x.f !== null ? x.f : x.v) : ""; };
+  const esVerdad = x => x === true || String(x).toLowerCase() === "true";
+  return data.table.rows
+    .map(r => r.c || [])
+    .map(c => ({
+      id: parseInt(c[0] ? c[0].v : 0, 10) || 0,
+      nombre: String(val(c,1) || "").trim(),
+      titulo: String(val(c,2) || "").trim(),
+      autor: String(val(c,3) || "").trim(),
+      cat: String(val(c,4) || "").trim(),
+      nota: String(val(c,5) || "").trim(),
+      fecha: String(val(c,6) || "").trim(),
+      aprobada: esVerdad(c[7] ? c[7].v : false),
+      descartada: esVerdad(c[8] ? c[8].v : false)
+    }))
+    .filter(x => x.id && x.titulo && !x.aprobada && !x.descartada);
+}
+
+// El texto de las sugerencias lo escribe cualquiera desde la página pública:
+// se escapa antes de meterlo al HTML del panel.
+function escHtml(t){
+  return String(t == null ? "" : t).replace(/[&<>"']/g, ch => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[ch]));
+}
+
 /* ============================================================
    UTILIDADES
    ============================================================ */
@@ -714,6 +754,7 @@ function ubicacionDePrestamo(p, mapa){
    RENDER
    ============================================================ */
 let PRESTAMOS = [], DONACIONES = [], DEVOLUCIONES = [], COPYS = [], FISICOS = [];
+let SUGERENCIAS = [], SUGERENCIAS_ERROR = false;
 const SELECCION_ETIQUETAS = new Set();
 let BAJA_EMPRESA_SET = new Set();
 function normNombre(n){ return (n||"").toString().trim().toLowerCase(); }
@@ -773,6 +814,7 @@ function renderMetrics(){
     { val: atrasados.length, lbl: "atrasados", alert: atrasados.length > 0 },
     { val: porVencer.length, lbl: "por vencer (3 días)" },
     { val: devPendientes.length, lbl: "devoluciones sin check físico", alert: devPendientes.length > 0 },
+    { val: SUGERENCIAS.length, lbl: "sugerencias de libros por revisar", alert: SUGERENCIAS.length > 0 },
     { val: donantesUnicos.size, lbl: "donadores (histórico)" },
     { val: receptoresUnicos.size, lbl: "receptores (histórico)" },
   ];
@@ -875,6 +917,19 @@ function renderAtencion(){
         </div>
       `).join("")
     : `<div class="footnote">No hay devoluciones pendientes de confirmar.</div>`;
+
+  document.getElementById("sugerenciasGrid").innerHTML = SUGERENCIAS_ERROR
+    ? `<div class="footnote" style="color:var(--red-text);">No se pudieron leer las sugerencias de la Biblioteca Virtual. Verifica que esa hoja siga compartida como "Cualquier persona con el enlace puede ver".</div>`
+    : SUGERENCIAS.length
+      ? SUGERENCIAS.map(s => `
+        <div class="gcard">
+          <div class="gcard-head"><div><div class="gname">${escHtml(s.titulo)}</div><div class="glibro">${escHtml(s.autor || "autor sin indicar")}${s.cat ? " · " + escHtml(s.cat) : ""}</div></div></div>
+          <div class="glibro">sugerido por ${escHtml(s.nombre || "Anónimo")} · ${escHtml(s.fecha)}</div>
+          ${s.nota ? `<div class="glibro" style="margin:4px 0;">"${escHtml(s.nota)}"</div>` : ""}
+          <button class="ext-btn" onclick="resolverSugerencia(${s.id}, 'aprobar', this)">✓ Aprobar</button>
+          <button class="ext-btn" style="background:var(--red-bg);color:var(--red-text);border-color:#f0c7c7;" onclick="resolverSugerencia(${s.id}, 'descartar', this)">✕ Descartar</button>
+        </div>`).join("")
+      : `<div class="footnote">No hay sugerencias de libros pendientes.</div>`;
 
   const devSinMatch = devolucionesSinMatch();
   document.getElementById("devSinMatchWrap").innerHTML = devSinMatch.length
@@ -1288,6 +1343,28 @@ async function postData(payload){
   return await res.json();
 }
 
+// Aprobar = la sugerencia pasa a mostrarse en "Sugerencias de la comunidad" de la
+// página pública; descartar = se oculta. Igual que el admin de esa página.
+async function resolverSugerencia(id, accion, btnEl){
+  if(accion === "descartar" && !confirm("¿Descartar esta sugerencia? Ya no aparecerá como pendiente.")) return;
+  const original = btnEl.textContent;
+  btnEl.disabled = true; btnEl.textContent = "Guardando…";
+  try{
+    const r = await postData({ tipo:"bib_resolverSugerencia", id, accion });
+    if(r.ok){
+      SUGERENCIAS = SUGERENCIAS.filter(x => x.id !== id);
+      renderMetrics();
+      renderAtencion();
+    } else {
+      alert("Error: " + r.error);
+      btnEl.disabled = false; btnEl.textContent = original;
+    }
+  } catch(e){
+    alert("No se pudo conectar con el servidor.");
+    btnEl.disabled = false; btnEl.textContent = original;
+  }
+}
+
 async function extenderPrestamo(fila, btnEl){
   btnEl.disabled = true; btnEl.textContent = "Extendiendo…";
   try{
@@ -1491,6 +1568,8 @@ async function init(){
       fetchSheetTab(TABS.copys),
       fetchSheetTab("Colaboradores").catch(() => [])
     ]);
+    try{ SUGERENCIAS = await fetchSugerencias(); SUGERENCIAS_ERROR = false; }
+    catch(e){ SUGERENCIAS = []; SUGERENCIAS_ERROR = true; console.error(e); }
 
     PRESTAMOS = prestamos.filter(p => p.nombre && p.nombre.trim() !== "");
     DONACIONES = donaciones.filter(d => d.donante && d.donante.trim() !== "");

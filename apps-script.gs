@@ -301,6 +301,7 @@ function doPost(e) {
     if (tipo === "bib_reportarPerdido")     return handleBibReportarPerdido(payload);
     if (tipo === "bib_confirmarDonacion")   return handleBibConfirmarDonacion(payload);
     if (tipo === "bib_confirmarDonacionLote") return handleBibConfirmarDonacionLote(payload);
+    if (tipo === "bib_resolverSugerencia")  return handleBibResolverSugerencia(payload);
     if (tipo === "bib_confirmarPrestamo")   return handleBibConfirmarPrestamo(payload);
     if (tipo === "admin_ejecutar")          return handleAdminEjecutar(payload);
 
@@ -821,7 +822,7 @@ function corregirNombreGabrielaMeza() {
   SpreadsheetApp.getUi().alert("Nombre corregido a «Gabriela Meza Ramírez»:\n\n" + res.join("\n"));
 }
 
-// Diagnóstico educativo (col I): se captura al alta (altas.html) pero también se
+// Diagnóstico educativo (col I) y Nivel (col J): se capturan al alta (altas.html) pero también se
 // puede poner/corregir desde el panel — alimenta las estadísticas de escolaridad
 // y rezago, que ya no dependen de Concentrado.
 function handleEgDiagnostico(p) {
@@ -834,6 +835,7 @@ function handleEgDiagnostico(p) {
   for (var i = 1; i < data.length; i++) {
     if (String(data[i][0]).trim().toLowerCase() === nombre.toLowerCase()) {
       ws.getRange(i + 1, 9).setValue(p.diagnosticoEdu || ""); // Diagnostico_Edu (col I)
+      if (p.nivel !== undefined) ws.getRange(i + 1, 10).setValue(p.nivel || ""); // Nivel (col J)
       return resp({ ok: true });
     }
   }
@@ -2388,6 +2390,35 @@ function handleBibExtenderPrestamo(p) {
   ws.getRange(fila, idx.fechaCompromiso + 1).setValue(nuevaFecha);
 
   return resp({ ok: true, nuevaFechaCompromiso: formatearFechaBib_(nuevaFecha) });
+}
+
+// ── Biblioteca: Aprobar o descartar una sugerencia de libro ─────
+// Las sugerencias las manda la gente desde la página pública de la Biblioteca
+// Virtual y viven en la pestaña "Sugerencias" de SU Sheet (SHEET_BIBLIOTECA_ID):
+// id, nombre, titulo, autor, cat, nota, fecha, aprobada, descartada. Aquí solo
+// se marca la casilla de la fila con ese id — no se reescribe la hoja completa
+// (la página pública sí lo hace desde su admin, y podría pisar cambios).
+// Recibe: {tipo:"bib_resolverSugerencia", id, accion:"aprobar"|"descartar"}
+function handleBibResolverSugerencia(p) {
+  const id = parseInt(p.id, 10);
+  if (!id) return resp({ ok: false, error: "id inválido" });
+  if (p.accion !== "aprobar" && p.accion !== "descartar") return resp({ ok: false, error: "acción inválida" });
+
+  const ws = SpreadsheetApp.openById(SHEET_BIBLIOTECA_ID).getSheetByName("Sugerencias");
+  if (!ws) return resp({ ok: false, error: "Pestaña Sugerencias no encontrada en la Biblioteca Virtual" });
+
+  const datos = ws.getDataRange().getValues();
+  const headers = datos[0].map(h => String(h || "").trim().toLowerCase());
+  const col = headers.indexOf(p.accion === "aprobar" ? "aprobada" : "descartada");
+  if (col < 0) return resp({ ok: false, error: "No se encontró la columna " + (p.accion === "aprobar" ? "aprobada" : "descartada") });
+
+  for (let i = 1; i < datos.length; i++) {
+    if (parseInt(datos[i][0], 10) === id) {
+      ws.getRange(i + 1, col + 1).setValue(true);
+      return resp({ ok: true });
+    }
+  }
+  return resp({ ok: false, error: "No se encontró la sugerencia " + id });
 }
 
 // ── Biblioteca: Confirmar préstamo (asignar libro correcto) ─────

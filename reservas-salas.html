@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reserva de salas — GEB Iniciativas Humanas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#0B2545; --gold:#C49B4C; --bg:#F7F5F0; --card:#FFFFFF;
+    --text:#1C2A3A; --text-soft:#5C6B7A; --border:#E3E1D9;
+    --green-bg:#EAF3DE; --green-text:#3B6D11;
+    --amber-bg:#FAEEDA; --amber-text:#854F0B;
+    --gray-bg:#F1EFE8; --gray-text:#5F5E5A;
+    --red-bg:#FCEBEB; --red-text:#A32D2D;
+    --blue-bg:#E6F1FB; --blue-text:#185FA5;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);}
+  .wrap{max-width:1180px;margin:0 auto;padding:24px 20px 60px;}
+
+  .topbar{background:var(--blue);color:#fff;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;}
+  .topbar .brand{display:flex;align-items:center;gap:10px;}
+  .topbar .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--gold);}
+  .topbar .brand-text{font-family:'Cormorant Garamond',serif;font-size:19px;font-weight:600;letter-spacing:.01em;}
+  .topbar .meta{font-size:12px;color:#C9D3DF;}
+
+  .back-link{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:500;color:var(--text-soft);text-decoration:none;margin-bottom:14px;}
+  .back-link:hover{color:var(--blue);}
+
+  header.page-header{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:28px;flex-wrap:wrap;gap:10px;border-bottom:2px solid var(--gold);padding-bottom:16px;}
+  header.page-header h1{font-family:'Cormorant Garamond',serif;font-size:34px;font-weight:600;color:var(--blue);}
+  header.page-header .sub{color:var(--text-soft);font-size:13px;}
+
+  .metric-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:28px;}
+  .metric{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;}
+  .metric.alert{background:var(--amber-bg);border-color:#f0d39a;}
+  .metric .val{font-size:26px;font-weight:700;color:var(--blue);line-height:1.1;}
+  .metric.alert .val{color:var(--amber-text);}
+  .metric .lbl{font-size:12px;color:var(--text-soft);margin-top:4px;}
+  .metric.alert .lbl{color:var(--amber-text);}
+
+  .section{margin-bottom:30px;}
+  .section-title{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:600;color:var(--blue);margin-bottom:12px;}
+  .section-divider{display:flex;align-items:center;gap:10px;margin:34px 0 18px;}
+  .divider-label{font-size:12px;font-weight:700;color:var(--text-soft);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;}
+  .divider-line{height:1px;background:var(--border);flex:1;}
+
+  .pill{display:inline-block;font-size:11px;font-weight:600;padding:2px 9px;border-radius:99px;margin-right:4px;margin-bottom:4px;}
+  .pill.pendiente{background:var(--amber-bg);color:var(--amber-text);}
+  .pill.sala{background:var(--blue-bg);color:var(--blue-text);}
+
+  .gcard-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:12px;}
+  .gcard{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;border-left:4px solid var(--gold);}
+  .gcard.pend{background:#FFFBF1;border-color:#f0d39a;border-left-color:var(--amber-text);}
+  .gname{font-size:14px;font-weight:700;color:var(--blue);}
+  .gsub{font-size:12px;color:var(--text-soft);margin:3px 0 8px;}
+
+  .action-btn{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;border-radius:7px;padding:6px 10px;cursor:pointer;margin:2px;border:1px solid;font-family:inherit;}
+  .action-btn.ok{color:var(--green-text);background:var(--green-bg);border-color:#bfe0a0;}
+  .action-btn.ok:hover{background:#dcedc7;}
+  .action-btn.baja{color:var(--red-text);background:var(--red-bg);border-color:#f0c7c7;}
+  .action-btn.baja:hover{background:#f8d8d8;}
+  .action-btn.neutral{color:var(--blue-text);background:var(--blue-bg);border-color:#c5d9f0;}
+  .action-btn.neutral:hover{background:#d4e5f7;}
+  .action-btn:disabled{opacity:.5;cursor:not-allowed;}
+
+  .filters{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
+  .filters input,.filters select{font-size:13px;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:inherit;}
+  .filters input{width:240px;}
+
+  .table-wrap{overflow-x:auto;background:var(--card);border:1px solid var(--border);border-radius:12px;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  thead th{text-align:left;font-size:11px;font-weight:700;color:var(--text-soft);padding:10px 12px;border-bottom:1px solid var(--border);white-space:nowrap;text-transform:uppercase;letter-spacing:.03em;}
+  tbody td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle;}
+  tbody tr:last-child td{border-bottom:none;}
+  .dot-sala{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;}
+
+  .footnote{font-size:11.5px;color:var(--text-soft);display:flex;align-items:center;gap:6px;padding:12px 4px;}
+  .empty-state{font-size:13px;color:var(--text-soft);padding:14px 4px;}
+  .loading,.errorbox{text-align:center;padding:40px;color:var(--text-soft);font-size:14px;}
+  .errorbox{color:var(--red-text);}
+  .progress{height:6px;background:var(--border);border-radius:99px;overflow:hidden;max-width:320px;margin:12px auto 0;}
+  .progress > div{height:100%;width:0;background:var(--gold);transition:width .2s;}
+
+  @media(max-width:720px){.metric-grid{grid-template-columns:repeat(2,1fr);}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><span class="dot"></span><span class="brand-text">GEB University — Iniciativas Humanas</span></div>
+  <div class="meta">Panel interno</div>
+</div>
+
+<div class="wrap">
+
+  <a href="index.html" class="back-link">← volver al panel general</a>
+
+  <header class="page-header">
+    <div>
+      <h1>Reserva de salas</h1>
+      <div class="sub">Vivo47 Naciones y Vivo47 Center — solicitudes de eliminación y reservas de los próximos 30 días</div>
+    </div>
+    <div class="sub" id="lastSync"></div>
+  </header>
+
+  <div class="loading" id="loadingMsg">
+    Cargando reservas de los calendarios…
+    <div class="progress"><div id="progressBar"></div></div>
+  </div>
+  <div class="errorbox" id="errorMsg" style="display:none;"></div>
+
+  <div id="appContent" style="display:none;">
+
+    <div class="metric-grid" id="metricsGrid"></div>
+
+    <div class="section-divider">
+      <span class="divider-label">Solicitudes de eliminación pendientes</span>
+      <span class="divider-line"></span>
+    </div>
+    <div class="section">
+      <div class="gcard-grid" id="pendientesGrid"></div>
+      <div class="footnote">Aprobar borra la reserva del calendario. Rechazar la deja como estaba y quita la solicitud.</div>
+    </div>
+
+    <div class="section-divider">
+      <span class="divider-label">Reservas · próximos 30 días</span>
+      <span class="divider-line"></span>
+    </div>
+    <div class="section">
+      <div class="filters">
+        <input type="text" id="fSearch" placeholder="buscar título…">
+        <select id="fSede"><option value="">todas las sedes</option></select>
+        <select id="fSala"><option value="">todas las salas</option></select>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Fecha</th><th>Horario</th><th>Sala</th><th>Reserva</th><th></th></tr></thead>
+          <tbody id="reservasBody"></tbody>
+        </table>
+      </div>
+      <div class="footnote">📅 datos en vivo desde los calendarios de Google de cada sala (a través del mismo Apps Script que usa la página pública de reservas). Para crear o mover una reserva se usa esa página pública.</div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   CONFIGURACIÓN — misma que la página pública de reservas
+   ============================================================ */
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw6ZpgMj5SCQMsP5Gf244I0uuEFQm0jv0j__7J_ukMePSorisiq-gJ3a_w9OFmJ81f9AQ/exec";
+const DIAS = 30;
+const CONCURRENCIA = 8;
+const DELETE_PREFIX = "[BORRAR]";
+const TZ = "America/Mexico_City";
+
+const SEDES = {
+  "Vivo47 Naciones": [
+    { id:"local-k",     nombre:"Local K",     color:"#2E4EC7", calId:"b489990a82f312bd57eb16d356b7a852c37e11ade98039ee3011a899b513d17c@group.calendar.google.com" },
+    { id:"universidad", nombre:"Universidad", color:"#0E8F7E", calId:"a3fd1245fe878340f0d05166e419c6ebe2f30cae542a1e5c5c9c52ebec9ceeaa@group.calendar.google.com" }
+  ],
+  "Vivo47 Center": [
+    { id:"amor",     nombre:"Amor",     color:"#C94B8C", calId:"a3d4a39c371a100fe43877370036e06832f715a7140406c884cab139a269ced3@group.calendar.google.com" },
+    { id:"cuidado",  nombre:"Cuidado",  color:"#C77D18", calId:"85bbcbcb3e853108c12f4f31dfc9183178ac118cecf4776e20074d47b23ff0c3@group.calendar.google.com" },
+    { id:"servicio", nombre:"Servicio", color:"#6E4BB5", calId:"8407baea9a214403ca9058f0608421983871d4fe8851195b0014d0e419004890@group.calendar.google.com" }
+  ]
+};
+const SALAS = Object.entries(SEDES).flatMap(([sede, salas]) => salas.map(s => ({ ...s, sede })));
+
+/* ============================================================
+   UTILIDADES
+   ============================================================ */
+let EVENTOS = []; // { sala, ev, ini, fin, pendiente, titulo }
+
+function esc(t){
+  return String(t == null ? "" : t).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+}
+function esPendiente(ev){ return !!(ev.summary && ev.summary.startsWith(DELETE_PREFIX)); }
+function tituloLimpio(summary){
+  if(!summary) return "(sin título)";
+  return summary.replace(DELETE_PREFIX, "").replace(/\s*\(solicitó:.*?\)\s*$/, "").trim() || "(sin título)";
+}
+function quienSolicito(summary){
+  const m = (summary || "").match(/\(solicitó:\s*(.*?)\)\s*$/);
+  return m ? m[1] : "";
+}
+function fmtFecha(d){
+  return d.toLocaleDateString("es-MX", { weekday:"short", day:"2-digit", month:"short", timeZone:TZ });
+}
+function fmtHora(d){
+  return d.toLocaleTimeString("es-MX", { hour:"2-digit", minute:"2-digit", hour12:false, timeZone:TZ });
+}
+function isoHoyMX(offset){
+  const hoy = new Date().toLocaleDateString("en-CA", { timeZone:TZ }); // yyyy-mm-dd
+  const [y, m, d] = hoy.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + offset)).toISOString().slice(0, 10);
+}
+
+/* ============================================================
+   API (Apps Script de reservas)
+   ============================================================ */
+async function getEventos(calId, fecha){
+  const url = `${APPS_SCRIPT_URL}?action=getEvents&calendarId=${encodeURIComponent(calId)}&date=${fecha}`;
+  const res = await fetch(url, { redirect:"follow" });
+  if(!res.ok) throw new Error("HTTP " + res.status);
+  const data = await res.json();
+  if(!data.success) throw new Error(data.error || "Error al leer eventos");
+  return data.items || [];
+}
+async function callProxy(payload){
+  const res = await fetch(APPS_SCRIPT_URL, { method:"POST", body:JSON.stringify(payload), redirect:"follow" });
+  if(!res.ok) throw new Error("HTTP " + res.status);
+  const data = await res.json();
+  if(!data.success) throw new Error(data.error || "Error en el servidor de reservas");
+  return data;
+}
+const borrarEvento = (calId, eventId) => callProxy({ action:"delete", calendarId:calId, eventId });
+const crearEvento = (calId, title, startISO, endISO) => callProxy({ action:"create", calendarId:calId, title, startISO, endISO });
+
+/* ============================================================
+   CARGA — 30 días × 5 salas, con concurrencia limitada
+   ============================================================ */
+async function cargarTodo(){
+  const tareas = [];
+  SALAS.forEach(sala => { for(let i = 0; i < DIAS; i++) tareas.push({ sala, fecha: isoHoyMX(i) }); });
+
+  const vistos = new Set();
+  const lista = [];
+  let hechas = 0, fallidas = 0, idx = 0;
+  const bar = document.getElementById("progressBar");
+
+  async function worker(){
+    while(idx < tareas.length){
+      const t = tareas[idx++];
+      try{
+        const items = await getEventos(t.sala.calId, t.fecha);
+        items.forEach(ev => {
+          const clave = t.sala.id + "|" + ev.id;
+          if(vistos.has(clave)) return; // un evento que cruza medianoche sale en dos días
+          vistos.add(clave);
+          const ini = new Date(ev.start.dateTime || ev.start.date);
+          const fin = new Date(ev.end.dateTime || ev.end.date);
+          lista.push({ sala: t.sala, ev, ini, fin, pendiente: esPendiente(ev), titulo: tituloLimpio(ev.summary) });
+        });
+      } catch(e){ fallidas++; }
+      hechas++;
+      bar.style.width = Math.round(hechas / tareas.length * 100) + "%";
+    }
+  }
+  await Promise.all(Array.from({ length: CONCURRENCIA }, worker));
+
+  lista.sort((a, b) => a.ini - b.ini);
+  EVENTOS = lista;
+  return { total: tareas.length, fallidas };
+}
+
+/* ============================================================
+   RENDER
+   ============================================================ */
+function renderMetrics(){
+  const pend = EVENTOS.filter(e => e.pendiente).length;
+  const hoyStr = isoHoyMX(0);
+  const hoy = EVENTOS.filter(e => !e.pendiente && e.ini.toLocaleDateString("en-CA", { timeZone:TZ }) === hoyStr).length;
+  const resto = EVENTOS.filter(e => !e.pendiente).length;
+  const m = [
+    { val: pend,  lbl: "solicitudes de eliminación", alert: pend > 0 },
+    { val: resto, lbl: "reservas próximos 30 días" },
+    { val: hoy,   lbl: "reservas hoy" },
+    { val: SALAS.length, lbl: "salas (2 sedes)" }
+  ];
+  document.getElementById("metricsGrid").innerHTML = m.map(x => `
+    <div class="metric ${x.alert ? "alert" : ""}">
+      <div class="val">${x.val}</div><div class="lbl">${x.lbl}</div>
+    </div>`).join("");
+}
+
+function renderPendientes(){
+  const pend = EVENTOS.map((e, i) => ({ e, i })).filter(x => x.e.pendiente);
+  document.getElementById("pendientesGrid").innerHTML = pend.length
+    ? pend.map(({ e, i }) => {
+        const quien = quienSolicito(e.ev.summary);
+        return `
+        <div class="gcard pend">
+          <span class="pill pendiente">⏳ pendiente</span><span class="pill sala">${esc(e.sala.sede)} · ${esc(e.sala.nombre)}</span>
+          <div class="gname">${esc(e.titulo)}</div>
+          <div class="gsub">${esc(fmtFecha(e.ini))} · ${fmtHora(e.ini)} – ${fmtHora(e.fin)}${quien ? " · solicitó: " + esc(quien) : ""}</div>
+          <button class="action-btn ok" onclick="aprobarEliminacion(${i}, this)">✓ Aprobar eliminación</button>
+          <button class="action-btn neutral" onclick="rechazarEliminacion(${i}, this)">↩ Rechazar y restaurar</button>
+        </div>`;
+      }).join("")
+    : `<div class="empty-state">No hay solicitudes de eliminación pendientes.</div>`;
+}
+
+function renderReservas(){
+  const q = document.getElementById("fSearch").value.trim().toLowerCase();
+  const sede = document.getElementById("fSede").value;
+  const sala = document.getElementById("fSala").value;
+  const filas = EVENTOS.map((e, i) => ({ e, i })).filter(({ e }) =>
+    !e.pendiente &&
+    (!q || e.titulo.toLowerCase().includes(q)) &&
+    (!sede || e.sala.sede === sede) &&
+    (!sala || e.sala.id === sala)
+  );
+  document.getElementById("reservasBody").innerHTML = filas.length
+    ? filas.map(({ e, i }) => `
+      <tr>
+        <td>${esc(fmtFecha(e.ini))}</td>
+        <td>${fmtHora(e.ini)} – ${fmtHora(e.fin)}</td>
+        <td><span class="dot-sala" style="background:${e.sala.color}"></span>${esc(e.sala.sede)} · ${esc(e.sala.nombre)}</td>
+        <td style="font-weight:600;">${esc(e.titulo)}</td>
+        <td><button class="action-btn baja" onclick="eliminarReserva(${i}, this)">🗑 Eliminar</button></td>
+      </tr>`).join("")
+    : `<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--text-soft);">Sin reservas con esos filtros</td></tr>`;
+}
+
+function renderTodo(){ renderMetrics(); renderPendientes(); renderReservas(); }
+
+/* ============================================================
+   ACCIONES
+   ============================================================ */
+async function aprobarEliminacion(i, btn){
+  const e = EVENTOS[i];
+  if(!confirm(`¿Aprobar la eliminación de "${e.titulo}" (${fmtFecha(e.ini)}, ${fmtHora(e.ini)})?\n\nSe borra del calendario.`)) return;
+  btn.disabled = true; btn.textContent = "Eliminando…";
+  try{
+    await borrarEvento(e.sala.calId, e.ev.id);
+    EVENTOS[i] = null; EVENTOS = EVENTOS.filter(Boolean);
+    renderTodo();
+  } catch(err){ alert("No se pudo eliminar: " + err.message); btn.disabled = false; btn.textContent = "✓ Aprobar eliminación"; }
+}
+
+async function rechazarEliminacion(i, btn){
+  const e = EVENTOS[i];
+  if(!confirm(`¿Rechazar la solicitud y dejar "${e.titulo}" como estaba?`)) return;
+  btn.disabled = true; btn.textContent = "Restaurando…";
+  try{
+    const startISO = e.ev.start.dateTime || e.ev.start.date;
+    const endISO = e.ev.end.dateTime || e.ev.end.date;
+    await borrarEvento(e.sala.calId, e.ev.id);
+    await crearEvento(e.sala.calId, e.titulo, startISO, endISO);
+    // El evento recreado tiene otro id: se recarga para que quede en la lista normal.
+    await recargar();
+  } catch(err){ alert("No se pudo restaurar: " + err.message + "\nRevisa el calendario de la sala antes de reintentar."); btn.disabled = false; btn.textContent = "↩ Rechazar y restaurar"; }
+}
+
+async function eliminarReserva(i, btn){
+  const e = EVENTOS[i];
+  if(!confirm(`¿Eliminar la reserva "${e.titulo}"?\n${e.sala.sede} · ${e.sala.nombre}\n${fmtFecha(e.ini)}, ${fmtHora(e.ini)} – ${fmtHora(e.fin)}\n\nSe borra del calendario y no se puede deshacer desde aquí.`)) return;
+  btn.disabled = true; btn.textContent = "Eliminando…";
+  try{
+    await borrarEvento(e.sala.calId, e.ev.id);
+    EVENTOS[i] = null; EVENTOS = EVENTOS.filter(Boolean);
+    renderTodo();
+  } catch(err){ alert("No se pudo eliminar: " + err.message); btn.disabled = false; btn.textContent = "🗑 Eliminar"; }
+}
+
+async function recargar(){
+  document.getElementById("progressBar").style.width = "0";
+  document.getElementById("loadingMsg").style.display = "block";
+  document.getElementById("appContent").style.display = "none";
+  const r = await cargarTodo();
+  mostrar(r);
+}
+
+function mostrar(r){
+  document.getElementById("loadingMsg").style.display = "none";
+  const eb = document.getElementById("errorMsg");
+  if(r.fallidas > r.total * 0.5){
+    eb.style.display = "block";
+    eb.textContent = "No se pudieron leer las reservas desde Google Calendar. Intenta recargar en unos minutos.";
+    return;
+  }
+  eb.style.display = r.fallidas ? "block" : "none";
+  if(r.fallidas) eb.textContent = `Aviso: ${r.fallidas} consulta(s) fallaron, puede que falte alguna reserva. Recarga para reintentar.`;
+  document.getElementById("appContent").style.display = "block";
+  document.getElementById("lastSync").textContent = "actualizado: " + new Date().toLocaleString("es-MX", { dateStyle:"medium", timeStyle:"short" });
+  renderTodo();
+}
+
+/* ============================================================
+   INIT
+   ============================================================ */
+async function init(){
+  const selSede = document.getElementById("fSede");
+  Object.keys(SEDES).forEach(s => selSede.insertAdjacentHTML("beforeend", `<option value="${esc(s)}">${esc(s)}</option>`));
+  const selSala = document.getElementById("fSala");
+  SALAS.forEach(s => selSala.insertAdjacentHTML("beforeend", `<option value="${esc(s.id)}">${esc(s.sede)} · ${esc(s.nombre)}</option>`));
+  document.getElementById("fSearch").addEventListener("input", renderReservas);
+  selSede.addEventListener("change", renderReservas);
+  selSala.addEventListener("change", renderReservas);
+
+  try{
+    const r = await cargarTodo();
+    mostrar(r);
+  } catch(err){
+    document.getElementById("loadingMsg").style.display = "none";
+    const eb = document.getElementById("errorMsg");
+    eb.style.display = "block";
+    eb.textContent = "No se pudieron cargar las reservas.";
+    console.error(err);
+  }
+}
+
+init();
+</script>
+</body>
+</html>
